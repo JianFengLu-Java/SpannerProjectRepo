@@ -13,20 +13,38 @@
 
             <!-- 注册表单主体 -->
             <div class="col-span-5 row-span-4 rounded-lg ml-30 mr-30 mb-10">
-                <form class="flex flex-col gap-3">
-                    <div class=" w-full justify-center items-center flex bg-amber-50">
+                <n-form label-placement="left" class="flex flex-col">
+                    <div class=" w-full justify-center items-center flex">
                         <div class=" w-30">
                             <n-upload list-type="image-card" :max="1" :on-before-upload="beforeUpload"
                                 :on-finish="handleUploadFinish" :on-error="handleUploadError"
-                                :custom-request="customUploadRequest">
+                                :custom-request="customUploadRequest" :show-preview-button="false">
                             </n-upload>
                         </div>
                     </div>
-                    <n-input v-model:value="userName" placeholder="用户名" class="w-full" clearable />
-                    <n-input-group>
-                        <n-input v-model:value="email" placeholder="邮箱" class="w-full" clearable />
-                        <n-input-group-label class="!important rounded-r-3xl">{{ emailSuffix }}</n-input-group-label>
-                    </n-input-group>
+                    <n-form-item path="userName" label="真实姓名:">
+                        <n-input v-model:value="userName" placeholder="输入您的真实姓名" class="w-full" clearable />
+
+                    </n-form-item>
+                    <n-form-item path="email" label="邮箱地址:">
+                        <n-input-group>
+                            <n-input v-model:value="email" placeholder="邮箱" class="w-full" clearable />
+                            <n-input-group-label class="!important rounded-r-3xl">{{ emailSuffix
+                                }}</n-input-group-label>
+                        </n-input-group>
+                    </n-form-item>
+                    <n-form-item path="sex" label="性别:">
+                        <div class=" pl-6 w-full">
+                            <n-radio-group v-model:value="sex">
+                                <n-radio v-for="option in sexChange" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                </n-radio>
+                            </n-radio-group>
+                        </div>
+
+                    </n-form-item>
+
+
                     <n-input v-model:value="address" placeholder="地址" class="w-full" clearable />
                     <n-input v-model:value="password" type="password" placeholder="密码" show-password-on="mousedown"
                         class="w-full" clearable />
@@ -38,7 +56,7 @@
                         <n-button class="w-full col-span-5" :render-icon="goBackIcon"
                             @click="$router.push('/login')">返回</n-button>
                     </div>
-                </form>
+                </n-form>
             </div>
             <div>
                 <n-json-pretty :data="displayData" />
@@ -55,10 +73,27 @@
  */
 import { h, ref } from 'vue'
 import { ArrowBackCircleOutline as GoBackIcon } from '@vicons/ionicons5'
-import { useTitleStore } from '../stores/title'
+import { useTitleStore } from '../../stores/title'
 import { useMessage } from 'naive-ui'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
+
+
+const sex = ref<string | null>(null)
+const sexChange = [{
+    value: "male",
+    label: "男"
+},
+{
+    value: "female",
+    label: "女"
+}
+].map((s) => {
+    s.value = s.value
+    return s
+})
+
+
 
 const emailSuffix = ref('@oakevergames.com')
 const message = useMessage()
@@ -80,6 +115,7 @@ async function submitRegistration() {
         confirmPassword: confirmPassword.value,
         avatarUrl: avatarUrl.value,
         address: address.value,
+        sex: sex.value,
     }
     console.log('Submitting registration with data:', displayData.value)
 
@@ -96,6 +132,13 @@ async function submitRegistration() {
     if (response.data.code === 200) {
         message.success('注册成功！请登录。')
         // router.push('/login')
+
+        router.push({
+            name: 'RegisterResult',
+            params: {
+                userInfo: "12345"
+            }
+        })
     } else {
         message.error(`注册失败：${response.data.message}`)
     }
