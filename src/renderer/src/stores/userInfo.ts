@@ -7,16 +7,5 @@ export const useUserInfo = defineStore("userInfo",{
         email:'',
         avtarUrl:'',
         userAccoutNum:''
-    }),
-    actions: {
-        setUserName(newUserName){
-            this.userName = newUserName
-        },
-        setSex(newSex){
-            this.userName = newSex
-        },
-        setUserAccountNum(newUserAccountNum){
-            this.userName = newUserAccountNum
-        },
-    }
+    })
 }) 

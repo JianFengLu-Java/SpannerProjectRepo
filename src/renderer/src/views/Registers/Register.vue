@@ -78,6 +78,8 @@ import { useMessage } from 'naive-ui'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 
+const updateAvatarUrl = 'http://localhost:8080/files/update/avatar'
+
 
 const sex = ref<string | null>(null)
 const sexChange = [{
@@ -120,7 +122,7 @@ async function submitRegistration() {
     console.log('Submitting registration with data:', displayData.value)
 
     const response = await axios.post(
-        'http://localhost:8080/users/register',
+        updateAvatarUrl,
         displayData.value,
         {
             headers: {
@@ -153,7 +155,7 @@ async function customUploadRequest({ file, onFinish, onError }) {
 
     try {
         const response = await axios.post(
-            'http://localhost:8080/files/upload',
+            updateAvatarUrl,
             formData,
             {
                 headers: {
@@ -183,11 +185,11 @@ function beforeUpload({ file }) {
 }
 
 function handleUploadFinish({ file }) {
-    console.log(file.response)
+    console.log(file.response.status)
     const response = file.response
 
-    if (response?.code === 200) {
-        avatarUrl.value = response.data.url
+    if (response?.status === "success") {
+        avatarUrl.value = response.fileUrl
         message.success('头像上传成功！')
     } else {
         message.error('头像上传失败，请重试！')
