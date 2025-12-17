@@ -27,6 +27,7 @@
 		"@tailwindcss/vite": "^4.1.17",
 		"axios": "^1.13.2",
 		"electron-updater": "^6.3.9",
+		"element-china-area-data": "^6.1.0",
 		"pinia": "^3.0.4",
 		"sockjs-client": "^1.6.1",
 		"tailwindcss": "^4.1.17",

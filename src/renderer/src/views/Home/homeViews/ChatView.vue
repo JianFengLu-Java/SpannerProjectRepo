@@ -1,21 +1,22 @@
 <template>
     <div class="root gap-0.5">
-        <div class="flex rounded-sm bg-white" :style="{ width: listWidth + 'px' }">
+        <div class="flex rounded-xl bg-white overflow-hidden" :style="{ width: listWidth + 'px' }">
             list view
         </div>
 
-        <div class="drag hover:bg-green-400  duration-1200 rounded-2xl" @mousedown="startDrag" />
+        <div class="drag-width hover:bg-green-400  duration-1200 rounded-2xl" @mousedown="startDrag" />
 
-        <div class=" flex rounded-sm  bg-white w-full">
-            🚧
+        <div class=" flex rounded-xl overflow-hidden  bg-white w-full">
+            <ChatDemo/>
         </div>
     </div>
 </template>
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useTitleStore } from '@renderer/stores/title'
+import ChatDemo from '@renderer/components/ChatDemo.vue'
 
-const listWidth = ref(250)
+const listWidth = ref(300)
 const titleStore = useTitleStore()
 titleStore.setTitle('聊天')
 
@@ -33,7 +34,7 @@ function startDrag(e: MouseEvent) {
 
 function onMove(e: MouseEvent) {
     const delta = e.clientX - startX
-    listWidth.value = Math.min(300, Math.max(230, startWidth + delta))
+    listWidth.value = Math.min(500, Math.max(270, startWidth + delta))
 }
 
 function stopDrag() {
@@ -49,7 +50,7 @@ function stopDrag() {
 }
 
 
-.drag {
+.drag-width {
     width: 4px;
     cursor: col-resize;
 

@@ -1,22 +1,20 @@
 <template>
-    <div class="w-[62px] h-full flex flex-col items-center justify-between rounded-[14px]">
+    <div class="w-[72px] gap-3 h-full flex flex-col items-center justify-between rounded-[14px]">
         <!-- 顶部：头像 -->
-        <div class="mt-4 flex flex-col items-center gap-4">
+        <div class="mt-8 flex flex-col items-center gap-4">
             <n-avatar round src="https://http.cat/200" />
         </div>
-
-        <n-divider />
 
         <div class="flex-1 w-full flex flex-col items-center gap-4 rounded-md  p-2">
             <!-- 自定义按钮结构 -->
             <div v-for="item in menus" :key="item.key" @click="go(item)" :class="[
-                'flex flex-col items-center justify-center gap-1 h-14 w-14 cursor-pointer rounded-lg transition-all',
+                'flex flex-col items-center justify-center gap-1 h-14 w-16 cursor-pointer rounded-lg transition-all',
                 route.name === item.name
                     ? ' bg-white text-primary-600'
                     : 'hover:bg-gray-50 '
             ]">
                 <!-- 图标 -->
-                <n-icon size="24" :color="route.name === item.name ? '#18a058' : '#aaa'">
+                <n-icon size="28" :color="route.name === item.name ? '#18a058' : '#aaa'">
                     <component :is="iconMap[item.icon]" />
                 </n-icon>
 
