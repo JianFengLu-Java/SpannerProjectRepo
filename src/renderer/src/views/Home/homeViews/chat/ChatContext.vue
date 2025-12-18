@@ -5,7 +5,7 @@
 			class="h-20 border-b border-gray-200 flex item-center justify-between w-full p-3"
 		>
 			<div class="flex gap-2 items-center">
-				<n-avatar></n-avatar>
+				<n-avatar :src="currentChat?.avatar"></n-avatar>
 				<div class="flex flex-col">
 					<span class="text-lg text-zinc-800">{{
 						currentChat?.name
