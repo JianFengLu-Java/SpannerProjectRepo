@@ -31,8 +31,7 @@ const themeOverrides: GlobalThemeOverrides = {
   <n-config-provider :theme-overrides="themeOverrides">
     <n-theme-editor>
       <div class=" h-screen w-screen overflow-hidden relative">
-      <div class="drag w-fll h-9  fixed  top-0  left-0 right-0 z-50"></div>
-
+        <div class="drag w-full h-9  fixed  top-0  left-0 right-0 z-50"></div>
         <div class=" h-full w-full  overflow-hidden  ">
           <n-message-provider>
             <router-view />
