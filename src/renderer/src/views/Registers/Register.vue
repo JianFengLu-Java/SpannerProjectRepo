@@ -13,7 +13,7 @@
 			</div>
 
 			<!-- 表单主体 -->
-			<div class="col-span-5 row-span-4 rounded-lg ml-30 mr-30 mb-10">
+			<div class="col-span-5 row-span-8 rounded-lg ml-30 mr-30 mb-10">
 				<!-- 头像上传 -->
 
 				<!-- 注册表单 -->
