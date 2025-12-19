@@ -1,50 +1,21 @@
-import { is } from "@electron-toolkit/utils";
-import { ipcMain,BrowserWindow } from "electron"
-import { join } from 'path'
+import { openLoginWindow,openHomeWindow,openRegisterWindow } from "../windowStatue/windowManage"
+import { ipcMain } from "electron"
 
-let onlyWindow: BrowserWindow | null = null;
+function login():void {
 
-function createNewWindow(): void {
-
-    if (onlyWindow) {
-        onlyWindow.show();
-        onlyWindow.focus();
-        return;
-    }
-
-    // Create the browser window.
-    const newWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
-        titleBarStyle: 'hiddenInset',
-        webPreferences: {
-            preload: join(__dirname, '../preload/index.js'),
-            sandbox: false
-        }
+    ipcMain.on('login-success-open-home',()=>{
+        openHomeWindow();
     })
-    onlyWindow = newWindow;
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    newWindow.loadURL( process.env['ELECTRON_RENDERER_URL'] + '#/register' );
-  }
+
+    ipcMain.on('open-register-window',()=>{
+        openRegisterWindow();
+    }
+    )
     
-    newWindow.on('closed', () => {
-        // @ts-ignores
-        onlyWindow = null;  
-    });
+    ipcMain.on('register-success-open-loginWindow',()=>{
+        openLoginWindow();
     }
-
-
-function login(): boolean {
-
-    ipcMain.on('hello',(): String=>{
-        console.log('nihao!')
-        return '你好！'
-    })
-    ipcMain.on('open-login-window',()=>{
-        createNewWindow();
-    })
-
-    return true
+    )
 }
 
 export default login;

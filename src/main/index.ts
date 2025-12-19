@@ -3,16 +3,23 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import login from './controller/login'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
+
+
+import { openHomeWindow,openLoginWindow,openRegisterWindow } from './windowStatue/windowManage'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 let isQuitting = false;
 
 function createWindow(): void {
   // Create the browser window.
   let mainWindow: BrowserWindow | null = new BrowserWindow({
-    width: 900,
-    height: 750,
-    minHeight: 670,
-    minWidth: 900,
+    width: 320,
+    height: 540,
+    resizable: false,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
@@ -69,10 +76,8 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-
-  ipcMain.on('ping', () => console.log('pong'))
-
-  createWindow()
+  
+  openLoginWindow();
   login();
 
   app.on('activate', function () {

@@ -4,8 +4,16 @@
         <div class="mt-10 flex flex-col items-center gap-4">
             <n-avatar round src="https://http.cat/200" />
         </div>
+        <div>
+            <div
+                class=" text-zinc-800 w-9 h-9 flex justify-center bg-gray-50 items-center rounded-full hover:bg-zinc-300 cursor-pointer">
+                <n-icon size="20">
+                    <Search />
+                </n-icon>
+            </div>
+        </div>
 
-        <div class="flex-1 w-full flex flex-col items-center gap-1 rounded-md  p-2">
+        <div class="flex-1 w-full flex flex-col items-center gap-1 rounded-md pt-0 p-2">
             <!-- 自定义按钮结构 -->
             <div v-for="item in menus" :key="item.key" @click="go(item)" :class="[
                 'flex flex-col items-center justify-center gap-1 h-14 w-16 cursor-pointer rounded-lg transition-all',
@@ -14,15 +22,23 @@
                     : 'hover:bg-gray-50 '
             ]">
                 <!-- 图标 -->
-                <n-icon size="24" :color="route.name === item.name ? '#18a058' : '#aaa'">
-                    <component :is="iconMap[item.icon]" />
-                </n-icon>
+                <n-badge :dot="item.hasMessage" color="red" size="small">
+                    <div class="h-8 w-8 flex flex-col gap-1 justify-center items-center">
+                        <n-icon size="18" :color="route.name === item.name ? '#444' : '#aaa'">
+                            <component :is="iconMap[item.icon]" />
+                        </n-icon>
+                        <!-- 文字 -->
+                        <span class=" text-[10px] leading-none font-medium"
+                            :style="{ color: route.name === item.name ? '#444' : '#aaa' }">
+                            {{ item.label }}
+                        </span>
+                    </div>
 
-                <!-- 文字 -->
-                <span class=" text-[10px] leading-none"
-                    :style="{ color: route.name === item.name ? '#18a058' : '#aaa' }">
-                    {{ item.label }}
-                </span>
+
+
+
+
+                </n-badge>
             </div>
         </div>
 
@@ -44,6 +60,7 @@ import {
     Chatbubbles,
     Person,
     Settings
+    , SearchOutline as Search
 } from '@vicons/ionicons5'
 
 /* ---------------- router ---------------- */
@@ -56,6 +73,7 @@ interface MenuItem {
     name: string
     icon: string
     label?: string
+    hasMessage?: boolean
 }
 
 /* ---------------- icon 映射 ---------------- */
@@ -70,8 +88,8 @@ const menus = ref<MenuItem[]>([])
 
 onMounted(() => {
     menus.value = [
-        { key: 'home', name: 'home', icon: 'chat', label: '聊天' },
-        { key: 'user', name: 'user', icon: 'user', label: '用户' },
+        { key: 'home', name: 'home', icon: 'chat', label: '消息', hasMessage: true },
+        { key: 'user', name: 'user', icon: 'user', label: '通讯录' },
         { key: 'setting', name: 'setting', icon: 'setting', label: '设置' }
     ]
 })
@@ -85,7 +103,4 @@ function go(item: MenuItem) {
 
 <style scoped>
 /* 可选：让选中态更明显 */
-.n-button--primary {
-    box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.3);
-}
 </style>

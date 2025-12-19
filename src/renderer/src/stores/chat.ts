@@ -15,6 +15,8 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '10:30',
 			online: true,
 			unreadCount: 2,
+			isPinned:true
+
 		},
 		{
 			id: 2,
@@ -24,6 +26,7 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '9:15',
 			online: true,
 			unreadCount: 0,
+			isPinned:true
 		},
 		{
 			id: 3,
@@ -33,6 +36,8 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '昨天',
 			online: false,
 			unreadCount: 5,
+			isPinned: false,
+
 		},
 		{
 			id: 4,
@@ -42,6 +47,8 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '周一',
 			online: true,
 			unreadCount: 0,
+			isPinned: false,
+
 		},
 		{
 			id: 5,
@@ -51,6 +58,8 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '周日',
 			online: false,
 			unreadCount: 0,
+			isPinned: false,
+
 		},
 		{
 			id: 6,
@@ -60,6 +69,8 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '周六',
 			online: true,
 			unreadCount: 3,
+			isPinned: false,
+
 		},
 		{
 			id: 7,
@@ -69,6 +80,8 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '周五',
 			online: false,
 			unreadCount: 0,
+			isPinned: false,
+
 		},
 		{
 			id: 8,
@@ -78,6 +91,8 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '周四',
 			online: true,
 			unreadCount: 0,
+			isPinned: false,
+
 		},
 	])
 
@@ -89,6 +104,7 @@ export const useChatStore = defineStore('chat', () => {
 			lastMessage: '项目文档已更新',
 			timestamp: '10:30',
 			online: true,
+			isPinned: true,
 		},
 		{
 			id: 2,
@@ -97,6 +113,8 @@ export const useChatStore = defineStore('chat', () => {
 			lastMessage: '会议纪要已同步',
 			timestamp: '昨天',
 			online: false,
+			isPinned: true,
+
 		},
 	])
 
@@ -149,12 +167,17 @@ export const useChatStore = defineStore('chat', () => {
 	const pinChat = (chatId: number) => {
 		const chat = chatlist.value.find((c) => c.id === chatId)
 		if (chat && !pinnedChats.value.some((c) => c.id === chatId)) {
+			chat.isPinned = true
 			pinnedChats.value.unshift(chat)
 		}
 	}
 
 	const unpinChat = (chatId: number) => {
 		pinnedChats.value = pinnedChats.value.filter((c) => c.id !== chatId)
+		const chat = chatlist.value.find((c) => c.id === chatId)
+		if (chat) {
+			chat.isPinned = false
+		}
 	}
 
 	const deleteChat = (chatId: number) => {
@@ -189,4 +212,5 @@ interface ChatItem {
 	timestamp: string
 	online: boolean
 	unreadCount?: number
+	isPinned?: boolean
 }
