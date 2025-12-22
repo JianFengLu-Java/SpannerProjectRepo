@@ -35,6 +35,41 @@
                 </n-icon>
             </div>
         </div>
+        <div>
+            <n-dropdown trigger="click" placement="right-start"
+                style="width: 140px; border: 1px solid #ccc; border-radius: 10px;" :options="[
+                    {
+                        label: '新建聊天',
+                        key: 'new-chat',
+                        icon() {
+                            return h(NIcon, null, {
+                                default: () => h(Add)
+                            })
+                        },
+                        onClick: () => {
+                            console.log('新建聊天')
+                        }
+                    }, {
+                        label: '新建群组',
+                        key: 'new-group',
+                        icon() {
+                            return h(NIcon, null, {
+                                default: () => h(Add)
+                            })
+                        },
+                        onClick: () => {
+                            console.log('新建群组')
+                        }
+                    }
+                ]">
+                <div
+                    class=" text-zinc-800 w-9 h-9 flex justify-center bg-gray-50 items-center rounded-full hover:bg-zinc-300 cursor-pointer">
+                    <n-icon size="20">
+                        <Add />
+                    </n-icon>
+                </div>
+            </n-dropdown>
+        </div>
 
         <div class="flex-1 w-full flex flex-col items-center gap-1 rounded-md pt-0 p-2">
             <!-- 自定义按钮结构 -->
@@ -74,7 +109,7 @@ import {
     Person,
     Settings
     , SearchOutline as Search,
-    LogOutOutline
+    LogOutOutline, Add
 } from '@vicons/ionicons5'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 

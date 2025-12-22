@@ -60,7 +60,7 @@
               <div class="flex items-center gap-3 ">
                 <!-- 头像和状态 -->
                 <div>
-                  <n-badge :value="item.unreadCount" offset="-12" color="red" size="small">
+                  <n-badge :value="item.unreadCount" :offset="[-12, 0]" color="red" size="small">
                     <n-avatar :size="32" round :src="item.avatar" class="border border-gray-200" />
                   </n-badge>
 
