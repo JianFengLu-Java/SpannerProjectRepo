@@ -31,16 +31,21 @@
 </template>
 
 <script setup lang="ts">
-import { NButton, NInput, NGradientText, NCheckbox, NImage, useMessage } from 'naive-ui'
-import { h, ref } from 'vue'
+import { NButton, NInput, NGradientText, NCheckbox, NImage, useMessage, c } from 'naive-ui'
+import { h, ref, nextTick } from 'vue'
 import { LogIn as OkIcon, Sparkles as RegisterIcon } from '@vicons/ionicons5'
 import { useTitleStore } from '../stores/title'
+import { useUserInfoStore } from '../stores/userInfo'
+
 import axios from 'axios'
 import { useRouter } from 'vue-router'
+
 const titleStore = useTitleStore()
+const userInfoStore = useUserInfoStore()
 const message = useMessage()
 titleStore.setTitle('Spanner Tools')
 
+const router = useRouter()
 /**
  *
  * 声明动态值
@@ -49,7 +54,6 @@ titleStore.setTitle('Spanner Tools')
 const userName = ref('')
 const password = ref('')
 const isLoading = ref(false)
-const router = useRouter()
 
 
 function handleLogin() {
@@ -64,13 +68,25 @@ function handleLogin() {
       username: userName.value,
       password: password.value,
     })
-    .then((response) => {
+    .then(async (response) => {
       console.log(response.status)
       if (response.status) {
         message.success('登录成功')
+        console.log('用户信息：', response.data)
+
+        userInfoStore.setUserInfo({
+          userName: response.data.data.userName,
+          gender: response.data.data.gender,
+          email: response.data.data.email,
+          avatarUrl: response.data.data.avatarUrl,
+        })
+
+        console.log('用户信息存储：', userInfoStore.userName)
+        await nextTick()
+
         window.electron.ipcRenderer.send('login-success-open-home')
 
-        // router.push('/home')
+
 
       } else {
         message.error('登录失败，请检查用户名和密码')

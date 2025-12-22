@@ -40,7 +40,7 @@
 
 					<n-form-item path="sex" label="性别:">
 						<div class="pl-6 w-full">
-							<n-radio-group v-model:value="formModel.sex">
+							<n-radio-group v-model:value="formModel.gender">
 								<n-radio v-for="option in sexChange" :key="option.value" :value="option.value">
 									{{ option.label }}
 								</n-radio>
@@ -106,7 +106,7 @@ const avatarUrl = ref('')
 const formModel = ref({
 	userName: '',
 	email: '',
-	sex: null as string | null,
+	gender: null as string | null,
 	address: [] as string[],
 	password: '',
 	confirmPassword: '',
@@ -128,7 +128,7 @@ const rules: FormRules = {
 			trigger: 'blur',
 		},
 	],
-	sex: [{ required: true, message: '请选择性别', trigger: 'change' }],
+	gender: [{ required: true, message: '请选择性别', trigger: 'change' }],
 	address: [{ required: true, message: '请输入地址', trigger: 'blur' }],
 	password: [
 		{ required: true, message: '请输入密码', trigger: 'blur' },
@@ -206,6 +206,7 @@ function handleUploadFinish({ file }: any) {
 	const response = file.response
 	if (response?.status === 'success') {
 		formModel.value.avatarUrl = response.fileUrl
+		avatarUrl.value = response.fileUrl
 		message.success('头像上传成功')
 	} else {
 		message.error('头像上传失败')

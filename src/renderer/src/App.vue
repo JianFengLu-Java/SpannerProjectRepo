@@ -18,11 +18,18 @@ const themeOverrides: GlobalThemeOverrides = {
     borderRadius: '8px',
   },
   Button: {
-    borderRadiusTiny: '8px',
-    borderRadiusSmall: '8px',
-    borderRadiusMedium: '8px',
-    borderRadiusLarge: '9px',
-  }
+    borderRadiusTiny: '10px',
+    borderRadiusSmall: '10px',
+    borderRadiusMedium: '10px',
+    borderRadiusLarge: '10px',
+  },
+  Dropdown: {
+    borderRadius: "8px"
+  },
+  Badge: {
+    fontSize: "10px",
+    color: "#FF0004FF"
+  },
 }
 
 </script>

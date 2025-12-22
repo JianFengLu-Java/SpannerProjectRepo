@@ -16,6 +16,10 @@ function login():void {
         openLoginWindow();
     }
     )
+
+    ipcMain.on('logout-open-loginWindow',()=>{
+        openLoginWindow();
+    })
 }
 
 export default login;

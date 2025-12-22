@@ -1,8 +1,31 @@
 <template>
     <div class="w-[76px] gap-3 h-full flex flex-col items-center justify-between rounded-[14px]">
         <!-- 顶部：头像 -->
-        <div class="mt-10 flex flex-col items-center gap-4">
-            <n-avatar round src="https://http.cat/200" />
+        <div class="mt-10 flex flex-col items-center gap-4  cursor-pointer">
+            <n-dropdown trigger="click" placement="right-start"
+                style="width: 140px; border: 1px solid #ccc; border-radius: 10px;" :options="[
+                    {
+                        render: () => {
+                            return h('div', {
+                                class: 'p-2 cursor-pointer hover:bg-gray-100 rounded-md',
+                                onClick: handleLogout
+                            }, '确认退出登录？')
+                        }
+                    },
+                    {
+                        label: '退出登录',
+                        key: 'logout',
+                        icon() {
+                            return h(NIcon, null, {
+                                default: () => h(LogOutOutline)
+                            })
+                        }
+
+
+                    }
+                ]">
+                <n-avatar round :src="user.avatarUrl" />
+            </n-dropdown>
         </div>
         <div>
             <div
@@ -33,41 +56,42 @@
                             {{ item.label }}
                         </span>
                     </div>
-
-
-
-
-
                 </n-badge>
             </div>
         </div>
 
-        <!-- 底部：退出登录 -->
-        <div class="h-20 flex items-center">
-            <a class="text-xs text-gray-500 cursor-pointer" @click="$router.push('/login')">
-                退出
-            </a>
-        </div>
+
     </div>
 </template>
 
 <script setup lang="ts">
 import { NAvatar, NButton, NIcon } from 'naive-ui'
-import { ref, onMounted } from 'vue'
-import type { Component } from 'vue'
+import { ref, onMounted, h } from 'vue'
+import type { Component, render } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
     Chatbubbles,
     Person,
     Settings
-    , SearchOutline as Search
+    , SearchOutline as Search,
+    LogOutOutline
 } from '@vicons/ionicons5'
+import { useUserInfoStore } from '@renderer/stores/userInfo'
 
-/* ---------------- router ---------------- */
+
+
+const user = useUserInfoStore()
+
+console.log('用户信息：', user.avatarUrl)
+/**
+ * 侧边栏组件
+ */
 const router = useRouter()
 const route = useRoute()
 
-/* ---------------- 后端菜单结构 ---------------- */
+/**
+ * 菜单项接口
+ */
 interface MenuItem {
     key: string
     name: string
@@ -76,16 +100,19 @@ interface MenuItem {
     hasMessage?: boolean
 }
 
-/* ---------------- icon 映射 ---------------- */
+/**
+ * 图标映射
+ */
 const iconMap: Record<string, Component> = {
     chat: Chatbubbles,
     user: Person,
     setting: Settings
 }
 
-/* ---------------- 菜单数据 ---------------- */
+/**
+ * 路由菜单
+ */
 const menus = ref<MenuItem[]>([])
-
 onMounted(() => {
     menus.value = [
         { key: 'home', name: 'home', icon: 'chat', label: '消息', hasMessage: true },
@@ -99,6 +126,19 @@ function go(item: MenuItem) {
         router.push({ name: item.name })
     }
 }
+
+
+/**
+ * 退出登录逻辑
+ */
+function handleLogout() {
+    // 调用preload脚本中暴露的接口
+    window.electron.ipcRenderer.send('logout-open-loginWindow')
+}
+
+
+
+
 </script>
 
 <style scoped>
