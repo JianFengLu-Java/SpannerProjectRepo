@@ -15,8 +15,7 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '10:30',
 			online: true,
 			unreadCount: 2,
-			isPinned:true
-
+			isPinned: true,
 		},
 		{
 			id: 2,
@@ -26,7 +25,7 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '9:15',
 			online: true,
 			unreadCount: 0,
-			isPinned:true
+			isPinned: true,
 		},
 		{
 			id: 3,
@@ -37,7 +36,6 @@ export const useChatStore = defineStore('chat', () => {
 			online: false,
 			unreadCount: 5,
 			isPinned: false,
-
 		},
 		{
 			id: 4,
@@ -48,7 +46,6 @@ export const useChatStore = defineStore('chat', () => {
 			online: true,
 			unreadCount: 0,
 			isPinned: false,
-
 		},
 		{
 			id: 5,
@@ -59,7 +56,6 @@ export const useChatStore = defineStore('chat', () => {
 			online: false,
 			unreadCount: 0,
 			isPinned: false,
-
 		},
 		{
 			id: 6,
@@ -70,7 +66,6 @@ export const useChatStore = defineStore('chat', () => {
 			online: true,
 			unreadCount: 3,
 			isPinned: false,
-
 		},
 		{
 			id: 7,
@@ -81,7 +76,6 @@ export const useChatStore = defineStore('chat', () => {
 			online: false,
 			unreadCount: 0,
 			isPinned: false,
-
 		},
 		{
 			id: 8,
@@ -92,7 +86,6 @@ export const useChatStore = defineStore('chat', () => {
 			online: true,
 			unreadCount: 0,
 			isPinned: false,
-
 		},
 	])
 
@@ -114,7 +107,6 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: '昨天',
 			online: false,
 			isPinned: true,
-
 		},
 	])
 
@@ -126,12 +118,12 @@ export const useChatStore = defineStore('chat', () => {
 	})
 
 	//
-	const setActiveChat = (id: number) => {
+	const setActiveChat = (id: number): void => {
 		activeChatId.value = id
 	}
 
 	// 方法：添加新聊天
-	const addChat = (chat: Omit<ChatItem, 'id'>) => {
+	const addChat = (chat: Omit<ChatItem, 'id'>): number => {
 		// 计算新聊天的id：取当前最大id加1
 		const newId = Math.max(...chatlist.value.map((c) => c.id), 0) + 1
 		// 将新聊天对象推入chatList数组
@@ -144,7 +136,7 @@ export const useChatStore = defineStore('chat', () => {
 	}
 
 	// 方法：更新聊天最后消息
-	const updateLastMessage = (id: number, message: string) => {
+	const updateLastMessage = (id: number, message: string): void => {
 		// 在chatList中查找指定id的聊天
 		const chat = chatlist.value.find((c) => c.id === id)
 		if (chat) {
@@ -155,7 +147,7 @@ export const useChatStore = defineStore('chat', () => {
 	}
 
 	// 方法：标记消息为已读
-	const markAsRead = (id: number) => {
+	const markAsRead = (id: number): void => {
 		// 在chatList中查找指定id的聊天
 		const chat = chatlist.value.find((c) => c.id === id)
 		if (chat) {
@@ -164,7 +156,7 @@ export const useChatStore = defineStore('chat', () => {
 		}
 	}
 	// 新增方法
-	const pinChat = (chatId: number) => {
+	const pinChat = (chatId: number): void => {
 		const chat = chatlist.value.find((c) => c.id === chatId)
 		if (chat && !pinnedChats.value.some((c) => c.id === chatId)) {
 			chat.isPinned = true
@@ -172,7 +164,7 @@ export const useChatStore = defineStore('chat', () => {
 		}
 	}
 
-	const unpinChat = (chatId: number) => {
+	const unpinChat = (chatId: number): void => {
 		pinnedChats.value = pinnedChats.value.filter((c) => c.id !== chatId)
 		const chat = chatlist.value.find((c) => c.id === chatId)
 		if (chat) {
@@ -180,7 +172,7 @@ export const useChatStore = defineStore('chat', () => {
 		}
 	}
 
-	const deleteChat = (chatId: number) => {
+	const deleteChat = (chatId: number): void => {
 		chatlist.value = chatlist.value.filter((c) => c.id !== chatId)
 		pinnedChats.value = pinnedChats.value.filter((c) => c.id !== chatId)
 		if (activeChatId.value === chatId) {

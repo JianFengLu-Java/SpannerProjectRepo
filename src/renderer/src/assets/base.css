@@ -4,3 +4,9 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;                /* Chrome / Safari */
 }
+
+/* 无拖拽区域 */
+.no-drag {
+	-webkit-app-region: no-drag;
+	user-select: none;
+}
