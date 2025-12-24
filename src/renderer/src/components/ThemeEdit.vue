@@ -1,14 +1,14 @@
-<script>
+<script lang="ts">
 import { defineComponent } from 'vue'
 import { NThemeEditor } from 'naive-ui'
 
 export default defineComponent({
-    components: {
-        NThemeEditor
-    }
+	components: {
+		NThemeEditor,
+	},
 })
 </script>
 
 <template>
-    <n-theme-editor />
+	<n-theme-editor />
 </template>

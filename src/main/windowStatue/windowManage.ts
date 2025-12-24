@@ -3,7 +3,9 @@ import { join } from 'path'
 
 let currentWindow: BrowserWindow | null = null
 
-function createBaseWindows(options: Electron.BrowserWindowConstructorOptions) {
+function createBaseWindows(
+	options: Electron.BrowserWindowConstructorOptions,
+): BrowserWindow {
 	return new BrowserWindow({
 		show: false,
 		...options,
@@ -19,7 +21,7 @@ function createBaseWindows(options: Electron.BrowserWindowConstructorOptions) {
 	})
 }
 
-function destroyCurrentWindow() {
+function destroyCurrentWindow(): void {
 	if (currentWindow) {
 		currentWindow.removeAllListeners()
 		currentWindow.close()
@@ -27,7 +29,7 @@ function destroyCurrentWindow() {
 	}
 }
 
-function loadPage(window: BrowserWindow, page: string) {
+function loadPage(window: BrowserWindow, page: string): void {
 	if (process.env.ELECTRON_RENDERER_URL) {
 		window.loadURL(process.env['ELECTRON_RENDERER_URL'] + `#/${page}`)
 	} else {
@@ -41,7 +43,7 @@ function loadPage(window: BrowserWindow, page: string) {
 	})
 }
 
-export function openLoginWindow() {
+export function openLoginWindow(): void {
 	destroyCurrentWindow()
 	currentWindow = createBaseWindows({
 		width: 320,
@@ -51,12 +53,12 @@ export function openLoginWindow() {
 	loadPage(currentWindow, 'login')
 }
 
-export function openRegisterWindow() {
+export function openRegisterWindow(): void {
 	destroyCurrentWindow()
 	currentWindow = createBaseWindows({ width: 620, height: 740 })
 	loadPage(currentWindow, 'register')
 }
-export function openHomeWindow() {
+export function openHomeWindow(): void {
 	destroyCurrentWindow()
 	currentWindow = createBaseWindows({
 		width: 800,

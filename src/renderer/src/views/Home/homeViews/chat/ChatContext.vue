@@ -5,11 +5,16 @@
 			class="h-20 border-b border-gray-200 flex item-center justify-between w-full p-3"
 		>
 			<div class="flex gap-2 items-center">
-				<n-avatar round :src="currentChat?.avatar"></n-avatar>
+				<n-avatar
+					round
+					:src="currentChat?.avatar"
+					class="no-drag cursor-pointer"
+				></n-avatar>
 				<div class="flex flex-col">
-					<span class="text-[16px] font-medium text-zinc-800">{{
-						currentChat?.name
-					}}</span>
+					<span
+						class="text-[16px] no-drag font-medium w-fit text-zinc-800"
+						>{{ currentChat?.name }}</span
+					>
 					<span class="text-[11px] text-gray-400"
 						>1390703178@dhaudh.com</span
 					>
@@ -30,11 +35,8 @@
 		<!-- context -->
 		<div class="flex-1"></div>
 		<!-- input -->
-		<div class="h-15 w-full px-4">
-			<n-input
-				size="large"
-				:placeholder="`发送给 ${currentChat?.name}`"
-			></n-input>
+		<div class="h-fit py-3 w-full px-4">
+			<chat-edit />
 		</div>
 	</div>
 	<div
@@ -46,6 +48,7 @@
 </template>
 
 <script setup lang="ts">
+import ChatEdit from '@renderer/components/ChatEdit.vue'
 import { useChatStore } from '@renderer/stores/chat'
 import {
 	Calendar,
