@@ -25,6 +25,7 @@
 		"@electron-toolkit/utils": "^4.0.0",
 		"@stomp/stompjs": "^7.2.1",
 		"@tailwindcss/vite": "^4.1.17",
+		"@tiptap/extension-bubble-menu": "^3.14.0",
 		"@tiptap/extension-image": "^3.14.0",
 		"@tiptap/extension-placeholder": "^3.14.0",
 		"@tiptap/pm": "^3.14.0",

@@ -1,59 +1,134 @@
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
+import StarterKit from '@tiptap/starter-kit'
+import Image from '@tiptap/extension-image' // 引入图片扩展
+
+// 状态定义
+const isMultiline = ref(false)
+const isFocus = ref(false)
+const containerRef = ref<HTMLElement | null>(null)
+const actionsRef = ref<HTMLElement | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+const editor = useEditor({
+	extensions: [
+		StarterKit,
+		Image.configure({
+			inline: true, // 让图片以行内元素形式存在
+			HTMLAttributes: {
+				class: 'max-w-[200px] rounded-lg border border-gray-100 vertical-middle my-1',
+			},
+		}),
+	],
+	editorProps: {
+		attributes: {
+			class: 'focus:outline-none py-1 leading-6 text-gray-800',
+		},
+		// 拦截粘贴事件
+		handlePaste: (view, event) => {
+			const items = event.clipboardData?.items
+			if (!items) return false
+
+			for (const item of items) {
+				if (item.type.startsWith('image')) {
+					const file = item.getAsFile()
+					if (file) {
+						insertImageFile(file)
+						return true // 阻止默认粘贴，由我们处理
+					}
+				}
+			}
+			return false
+		},
+	},
+	onFocus: () => {
+		isFocus.value = true
+	},
+	onBlur: () => {
+		isFocus.value = false
+	},
+	onUpdate: () => {
+		nextTick(() => checkResponsiveLayout())
+	},
+})
+
+// 将文件插入编辑器
+const insertImageFile = (file: File) => {
+	const reader = new FileReader()
+	reader.onload = (e) => {
+		const src = e.target?.result as string
+		editor.value?.chain().focus().setImage({ src }).run()
+	}
+	reader.readAsDataURL(file)
+}
+
+// 触发本地上传
+const onFileChange = (e: Event) => {
+	const files = (e.target as HTMLInputElement).files
+	if (files?.[0]) {
+		insertImageFile(files[0])
+		if (fileInput.value) fileInput.value.value = ''
+	}
+}
+
+// 响应式布局逻辑 (保持不变)
+const checkResponsiveLayout = async () => {
+	if (!containerRef.value || !actionsRef.value) return
+
+	const wasMultiline = isMultiline.value
+	if (wasMultiline) {
+		isMultiline.value = false
+		await nextTick()
+	}
+
+	const containerRect = containerRef.value.getBoundingClientRect()
+	const actionsRect = actionsRef.value.getBoundingClientRect()
+	// 检查按钮是否因为编辑器内容（文字+图片）变高而换行
+	const isWrapped = actionsRect.top > containerRect.top + 12
+	isMultiline.value = isWrapped
+}
+
+// 发送逻辑
+const send = () => {
+	const content = editor.value?.getHTML() // 获取包含 img 标签的 HTML
+	console.log('发送内容：', content)
+	editor.value?.commands.clearContent()
+}
+
+// 其他生命周期略...
+</script>
+
 <template>
 	<div
-		class="w-full rounded-xl border bg-white transition-all duration-200 shadow-sm"
+		class="w-full rounded-xl border bg-white transition-all duration-200 shadow-sm p-1.5"
 		:class="[
 			isFocus
 				? 'border-blue-500 ring-[3px] ring-blue-50/50'
-				: 'border-gray-200 hover:border-gray-300',
-			isMultilineMode || imgPreviews.length > 0 ? 'p-2' : 'px-2 py-1.5',
+				: 'border-gray-200',
 		]"
 	>
-		<div
-			v-if="imgPreviews.length > 0"
-			class="flex flex-wrap gap-2 mb-2 px-1"
-		>
-			<div
-				v-for="(url, index) in imgPreviews"
-				:key="url"
-				class="relative group w-16 h-16 rounded-lg overflow-hidden border border-gray-100"
-			>
-				<img :src="url" class="w-full h-full object-cover" />
+		<div ref="containerRef" class="flex flex-wrap items-end">
+			<div class="flex-1 min-w-[150px] relative px-1">
+				<editor-content
+					:editor="editor"
+					class="tiptap-editor max-h-64 overflow-y-auto custom-scrollbar"
+				/>
 				<div
-					class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-					@click="removeImg(index)"
+					v-if="editor?.isEmpty"
+					class="absolute left-1 top-1 pointer-events-none text-gray-400"
 				>
-					<i class="i-carbon-trash-can text-white text-sm" />
+					输入消息或粘贴图片...
 				</div>
 			</div>
-		</div>
-
-		<div
-			:class="[
-				isMultilineMode || imgPreviews.length > 0
-					? 'flex flex-col'
-					: 'flex items-end gap-2',
-			]"
-		>
-			<div class="relative flex-1 min-w-0">
-				<textarea
-					ref="textareaRef"
-					v-model="text"
-					rows="1"
-					placeholder="输入消息，可直接粘贴图片..."
-					class="flex-1 max-h-48 w-full resize-none bg-transparent py-1 focus:outline-none overflow-y-auto leading-6 block text-gray-800 custom-scrollbar"
-					@input="handleInput"
-					@focus="isFocus = true"
-					@blur="isFocus = false"
-					@keydown.enter="handleEnter"
-					@paste="handlePaste"
-				></textarea>
-			</div>
 
 			<div
+				ref="actionsRef"
+				class="flex items-center gap-1 transition-all duration-75"
 				:class="[
-					isMultilineMode || imgPreviews.length > 0
-						? 'mt-1 flex items-center justify-end gap-1 pt-1 border-t border-gray-50'
-						: 'flex items-center gap-0.5 shrink-0 pb-0.5',
+					isMultiline
+						? 'w-full mt-2 pt-2 border-t border-gray-100 justify-between'
+						: 'ml-auto shrink-0 pb-0.5 justify-end',
 				]"
 			>
 				<div class="flex items-center gap-0.5">
@@ -61,16 +136,8 @@
 						quaternary
 						circle
 						size="small"
-						class="text-gray-400 hover:text-blue-500"
-					>
-						<template #icon><At /></template>
-					</n-button>
-					<n-button
-						quaternary
-						circle
-						size="small"
-						class="text-gray-400 hover:text-blue-500"
-						@click="triggerUpload"
+						class="text-gray-400"
+						@click="() => fileInput?.click()"
 					>
 						<template #icon><i class="i-carbon-image" /></template>
 					</n-button>
@@ -83,16 +150,11 @@
 					/>
 				</div>
 
-				<div
-					v-if="isMultilineMode || imgPreviews.length > 0"
-					class="mx-1 h-4 w-[1px] bg-gray-200"
-				></div>
-
 				<n-button
 					type="primary"
 					size="small"
 					strong
-					:disabled="!text.trim() && imgPreviews.length === 0"
+					:disabled="editor?.isEmpty"
 					@click="send"
 				>
 					发送
@@ -102,127 +164,26 @@
 	</div>
 </template>
 
-<script setup lang="ts">
-import { ref, nextTick, onMounted, onUnmounted } from 'vue'
-import { At } from '@vicons/ionicons5'
-
-const text = ref('')
-const isFocus = ref(false)
-const isMultilineMode = ref(false)
-const textareaRef = ref<HTMLTextAreaElement | null>(null)
-const fileInput = ref<HTMLInputElement | null>(null)
-
-// 图片数据
-const imgFiles = ref<File[]>([])
-const imgPreviews = ref<string[]>([])
-
-const LINE_HEIGHT = 24
-const PADDING_V = 8
-const THRESHOLD = LINE_HEIGHT + PADDING_V + 4
-
-/**
- * 核心逻辑：粘贴图片处理
- */
-const handlePaste = (event: ClipboardEvent) => {
-	const items = event.clipboardData?.items
-	if (!items) return
-
-	for (const item of items) {
-		if (item.type.indexOf('image') !== -1) {
-			const file = item.getAsFile()
-			if (file) {
-				addImg(file)
-				// 阻止默认行为（如果不阻止，有些浏览器会尝试在内容中插入二进制字符串）
-				event.preventDefault()
-			}
-		}
-	}
+<style scoped>
+:deep(.tiptap p) {
+	margin: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 4px;
 }
-
-const addImg = (file: File) => {
-	imgFiles.value.push(file)
-	const url = URL.createObjectURL(file)
-	imgPreviews.value.push(url)
+/* 限制编辑器内图片的大小 */
+:deep(.tiptap img) {
+	display: inline-block;
+	max-width: 150px;
+	max-height: 150px;
+	cursor: default;
 }
-
-const removeImg = (index: number) => {
-	URL.revokeObjectURL(imgPreviews.value[index]) // 释放内存
-	imgFiles.value.splice(index, 1)
-	imgPreviews.value.splice(index, 1)
+/* 选中图片时的样式 */
+:deep(.tiptap img.ProseMirror-selectednode) {
+	outline: 2px solid #3b82f6;
 }
-
-const triggerUpload = () => fileInput.value?.click()
-
-const onFileChange = (e: Event) => {
-	const files = (e.target as HTMLInputElement).files
-	if (files && files[0]) {
-		addImg(files[0])
-		if (fileInput.value) fileInput.value.value = '' // 清空 input 以便下次选择同一张图
-	}
+.tiptap-editor {
+	min-height: 28px;
 }
-
-// 保持之前的高度计算逻辑...
-const handleInput = () => {
-	const el = textareaRef.value
-	if (!el) return
-	el.style.height = 'auto'
-	let currentHeight = el.scrollHeight
-	el.style.height = `${currentHeight}px`
-	const hasNewline = text.value.includes('\n')
-
-	if (!isMultilineMode.value) {
-		if (currentHeight > THRESHOLD || hasNewline) {
-			isMultilineMode.value = true
-			nextTick(() => handleInput())
-		}
-	} else {
-		if (!hasNewline && currentHeight <= THRESHOLD) {
-			isMultilineMode.value = false
-			nextTick(() => {
-				el.style.height = 'auto'
-				if (el.scrollHeight > THRESHOLD) {
-					isMultilineMode.value = true
-					el.style.height = `${el.scrollHeight}px`
-				}
-			})
-		}
-	}
-}
-
-const send = () => {
-	const payload = {
-		content: text.value,
-		images: imgFiles.value,
-	}
-	console.log('发送数据：', payload)
-
-	// 重置状态
-	text.value = ''
-	imgPreviews.value.forEach((url) => URL.revokeObjectURL(url))
-	imgPreviews.value = []
-	imgFiles.value = []
-	isMultilineMode.value = false
-	nextTick(() => {
-		if (textareaRef.value) textareaRef.value.style.height = 'auto'
-	})
-}
-
-// 生命周期逻辑...
-let observer: ResizeObserver | null = null
-onMounted(() => {
-	if (textareaRef.value) {
-		observer = new ResizeObserver(() => handleInput())
-		observer.observe(textareaRef.value)
-	}
-})
-onUnmounted(() => {
-	observer?.disconnect()
-	imgPreviews.value.forEach((url) => URL.revokeObjectURL(url))
-})
-
-const handleEnter = (e: KeyboardEvent) => {
-	if (e.shiftKey) return
-	e.preventDefault()
-	send()
-}
-</script>
+</style>
