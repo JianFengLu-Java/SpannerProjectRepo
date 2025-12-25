@@ -1,11 +1,11 @@
 <template>
-	<div class="h-full w-full justify-center flex items-center">
+	<div class="h-full w-full justify-center flex items-center bg-gray-200">
 		<!-- 登录表单主体 -->
 
-		<div class="justify-center flex w-full h-full bg-amber-50">
+		<div class="justify-center flex w-full h-full rounded-2xl p-1">
 			<form class="flex flex-col h-full w-full gap-3">
 				<div
-					class="flex flex-col h-full pt-20 p-6 items-center gap-3 bg-gray-50"
+					class="flex flex-col h-full pt-20 px-10 items-center gap-3 rounded-xl bg-white"
 				>
 					<div class="h-20 w-20 flex items-center justify-center">
 						<img

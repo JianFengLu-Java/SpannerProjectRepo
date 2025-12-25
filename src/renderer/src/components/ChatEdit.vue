@@ -1,161 +1,287 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
+import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
+import { BubbleMenu } from '@tiptap/vue-3/menus'
+//坑：BubbleMenu是从这个路径导入
 import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image' // 引入图片扩展
+import Image from '@tiptap/extension-image'
+import { ImageOutline, At } from '@vicons/ionicons5'
+import { useMessage } from 'naive-ui'
 
-// 状态定义
+const message = useMessage()
+
 const isMultiline = ref(false)
 const isFocus = ref(false)
 const containerRef = ref<HTMLElement | null>(null)
 const actionsRef = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
+let resizeObserver: ResizeObserver | null = null
+
 const editor = useEditor({
 	extensions: [
 		StarterKit,
+		BubbleMenuExtension.configure({
+			pluginKey: 'bubbleMenu', // 设置一个 key 提高稳定性
+		}),
 		Image.configure({
-			inline: true, // 让图片以行内元素形式存在
+			inline: true,
 			HTMLAttributes: {
-				class: 'max-w-[200px] rounded-lg border border-gray-100 vertical-middle my-1',
+				class: 'max-w-[180px] rounded-lg border border-gray-100 vertical-middle my-1',
 			},
 		}),
 	],
 	editorProps: {
 		attributes: {
-			class: 'focus:outline-none py-1 leading-6 text-gray-800',
+			class: 'focus:outline-none py-1 leading-6 text-gray-800 break-all',
 		},
-		// 拦截粘贴事件
 		handlePaste: (view, event) => {
 			const items = event.clipboardData?.items
 			if (!items) return false
 
+			let hasImage = false
 			for (const item of items) {
 				if (item.type.startsWith('image')) {
 					const file = item.getAsFile()
 					if (file) {
 						insertImageFile(file)
-						return true // 阻止默认粘贴，由我们处理
+						hasImage = true
 					}
+				}
+			}
+			return hasImage
+		},
+		handleDrop: (view, event, slice, moved) => {
+			if (!moved && event.dataTransfer?.files?.length) {
+				const file = event.dataTransfer.files[0]
+				if (file.type.startsWith('image')) {
+					insertImageFile(file)
+					return true
 				}
 			}
 			return false
 		},
 	},
-	onFocus: () => {
-		isFocus.value = true
-	},
-	onBlur: () => {
-		isFocus.value = false
-	},
+	onFocus: () => (isFocus.value = true),
+	onBlur: () => (isFocus.value = false),
 	onUpdate: () => {
-		nextTick(() => checkResponsiveLayout())
+		checkLayoutWithImages()
+		scrollToBottom()
 	},
 })
 
-// 将文件插入编辑器
+// 插入图片并强制另起一行的逻辑
 const insertImageFile = (file: File) => {
 	const reader = new FileReader()
 	reader.onload = (e) => {
 		const src = e.target?.result as string
-		editor.value?.chain().focus().setImage({ src }).run()
+		if (!editor.value) return
+
+		editor.value
+			.chain()
+			.focus()
+			// 1. 在当前位置插入图片
+			.setImage({ src })
+			// 2. 插入一个空段落（这会强制换行）
+			.insertContent('<p></p>')
+			// 3. 运行命令
+			.run()
+
+		// 4. 插入后滚动到底部
+		scrollToBottom()
 	}
 	reader.readAsDataURL(file)
 }
-
-// 触发本地上传
-const onFileChange = (e: Event) => {
-	const files = (e.target as HTMLInputElement).files
-	if (files?.[0]) {
-		insertImageFile(files[0])
-		if (fileInput.value) fileInput.value.value = ''
-	}
+const scrollToBottom = () => {
+	nextTick(() => {
+		// 找到编辑器内容区域
+		const element = containerRef.value?.querySelector('.tiptap-editor')
+		if (element) {
+			element.scrollTop = element.scrollHeight
+		}
+	})
 }
 
-// 响应式布局逻辑 (保持不变)
-const checkResponsiveLayout = async () => {
+const checkLayoutWithImages = () => {
+	nextTick(() => {
+		checkLayout()
+		const imgs = containerRef.value?.querySelectorAll('img')
+		imgs?.forEach((img) => {
+			if (!img.complete) {
+				img.onload = checkLayout
+			}
+		})
+	})
+}
+const shouldShowBubbleMenu = ({ editor }: { editor: any }) => {
+	if (!editor) return false
+
+	const { selection } = editor.state
+	const { empty } = selection
+
+	// 1. 如果没有选中任何内容（只是光标闪烁），不显示
+	if (empty) return false
+
+	// 2. 如果选中了图片，不显示（如果你想给图片单独做菜单，可以在这里区分）
+	if (editor.isActive('image')) return false
+
+	// 3. 只有在选中有文本标记时才显示
+	return true
+}
+const checkLayout = () => {
 	if (!containerRef.value || !actionsRef.value) return
 
-	const wasMultiline = isMultiline.value
-	if (wasMultiline) {
-		isMultiline.value = false
-		await nextTick()
-	}
+	// 1. 临时重置样式以测量自然位置
+	actionsRef.value.style.width = 'auto'
+	actionsRef.value.style.flex = 'none'
 
 	const containerRect = containerRef.value.getBoundingClientRect()
 	const actionsRect = actionsRef.value.getBoundingClientRect()
-	// 检查按钮是否因为编辑器内容（文字+图片）变高而换行
-	const isWrapped = actionsRect.top > containerRect.top + 12
+
+	// 2. 判断是否换行（顶部偏移量大于阈值）
+	const isWrapped = actionsRect.top - containerRect.top > 10
 	isMultiline.value = isWrapped
+
+	// 3. 必须彻底清除行内样式，否则 Tailwind 的 w-full (width: 100%) 会失效
+	actionsRef.value.style.removeProperty('width')
+	actionsRef.value.style.removeProperty('flex')
 }
 
-// 发送逻辑
-const send = () => {
-	const content = editor.value?.getHTML() // 获取包含 img 标签的 HTML
-	console.log('发送内容：', content)
-	editor.value?.commands.clearContent()
-}
+// const insertImageFile = (file: File) => {
+// 	const reader = new FileReader()
+// 	reader.onload = (e) => {
+// 		const src = e.target?.result as string
+// 		editor.value?.chain().focus().setImage({ src }).run()
+// 	}
+// 	reader.readAsDataURL(file)
+// }
 
-// 其他生命周期略...
+onMounted(() => {
+	resizeObserver = new ResizeObserver(() => {
+		requestAnimationFrame(checkLayout)
+	})
+
+	if (containerRef.value) {
+		resizeObserver.observe(containerRef.value)
+	}
+	// 初次挂载检查一次
+	checkLayout()
+})
+
+onUnmounted(() => resizeObserver?.disconnect())
+
+function handleClickEditor(e: MouseEvent): void {
+	const target = e.target as HTMLElement
+	if (target.tagName === 'IMG') {
+		message.info('选择了图片')
+	}
+}
 </script>
 
 <template>
 	<div
-		class="w-full rounded-xl border bg-white transition-all duration-200 shadow-sm p-1.5"
+		class="w-full rounded-xl border bg-white transition-all duration-200 p-1.5"
 		:class="[
 			isFocus
-				? 'border-blue-500 ring-[3px] ring-blue-50/50'
+				? 'border-gray-500 ring-[3px] ring-gray-100/70'
 				: 'border-gray-200',
 		]"
 	>
-		<div ref="containerRef" class="flex flex-wrap items-end">
-			<div class="flex-1 min-w-[150px] relative px-1">
+		<div ref="containerRef" class="flex flex-wrap items-end relative">
+			<div
+				class="flex-1 min-w-[120px] px-1 relative cursor-text"
+				@click="handleClickEditor"
+			>
+				<bubble-menu
+					v-if="editor"
+					:editor="editor"
+					:should-show="shouldShowBubbleMenu"
+					:tippy-options="{
+						duration: 100,
+						zIndex: 999,
+						appendTo: 'parent', // 2. 强制挂载到当前父级，避免被裁剪或定位错误
+					}"
+				>
+					<div
+						class="flex items-center bg-white shadow-xl border border-gray-200 rounded-lg p-1 gap-1"
+					>
+						<button
+							type="button"
+							class="p-1 px-2 hover:bg-gray-100 rounded transition-colors font-bold"
+							:class="{
+								'text-green-600 bg-green-50':
+									editor.isActive('bold'),
+							}"
+							@click="editor.chain().focus().toggleBold().run()"
+						>
+							B
+						</button>
+						<button
+							type="button"
+							class="p-1 px-2 hover:bg-gray-100 rounded transition-colors font-bold font-serif"
+							:class="{
+								'text-green-600 bg-green-50':
+									editor.isActive('bold'),
+							}"
+							@click="editor.chain().focus().toggleBold().run()"
+						>
+							U
+						</button>
+					</div>
+				</bubble-menu>
 				<editor-content
 					:editor="editor"
-					class="tiptap-editor max-h-64 overflow-y-auto custom-scrollbar"
+					class="tiptap-editor max-h-64 overflow-y-auto"
 				/>
 				<div
 					v-if="editor?.isEmpty"
-					class="absolute left-1 top-1 pointer-events-none text-gray-400"
+					class="absolute left-1 top-1 ml-2 pointer-events-none text-gray-400 select-none"
 				>
-					输入消息或粘贴图片...
+					输入消息...
 				</div>
 			</div>
 
 			<div
 				ref="actionsRef"
-				class="flex items-center gap-1 transition-all duration-75"
+				class="flex items-center gap-2 shrink-0 p-0.5"
 				:class="[
 					isMultiline
-						? 'w-full mt-2 pt-2 border-t border-gray-100 justify-between'
-						: 'ml-auto shrink-0 pb-0.5 justify-end',
+						? 'w-full justify-end mt-1'
+						: 'ml-auto justify-end',
 				]"
 			>
-				<div class="flex items-center gap-0.5">
-					<n-button
-						quaternary
-						circle
-						size="small"
-						class="text-gray-400"
-						@click="() => fileInput?.click()"
-					>
-						<template #icon><i class="i-carbon-image" /></template>
-					</n-button>
+				<div
+					class="flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors text-gray-600 hover:text-blue-600"
+					title="提及"
+					@click="fileInput?.click()"
+				>
+					<n-icon size="20"><At /></n-icon>
 					<input
 						ref="fileInput"
 						type="file"
 						accept="image/*"
 						class="hidden"
-						@change="onFileChange"
+						@change="(e: any) => insertImageFile(e.target.files[0])"
 					/>
+				</div>
+
+				<div
+					class="flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors text-gray-600 hover:text-blue-600"
+					title="上传图片"
+				>
+					<n-icon size="20">
+						<ImageOutline />
+					</n-icon>
 				</div>
 
 				<n-button
 					type="primary"
 					size="small"
-					strong
+					round
 					:disabled="editor?.isEmpty"
-					@click="send"
+					@click="() => editor?.commands.clearContent()"
+					class="ml-1"
 				>
 					发送
 				</n-button>
@@ -165,25 +291,46 @@ const send = () => {
 </template>
 
 <style scoped>
+/* 1. 隐藏初始组件，防止在编辑器上方占位 */
+:deep(.tippy-content) {
+	padding: 0;
+}
+
+:deep(.tiptap) {
+	word-break: break-all;
+	white-space: pre-wrap;
+	outline: none;
+	padding: 4px;
+}
 :deep(.tiptap p) {
 	margin: 0;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: flex-end;
-	gap: 4px;
 }
-/* 限制编辑器内图片的大小 */
 :deep(.tiptap img) {
 	display: inline-block;
-	max-width: 150px;
-	max-height: 150px;
-	cursor: default;
+	vertical-align: bottom;
+	cursor: pointer;
+	transition: opacity 0.2s;
+	border-radius: 8px;
+	margin: 2px 0;
 }
-/* 选中图片时的样式 */
-:deep(.tiptap img.ProseMirror-selectednode) {
-	outline: 2px solid #3b82f6;
+:deep(.tiptap img:hover) {
+	opacity: 0.9;
+	border-color: #87aeee;
 }
 .tiptap-editor {
 	min-height: 28px;
+}
+:deep(.ProseMirror) {
+	cursor: text;
+}
+
+/* 确保图标在点击时不选中文本 */
+.select-none {
+	user-select: none;
+}
+/* 当图片被选中（点击）时的样式 */
+:deep(.tiptap img.ProseMirror-selectednode) {
+	outline: 2px solid #87aeee; /* 蓝色外边框 */
+	transition: all;
 }
 </style>

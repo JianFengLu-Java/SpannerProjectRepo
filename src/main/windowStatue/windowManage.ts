@@ -49,6 +49,7 @@ export function openLoginWindow(): void {
 		width: 320,
 		height: 540,
 		resizable: false,
+		trafficLightPosition: { x: 20, y: 20 },
 	})
 	loadPage(currentWindow, 'login')
 }
