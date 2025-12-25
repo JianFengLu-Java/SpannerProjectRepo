@@ -190,7 +190,7 @@ function handleClickEditor(e: MouseEvent): void {
 	>
 		<div ref="containerRef" class="flex flex-wrap items-end relative">
 			<div
-				class="flex-1 min-w-[120px] px-1 relative cursor-text"
+				class="flex-1 min-w-[120px] px-1 h-full items-center relative cursor-text"
 				@click="handleClickEditor"
 			>
 				<bubble-menu
@@ -244,48 +244,78 @@ function handleClickEditor(e: MouseEvent): void {
 
 			<div
 				ref="actionsRef"
-				class="flex items-center gap-2 shrink-0 p-0.5"
+				class="flex items-center gap-1 shrink-0 p-0.5"
 				:class="[
 					isMultiline
 						? 'w-full justify-end mt-1'
 						: 'ml-auto justify-end',
 				]"
 			>
-				<div
-					class="flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors text-gray-600 hover:text-blue-600"
-					title="提及"
-					@click="fileInput?.click()"
-				>
-					<n-icon size="20"><At /></n-icon>
-					<input
-						ref="fileInput"
-						type="file"
-						accept="image/*"
-						class="hidden"
-						@change="(e: any) => insertImageFile(e.target.files[0])"
-					/>
-				</div>
+				<div class="rounded-xl flex bg-gray-100 gap-1 p-1">
+					<div
+						class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-600 hover:text-green-600"
+						title="提及"
+						@click="fileInput?.click()"
+					>
+						<n-icon size="20"><At /></n-icon>
+						<input
+							ref="fileInput"
+							type="file"
+							accept="image/*"
+							class="hidden"
+							@change="
+								(e: any) => insertImageFile(e.target.files[0])
+							"
+						/>
+					</div>
 
-				<div
-					class="flex items-center justify-center p-1.5 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors text-gray-600 hover:text-blue-600"
-					title="上传图片"
-				>
-					<n-icon size="20">
-						<ImageOutline />
-					</n-icon>
+					<div
+						class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-600 hover:text-green-600"
+						title="上传图片"
+					>
+						<n-icon size="20">
+							<ImageOutline />
+						</n-icon>
+					</div>
+					<div
+						class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-600 hover:text-green-600"
+						title="上传图片"
+					>
+						<n-icon size="20">
+							<ImageOutline />
+						</n-icon>
+					</div>
+					<div
+						class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-600 hover:text-green-600"
+						title="上传图片"
+					>
+						<n-icon size="20">
+							<ImageOutline />
+						</n-icon>
+					</div>
+					<div
+						class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-600 hover:text-green-600"
+						title="上传图片"
+					>
+						<n-icon size="20">
+							<ImageOutline />
+						</n-icon>
+					</div>
+					<n-button
+						type="primary"
+						size="small"
+						:disabled="editor?.isEmpty"
+						@click="() => editor?.commands.clearContent()"
+					>
+						发送
+					</n-button>
 				</div>
-
-				<n-button
-					type="primary"
-					size="small"
-					round
-					:disabled="editor?.isEmpty"
-					@click="() => editor?.commands.clearContent()"
-					class="ml-1"
-				>
-					发送
-				</n-button>
 			</div>
+		</div>
+	</div>
+	<div class="w-full flex justify-end h-3">
+		<div v-if="!editor?.isEmpty" class="px-2 text-[10px] text-gray-500/67">
+			Shift + Enter 换行
 		</div>
 	</div>
 </template>
