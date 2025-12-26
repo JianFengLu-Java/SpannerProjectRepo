@@ -198,6 +198,103 @@ export const useChatStore = defineStore('chat', () => {
 		}
 	}
 
+	//
+	const messages = ref<Record<number, Message[]>>({
+		1: [
+			{
+				id: 101,
+				chatId: 1,
+				senderId: 'other',
+				text: '你好，张三在这里asdasdasdasdasdasdadasdasdasdasdasdasdasdasdasdasasdasdasdsasdasdasds。',
+				timestamp: '10:00',
+				type: 'text',
+			},
+			{
+				id: 102,
+				chatId: 1,
+				senderId: 'me',
+				text: '你好，关于那个项目进度？',
+				timestamp: '10:05',
+				type: 'text',
+			},
+			{
+				id: 103,
+				chatId: 1,
+				senderId: 'other',
+				text: '设计稿已上传，请查收',
+				timestamp: '10:30',
+				type: 'text',
+			},
+		],
+		2: [
+			{
+				id: 201,
+				chatId: 2,
+				senderId: 'other',
+				text: '请问你们的服务时间是？',
+				timestamp: '09:00',
+				type: 'text',
+			},
+			{
+				id: 202,
+				chatId: 2,
+				senderId: 'me',
+				text: '我们周一到周五 9:00 - 18:00 在线。',
+				timestamp: '09:15',
+				type: 'text',
+			},
+		],
+		3: [
+			{
+				id: 301,
+				chatId: 3,
+				senderId: 'me',
+				text: '你的问题解决了吗？',
+				timestamp: '昨天',
+				type: 'text',
+			},
+			{
+				id: 302,
+				chatId: 3,
+				senderId: 'other',
+				text: '谢谢你的帮助！已经搞定了。',
+				timestamp: '昨天',
+				type: 'text',
+			},
+		],
+	})
+
+	// 3. 计算属性：获取当前选中的所有消息
+	const activeChatMessages = computed(() => {
+		if (!activeChatId.value) return []
+		return messages.value[activeChatId.value] || []
+	})
+
+	// 4. 方法：发送新消息
+	const sendMessage = (text: string) => {
+		if (!activeChatId.value || !text.trim()) return
+
+		const newMessage: Message = {
+			id: Date.now(),
+			chatId: activeChatId.value,
+			senderId: 'me',
+			text: text,
+			timestamp: new Date().toLocaleTimeString([], {
+				hour: '2-digit',
+				minute: '2-digit',
+			}),
+			type: 'text',
+		}
+
+		// 如果该会话还没有消息数组，先初始化
+		if (!messages.value[activeChatId.value]) {
+			messages.value[activeChatId.value] = []
+		}
+
+		messages.value[activeChatId.value].push(newMessage)
+		updateLastMessage(activeChatId.value, text) // 同步更新侧边栏预览
+	}
+
 	// 返回store的所有状态和方法
 	return {
 		getDraft,
@@ -213,6 +310,9 @@ export const useChatStore = defineStore('chat', () => {
 		pinChat,
 		unpinChat,
 		deleteChat,
+		messages,
+		activeChatMessages,
+		sendMessage,
 	}
 })
 
@@ -225,4 +325,13 @@ interface ChatItem {
 	online: boolean
 	unreadCount?: number
 	isPinned?: boolean
+}
+// 1. 定义消息接口
+interface Message {
+	id: number
+	chatId: number
+	senderId: 'me' | 'other'
+	text: string
+	timestamp: string
+	type: 'text' | 'image' | 'file'
 }

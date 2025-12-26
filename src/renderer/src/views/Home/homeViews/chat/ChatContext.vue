@@ -33,7 +33,9 @@
 			</div>
 		</div>
 		<!-- context -->
-		<div class="flex-1"></div>
+		<div class="flex-1">
+			<ChatContainer :messages="currentChatMessages" />
+		</div>
 		<!-- input -->
 		<div class="h-fit py-3 w-full px-4">
 			<chat-edit
@@ -64,7 +66,7 @@ import {
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Component } from 'vue'
-
+import ChatContainer from '@renderer/components/ChatContainer.vue'
 const chatStore = useChatStore()
 
 const { activeChat, activeChatId } = storeToRefs(chatStore)
@@ -78,6 +80,10 @@ interface menusItem {
 	label: string
 	icon: string
 }
+
+const currentChatMessages = computed(() => {
+	return chatStore.messages[activeChatId.value] || []
+})
 
 //图标映射
 const iconMap: Record<string, Component> = {
