@@ -5,6 +5,24 @@ export const useChatStore = defineStore('chat', () => {
 	//当前选中的聊天ID
 	const activeChatId = ref<number | null>(null)
 
+	//草稿内容
+	const drafts = ref<Record<number, any>>({})
+
+	// 保存草稿
+	function saveDraft(id: number, content: any): void {
+		drafts.value[id] = content
+	}
+
+	// 获取草稿
+	function getDraft(id: number): Record<string, any> {
+		return (
+			drafts.value[id] || {
+				type: 'doc',
+				content: [{ type: 'paragraph' }],
+			}
+		)
+	}
+
 	//聊天列表
 	const chatlist = ref<ChatItem[]>([
 		{
@@ -182,6 +200,8 @@ export const useChatStore = defineStore('chat', () => {
 
 	// 返回store的所有状态和方法
 	return {
+		getDraft,
+		saveDraft,
 		activeChatId, // 当前聊天ID
 		activeChat, // 当前聊天对象计算属性
 		chatlist, // 所有聊天列表

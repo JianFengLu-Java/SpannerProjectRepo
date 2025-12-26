@@ -36,7 +36,11 @@
 		<div class="flex-1"></div>
 		<!-- input -->
 		<div class="h-fit py-3 w-full px-4">
-			<chat-edit />
+			<chat-edit
+				v-if="activeChatId !== null"
+				:key="activeChatId"
+				:current-id="activeChatId"
+			/>
 		</div>
 	</div>
 	<div
@@ -63,7 +67,7 @@ import type { Component } from 'vue'
 
 const chatStore = useChatStore()
 
-const { activeChat } = storeToRefs(chatStore)
+const { activeChat, activeChatId } = storeToRefs(chatStore)
 
 const currentChat = computed(() => {
 	return activeChat.value

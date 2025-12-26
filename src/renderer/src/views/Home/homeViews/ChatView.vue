@@ -92,9 +92,9 @@
 					<template #default="{ item, index }">
 						<div
 							:key="item.id"
-							class="px-1 py-2 m-2 mr-3 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors duration-100"
+							class="px-2 py-2 m-2 mr-3 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors duration-100"
 							:class="{
-								'bg-green-100 hover:bg-green-100':
+								'bg-gray-200/80 hover:bg-gray-200/80':
 									activeChatId === item.id,
 								'border-t':
 									index === 0 && pinnedChats.length === 0,
@@ -121,26 +121,26 @@
 								</div>
 
 								<!-- 聊天信息 -->
-								<div class="flex-1 min-w-0">
-									<div
-										class="flex items-center justify-between mb-1"
-									>
+								<div
+									class="flex-1 flex justify-between min-w-0"
+								>
+									<div class="flex flex-col justify-between">
 										<div
 											class="text-sm text-gray-700 truncate"
 										>
 											{{ item.name }}
 										</div>
 										<div
-											class="text-xs text-gray-400 whitespace-nowrap ml-2"
+											class="text-[11px] text-gray-400 whitespace-nowrap"
 										>
-											{{ formatTime(item.timestamp) }}
+											{{ item.lastMessage }}
 										</div>
 									</div>
 									<div class="flex items-center gap-2">
 										<div
-											class="text-xs text-gray-500 truncate flex-1"
+											class="text-[11px] text-gray-500 truncate flex-1"
 										>
-											{{ item.lastMessage }}
+											{{ formatTime(item.timestamp) }}
 										</div>
 									</div>
 								</div>
@@ -167,13 +167,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, h, nextTick } from 'vue'
+import { ref, computed, onUnmounted, h, nextTick } from 'vue'
 import { useTitleStore } from '@renderer/stores/title'
 import { useChatStore } from '@renderer/stores/chat'
 import {
 	List28Filled,
 	Pin16Filled,
-	PinOff16Filled,
 	MailRead16Filled,
 	Delete16Filled,
 } from '@vicons/fluent'
@@ -181,7 +180,6 @@ import { NDropdown, NIcon, NAvatar, NVirtualList } from 'naive-ui'
 
 import { storeToRefs } from 'pinia'
 import ChatContext from './chat/ChatContext.vue'
-import Dragable from '@renderer/components/Dragable.vue'
 
 const listWidth = ref(300)
 const titleStore = useTitleStore()
@@ -217,7 +215,7 @@ const options = [
 // 聊天列表
 
 // 选择聊天
-const selectChat = (chat: any) => {
+const selectChat = (chat): void => {
 	activeChatId.value = chat.id
 	chatStore.setActiveChat(chat.id)
 	chatStore.markAsRead(chat.id)
@@ -225,7 +223,7 @@ const selectChat = (chat: any) => {
 }
 
 // 格式化时间显示
-const formatTime = (time: string) => {
+const formatTime = (time: string): string => {
 	if (time.includes(':')) {
 		return time
 	}
@@ -237,18 +235,18 @@ let startX = 0
 let startWidth = 0
 let isDragging = false
 
-const startDrag = (e: MouseEvent) => {
+const startDrag = (e: MouseEvent): void => {
 	isDragging = true
 	startX = e.clientX
 	startWidth = listWidth.value
 
-	const onMove = (moveEvent: MouseEvent) => {
+	const onMove = (moveEvent: MouseEvent): void => {
 		if (!isDragging) return
 		const delta = moveEvent.clientX - startX
 		listWidth.value = Math.min(400, Math.max(260, startWidth + delta))
 	}
 
-	const stopDrag = () => {
+	const stopDrag = (): void => {
 		isDragging = false
 		document.removeEventListener('mousemove', onMove)
 		document.removeEventListener('mouseup', stopDrag)
@@ -263,7 +261,7 @@ const startDrag = (e: MouseEvent) => {
 const showContextMenu = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
-const selectedChat = ref<any>(null)
+const selectedChat = ref(null)
 
 // 右键菜单选项
 const contextMenuOptions = computed(() => {
@@ -313,7 +311,7 @@ const contextMenuOptions = computed(() => {
 })
 
 // 打开右键菜单
-const openContextMenu = (e: MouseEvent, chat: any) => {
+const openContextMenu = (e: MouseEvent, chat: any): void => {
 	// selectChat(chat)
 	selectedChat.value = chat
 	showContextMenu.value = false
@@ -325,12 +323,12 @@ const openContextMenu = (e: MouseEvent, chat: any) => {
 }
 
 // 关闭右键菜单
-const closeContextMenu = () => {
+const closeContextMenu = (): void => {
 	showContextMenu.value = false
 }
 
 // 处理菜单项选择
-const handleContextMenuSelect = (key: string) => {
+const handleContextMenuSelect = (key: string): void => {
 	if (!selectedChat.value) return
 
 	switch (key) {
