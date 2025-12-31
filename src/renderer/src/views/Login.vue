@@ -17,17 +17,17 @@
 					</div>
 					<div class="flex flex-col gap-3 w-full">
 						<n-input
+							v-model:value="userName"
 							placeholder="用户名"
 							class="w-full"
 							clearable
-							v-model:value="userName"
 						/>
 						<n-input
+							v-model:value="password"
 							type="password"
 							placeholder="密码"
 							class="w-full"
 							clearable
-							v-model:value="password"
 						/>
 					</div>
 					<div class="gap-2 mt-2 flex flex-col w-full">
@@ -60,29 +60,19 @@
 </template>
 
 <script setup lang="ts">
-import {
-	NButton,
-	NInput,
-	NGradientText,
-	NCheckbox,
-	NImage,
-	useMessage,
-	c,
-} from 'naive-ui'
-import { h, ref, nextTick } from 'vue'
+import { NButton, NInput, NCheckbox, useMessage } from 'naive-ui'
+import { h, ref, nextTick, VNode } from 'vue'
 import { LogIn as OkIcon, Sparkles as RegisterIcon } from '@vicons/ionicons5'
 import { useTitleStore } from '../stores/title'
 import { useUserInfoStore } from '../stores/userInfo'
 
 import axios from 'axios'
-import { useRouter } from 'vue-router'
 
 const titleStore = useTitleStore()
 const userInfoStore = useUserInfoStore()
 const message = useMessage()
 titleStore.setTitle('Spanner Tools')
 
-const router = useRouter()
 /**
  *
  * 声明动态值
@@ -92,7 +82,7 @@ const userName = ref('')
 const password = ref('')
 const isLoading = ref(false)
 
-function handleLogin() {
+function handleLogin(): void {
 	if (!userName.value || !password.value) {
 		message.error('用户名或密码不能为空')
 
@@ -134,7 +124,7 @@ function handleLogin() {
 		})
 }
 
-function handleRegister() {
+function handleRegister(): void {
 	window.electron.ipcRenderer.send('open-register-window')
 }
 
@@ -144,7 +134,7 @@ console.log(hello)
 /**
  * 登录按钮图标渲染函数
  */
-function okIcon() {
+function okIcon(): VNode {
 	return h(OkIcon, {
 		deafult: OkIcon,
 	})
@@ -153,7 +143,7 @@ function okIcon() {
 /**
  * 注册按钮图标渲染函数
  */
-function registerIcon() {
+function registerIcon(): VNode {
 	return h(RegisterIcon, {
 		deafult: RegisterIcon,
 	})
