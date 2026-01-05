@@ -43,7 +43,22 @@ const editor = useEditor({
 	// 修改点：使用 props.currentId 获取内容
 	content: props.currentId ? chatStore.getDraft(props.currentId) : '',
 	extensions: [
-		StarterKit,
+		StarterKit.configure({
+			// 保留默认 history
+			history: true,
+		}).extend({
+			addKeyboardShortcuts() {
+				return {
+					// 监听 Enter 发送
+					Enter: () => {
+						handleSendMessage()
+						return true // 阻止默认换行行为
+					},
+					// Shift + Enter 依然保持默认的换行行为
+					'Shift-Enter': () => this.editor.commands.splitBlock(),
+				}
+			},
+		}),
 		BubbleMenuExtension.configure({
 			pluginKey: 'bubbleMenu',
 		}),
@@ -99,13 +114,21 @@ const handleSendMessage = () => {
 	if (!editor.value || editor.value.isEmpty) return
 
 	// 1. 发送逻辑...
+	const getHTML = editor.value.getHTML()
+
+	const chatId =
+		typeof props.currentId === 'string'
+			? parseInt(props.currentId)
+			: props.currentId
+
+	chatStore.sendMessage(getHTML)
 
 	// 2. 发送成功后清空编辑器
 	editor.value.commands.clearContent()
 
 	// 3. 修改点：使用 props.currentId 清除草稿
 	if (props.currentId) {
-		chatStore.saveDraft(props.currentId, null)
+		chatStore.saveDraft(chatId, null)
 	}
 }
 
@@ -168,8 +191,10 @@ onMounted(() => {
 	resizeObserver = new ResizeObserver(() =>
 		requestAnimationFrame(checkLayout),
 	)
+	editor.value?.commands.focus()
 	if (containerRef.value) resizeObserver.observe(containerRef.value)
 	nextTick(syncCanSend)
+
 	checkLayout()
 })
 
@@ -296,6 +321,7 @@ function handleClickEditor(e: MouseEvent): void {
 							type="primary"
 							size="small"
 							:disabled="!canSend"
+							color="#333"
 							@click="handleSendMessage"
 						>
 							发送

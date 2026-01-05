@@ -6,8 +6,13 @@ import { ref } from 'vue'
 const titleStore = useTitleStore()
 
 const themeOverrides: GlobalThemeOverrides = {
+	Select: {},
 	Message: {
 		borderRadius: '8px',
+		color: '#ccc',
+	},
+	Checkbox: {
+		borderRadius: '100%',
 	},
 	Card: {
 		borderRadius: '8px',
@@ -16,7 +21,7 @@ const themeOverrides: GlobalThemeOverrides = {
 		borderRadius: '100%',
 	},
 	Input: {
-		borderRadius: '8px',
+		borderRadius: '10px',
 	},
 	Button: {
 		borderRadiusTiny: '10px',

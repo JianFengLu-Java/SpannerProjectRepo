@@ -13,12 +13,11 @@
 				class="px-3 py-2 rounded-lg text-[14px] wrap-anywhere whitespace-pre-wrap h-fit"
 				:class="
 					isMe
-						? 'bg-[#e3e3e3] text-zinc-900 '
-						: 'bg-[#51ac5a] text-white '
+						? 'bg-[#eeeeee] text-zinc-900 '
+						: 'bg-[#555555] text-white '
 				"
-			>
-				{{ content }}
-			</div>
+				v-html="content"
+			></div>
 			<span class="text-[10px] text-gray-400 px-1">{{ time }}</span>
 		</div>
 	</div>

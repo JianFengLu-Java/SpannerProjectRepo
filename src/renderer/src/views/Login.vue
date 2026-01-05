@@ -1,111 +1,124 @@
 <template>
 	<div class="login-root">
-		<div class="absolute top-3">
-			<div class="rounded-full px-2 py-1 bg-gray-300/40">
-				<p class="font-bold text-white">Spanner</p>
+		<div
+			class="w-[360px] border rounded-3xl overflow-hidden border-gray-200"
+		>
+			<div
+				class="relative w-full flex justify-center flex-col items-center h-40 overflow-hidden"
+			>
+				<p class="text-white font-bold text-5xl z-10">LinkR</p>
+				<p class="text-white/75 font-medium text-sm z-10">
+					连接思维,提高效率
+				</p>
+
+				<div class="logo-wrapper absolute top-0">
+					<img
+						src="http://localhost:9000/pic/bg_login.jpg"
+						class="select-none"
+					/>
+				</div>
 			</div>
-		</div>
-		<div class="login-card border border-gray-200">
 			<!-- Logo -->
-			<div class="logo-wrapper">
-				<n-gradient-text :size="40" type="success">
-					Hello
-				</n-gradient-text>
-			</div>
 
 			<!-- Tabs -->
-			<n-tabs
-				type="segment"
-				size="small"
-				animated
-				v-model:value="loginType"
-			>
-				<!-- 账号登录 -->
-				<n-tab-pane name="account" tab="账号登录">
-					<div class="form px-2 pt-3">
-						<n-input
-							v-model:value="userName"
-							placeholder="用户名"
-							size="large"
-							clearable
-							@keyup.enter="handleLogin"
-						/>
-						<n-input
-							v-model:value="password"
-							type="password"
-							placeholder="密码"
-							size="large"
-							clearable
-							@keyup.enter="handleLogin"
-						/>
-					</div>
-
-					<div class="actions px-2 pt-2">
-						<n-button
-							type="primary"
-							size="large"
-							block
-							:loading="isLoading"
-							:render-icon="okIcon"
-							@click="handleLogin"
-							color="#333"
-						>
-							登录
-						</n-button>
-
-						<n-button
-							size="large"
-							block
-							quaternary
-							:render-icon="registerIcon"
-							@click="handleRegister"
-						>
-							创建新账号
-						</n-button>
-					</div>
-				</n-tab-pane>
-
-				<!-- 扫码登录 -->
-				<n-tab-pane name="qr" tab="扫码登录">
-					<div
-						class="flex w-full h-full justify-center items-center flex-col gap-2 pt-2"
-					>
-						<div
-							class="rounded-md overflow-hidden flex justify-center items-center flex-col border border-gray-200"
-						>
-							<div class="p-2 pb-0">
-								<n-qr-code
-									:value="qrValue"
-									:size="150"
-									class="p-0!"
-								/>
-							</div>
-							<div class="border-b w-full border-gray-200"></div>
-							<div
-								class="w-full h-6 flex justify-center items-center bg-[#75da93]"
-							>
-								<p class="text-xs font-bold text-white">
-									请使用手机 App 扫码登录
-								</p>
-							</div>
+			<div class="p-8 gap-2 bg-white">
+				<n-tabs
+					type="segment"
+					size="medium"
+					animated
+					v-model:value="loginType"
+				>
+					<!-- 账号登录 -->
+					<n-tab-pane name="account" tab="账号登录">
+						<div class="form px-2 pt-3">
+							<n-input
+								v-model:value="userName"
+								placeholder="用户名"
+								size="large"
+								clearable
+								@keyup.enter="handleLogin"
+							/>
+							<n-input
+								v-model:value="password"
+								type="password"
+								placeholder="密码"
+								size="large"
+								clearable
+								@keyup.enter="handleLogin"
+							/>
 						</div>
 
-						<n-button
-							text
-							type="primary"
-							size="tiny"
-							@click="refreshQr"
-						>
-							刷新二维码
-						</n-button>
-					</div>
-				</n-tab-pane>
-			</n-tabs>
+						<div class="actions px-2 pt-2">
+							<n-button
+								type="primary"
+								size="large"
+								block
+								:loading="isLoading"
+								color="#333"
+								@click="handleLogin"
+							>
+								登录
+							</n-button>
 
-			<!-- 底部 -->
-			<div class="footer">
-				<n-checkbox>记住我</n-checkbox>
-				<a class="forgot">忘记密码？</a>
+							<n-button
+								size="large"
+								block
+								quaternary
+								@click="handleRegister"
+							>
+								创建新账号
+							</n-button>
+						</div>
+					</n-tab-pane>
+
+					<!-- 扫码登录 -->
+					<n-tab-pane name="qr" tab="扫码登录">
+						<div
+							class="flex w-full h-full justify-center items-center flex-col gap-2 pt-2"
+						>
+							<div
+								class="rounded-md overflow-hidden flex justify-center items-center flex-col border border-gray-200"
+							>
+								<div class="p-2 pb-0">
+									<n-qr-code
+										:value="qrValue"
+										:size="141"
+										class="p-0!"
+									/>
+								</div>
+								<div
+									class="border-b w-full border-gray-200"
+								></div>
+								<div
+									class="w-full h-6 flex justify-center items-center bg-[#75da93]"
+								>
+									<p class="text-xs font-bold text-white">
+										请使用手机 App 扫码登录
+									</p>
+								</div>
+							</div>
+
+							<n-button
+								text
+								type="primary"
+								size="tiny"
+								@click="refreshQr"
+							>
+								刷新二维码
+								<template #icon>
+									<n-icon>
+										<refresh-sharp />
+									</n-icon>
+								</template>
+							</n-button>
+						</div>
+					</n-tab-pane>
+				</n-tabs>
+				<!-- 底部 -->
+				<div class="footer mt-2">
+					<n-checkbox size="large">记住我</n-checkbox>
+					<a class="forgot">忘记密码？</a>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -122,7 +135,12 @@ import {
 	useMessage,
 } from 'naive-ui'
 import { h, ref, nextTick, VNode, watch, onUnmounted } from 'vue'
-import { LogIn as OkIcon, Sparkles as RegisterIcon } from '@vicons/ionicons5'
+import {
+	LogIn as OkIcon,
+	Sparkles as RegisterIcon,
+	RefreshSharp,
+	RefreshCircleSharp,
+} from '@vicons/ionicons5'
 import { useTitleStore } from '../stores/title'
 import { useUserInfoStore } from '../stores/userInfo'
 import axios from 'axios'
@@ -245,16 +263,6 @@ function registerIcon(): VNode {
 	align-items: center;
 	justify-content: center;
 	background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%);
-}
-
-.login-card {
-	width: 360px;
-	background: #fff;
-	border-radius: 16px;
-	padding: 28px;
-	display: flex;
-	flex-direction: column;
-	gap: 5px;
 }
 
 .logo-wrapper {

@@ -215,7 +215,10 @@ function beforeUpload({ file }: any) {
 
 const submitRegistration = () => {
 	formRef.value?.validate(async (errors) => {
-		if (errors) return
+		if (errors) {
+			message.error('请检查信息填写是否完整')
+			return
+		}
 
 		isSubmitting.value = true
 		try {
@@ -226,7 +229,9 @@ const submitRegistration = () => {
 			const res = await axios.post(API.REGISTER, payload)
 			if (res.data.code === 200) {
 				message.success('注册成功，欢迎加入')
-				router.push('/login')
+				window.electron.ipcRenderer.send(
+					'register-success-open-loginWindow',
+				)
 			}
 		} catch (err) {
 			message.error('系统繁忙，请稍后再试')

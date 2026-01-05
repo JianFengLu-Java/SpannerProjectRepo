@@ -94,7 +94,7 @@ export function openRegisterWindow(): void {
 
 	// 逻辑建议：通常打开注册时，登录窗口可以隐藏或关闭。
 	// 如果你希望打开注册时登录窗口消失：
-	// windowRegistry.get('login')?.close()
+	windowRegistry.get('login')?.close()
 }
 
 export function openHomeWindow(): void {

@@ -271,19 +271,22 @@ export const useChatStore = defineStore('chat', () => {
 	})
 
 	// 4. 方法：发送新消息
-	const sendMessage = (text: string) => {
-		if (!activeChatId.value || !text.trim()) return
+	const sendMessage = (
+		content: string,
+		type: 'text' | 'image' | 'rich-text' = 'text',
+	) => {
+		if (!activeChatId.value || !content) return
 
 		const newMessage: Message = {
 			id: Date.now(),
 			chatId: activeChatId.value,
 			senderId: 'me',
-			text: text,
+			text: content,
 			timestamp: new Date().toLocaleTimeString([], {
 				hour: '2-digit',
 				minute: '2-digit',
 			}),
-			type: 'text',
+			type: type as any,
 		}
 
 		// 如果该会话还没有消息数组，先初始化
@@ -292,7 +295,9 @@ export const useChatStore = defineStore('chat', () => {
 		}
 
 		messages.value[activeChatId.value].push(newMessage)
-		updateLastMessage(activeChatId.value, text) // 同步更新侧边栏预览
+
+		const plainText = content.replace(/<[^>]*>?/gm, '').slice(0, 15)
+		updateLastMessage(activeChatId.value, plainText || '[图片]') // 同步更新侧边栏预览
 	}
 
 	// 返回store的所有状态和方法

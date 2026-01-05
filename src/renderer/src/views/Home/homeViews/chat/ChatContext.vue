@@ -5,7 +5,7 @@
 	>
 		<!-- heard  -->
 		<div
-			class="h-20 border-b border-gray-200 flex item-center justify-between w-full p-3"
+			class="h-20 border-b shrink-0 border-gray-200 flex item-center justify-between w-full p-3"
 		>
 			<div class="flex gap-2 items-center">
 				<n-avatar
@@ -36,7 +36,7 @@
 			</div>
 		</div>
 		<!-- context -->
-		<div class="flex-1 chat-messages">
+		<div class="flex-1 overflow-hidden relative">
 			<ChatContainer :messages="currentChatMessages" />
 		</div>
 		<!-- input -->
