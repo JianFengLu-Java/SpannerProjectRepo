@@ -1,5 +1,8 @@
 <template>
-	<div v-if="currentChat" class="h-full w-full flex flex-col justify-between">
+	<div
+		v-if="currentChat"
+		class="h-full w-full flex flex-col justify-between can-select"
+	>
 		<!-- heard  -->
 		<div
 			class="h-20 border-b border-gray-200 flex item-center justify-between w-full p-3"
@@ -33,7 +36,7 @@
 			</div>
 		</div>
 		<!-- context -->
-		<div class="flex-1">
+		<div class="flex-1 chat-messages">
 			<ChatContainer :messages="currentChatMessages" />
 		</div>
 		<!-- input -->
@@ -123,3 +126,13 @@ const menus = ref<menusItem[]>([
 	},
 ])
 </script>
+
+<style>
+.can-select {
+	user-select: text !important;
+}
+.chat-messages,
+.chat-messages * {
+	user-select: text;
+}
+</style>

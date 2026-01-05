@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import login from './controller/login'
+import { setupIpcHandlers } from './controller/setupIpcHandlers'
 import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
 import { openLoginWindow } from './windowStatue/windowManage'
@@ -74,7 +74,7 @@ app.whenReady().then(() => {
 	})
 
 	openLoginWindow()
-	login()
+	setupIpcHandlers()
 
 	app.on('activate', function () {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow()

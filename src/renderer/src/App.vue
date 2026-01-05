@@ -31,6 +31,9 @@ const themeOverrides: GlobalThemeOverrides = {
 		fontSize: '10px',
 		color: '#FF0004FF',
 	},
+	Tabs: {
+		tabBorderRadius: '8px',
+	},
 }
 </script>
 

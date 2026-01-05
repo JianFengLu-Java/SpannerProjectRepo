@@ -26,6 +26,7 @@ const containerRef = ref<HTMLElement | null>(null)
 const actionsRef = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 let resizeObserver: ResizeObserver | null = null
+const canSend = ref(false)
 
 /**
  * 同步当前内容到 Pinia 草稿箱
@@ -85,9 +86,10 @@ const editor = useEditor({
 	},
 	onFocus: () => (isFocus.value = true),
 	onBlur: () => (isFocus.value = false),
-	onUpdate: () => {
+	onUpdate: ({ editor }) => {
+		canSend.value = !editor.isEmpty
 		checkLayoutWithImages()
-		scrollToBottom()
+		editor.commands.scrollIntoView()
 	},
 })
 
@@ -121,6 +123,11 @@ const insertImageFile = (file: File) => {
 		scrollToBottom()
 	}
 	reader.readAsDataURL(file)
+}
+const syncCanSend = () => {
+	if (editor.value) {
+		canSend.value = !editor.value.isEmpty
+	}
 }
 
 const scrollToBottom = () => {
@@ -162,6 +169,7 @@ onMounted(() => {
 		requestAnimationFrame(checkLayout),
 	)
 	if (containerRef.value) resizeObserver.observe(containerRef.value)
+	nextTick(syncCanSend)
 	checkLayout()
 })
 
@@ -287,9 +295,8 @@ function handleClickEditor(e: MouseEvent): void {
 						<n-button
 							type="primary"
 							size="small"
-							:disabled="editor?.isEmpty"
+							:disabled="!canSend"
 							@click="handleSendMessage"
-							class="ml-1"
 						>
 							发送
 						</n-button>

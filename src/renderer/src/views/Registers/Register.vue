@@ -1,293 +1,286 @@
 <template>
-	<div class="h-full w-full flex justify-center items-center">
-		<div
-			class="grid grid-cols-5 grid-rows-9 h-[700px] w-[600px] rounded-lg border bg-white border-gray-200"
-		>
-			<!-- 标题 -->
-			<div
-				class="col-span-5 row-span-1 flex flex-col justify-center items-center mt-5"
-			>
-				<h1 class="text-xl font-bold text-gray-800">
-					注册 Spanner Tools 账号
+	<div class="register-container">
+		<div class="register-card shadow-2xl border border-gray-100">
+			<div class="header-section text-center mb-8">
+				<h1
+					class="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-500 bg-clip-text text-transparent"
+				>
+					创建新账号
 				</h1>
+				<p class="text-xs text-gray-400 mt-2">
+					加入 Spanner Tools，开启高效工作流
+				</p>
 			</div>
 
-			<!-- 表单主体 -->
-			<div class="col-span-5 row-span-8 rounded-lg ml-30 mr-30 mb-10">
-				<!-- 头像上传 -->
-
-				<!-- 注册表单 -->
-				<n-form
-					ref="formRef"
-					:model="formModel"
-					:rules="rules"
-					label-placement="left"
-					class="flex flex-col"
-				>
+			<n-form
+				ref="formRef"
+				:model="formModel"
+				:rules="rules"
+				label-placement="top"
+				class="px-8"
+				size="medium"
+				:show-label="true"
+			>
+				<div class="flex flex-col items-center mb-1">
 					<n-form-item
 						path="avatarUrl"
-						show-feedback="false"
-						class="hidden"
+						:show-label="false"
+						:show-feedback="false"
 					>
-						<div class="w-full flex justify-center items-center">
-							<div class="w-30 mb-3">
-								<n-upload
-									list-type="image-card"
-									:max="1"
-									:custom-request="customUploadRequest"
-									:on-before-upload="beforeUpload"
-									:on-finish="handleUploadFinish"
-									:on-error="handleUploadError"
-									:show-preview-button="false"
-								/>
+						<n-upload
+							list-type="image-card"
+							:max="1"
+							class="avatar-uploader"
+							:custom-request="customUploadRequest"
+							@before-upload="beforeUpload"
+							@finish="handleUploadFinish"
+						>
+							<div class="text-center">
+								<p class="text-[10px] text-gray-400">
+									上传头像
+								</p>
 							</div>
-						</div>
-						<n-input
-							v-model:value="formModel.avatarUrl"
-							class="hidden!"
-						/>
+						</n-upload>
 					</n-form-item>
-					<n-form-item path="userName" label="用户名:">
+				</div>
+
+				<div class="space-y-1">
+					<n-form-item label="用户名" path="userName">
 						<n-input
 							v-model:value="formModel.userName"
 							:allow-input="onlyAlphaNumber"
-							placeholder="用户名"
+							placeholder="建议使用英文或数字"
 							clearable
 						/>
 					</n-form-item>
 
-					<n-form-item path="email" label="邮箱地址:">
+					<n-form-item label="企业邮箱" path="email">
 						<n-input-group>
 							<n-input
 								v-model:value="formModel.email"
-								placeholder="邮箱"
+								placeholder="邮箱前缀"
 								clearable
 							/>
-							<n-input-group-label>
-								{{ emailSuffix }}
-							</n-input-group-label>
+							<n-input-group-label class="bg-gray-50!">{{
+								emailSuffix
+							}}</n-input-group-label>
 						</n-input-group>
 					</n-form-item>
 
-					<n-form-item path="sex" label="性别:">
-						<div class="pl-6 w-full">
-							<n-radio-group v-model:value="formModel.gender">
-								<n-radio
-									v-for="option in sexChange"
-									:key="option.value"
-									:value="option.value"
-								>
-									{{ option.label }}
-								</n-radio>
-							</n-radio-group>
-						</div>
-					</n-form-item>
+					<div class="grid grid-cols-2 gap-2">
+						<n-form-item label="性别" path="gender">
+							<n-select
+								v-model:value="formModel.gender"
+								:options="sexOptions"
+								placeholder="选择"
+							/>
+						</n-form-item>
+						<n-form-item label="所在地" path="address">
+							<n-cascader
+								v-model:value="formModel.address"
+								:options="chinaAreaOptions"
+								placeholder="省/市"
+								check-strategy="child"
+								expand-trigger="hover"
+							/>
+						</n-form-item>
+					</div>
 
-					<n-form-item path="address" label="地址:">
-						<n-cascader
-							v-model:value="formModel.address"
-							:options="chinaAreaOptions"
-							placeholder="请选择省/市/区（县）"
-							clearable
-							check-strategy="child"
-							expanded-trigger="hover"
-						/>
-					</n-form-item>
-
-					<n-form-item path="password">
+					<n-form-item label="登录密码" path="password">
 						<n-input
 							v-model:value="formModel.password"
 							type="password"
-							placeholder="密码"
 							show-password-on="mousedown"
-							clearable
+							placeholder="至少 6 位安全密码"
 						/>
 					</n-form-item>
 
-					<n-form-item path="confirmPassword">
+					<n-form-item label="确认密码" path="confirmPassword">
 						<n-input
 							v-model:value="formModel.confirmPassword"
 							type="password"
-							placeholder="确认密码"
-							clearable
+							placeholder="请再次输入密码"
 						/>
 					</n-form-item>
+				</div>
 
-					<div class="grid grid-cols-5 gap-2 mt-2">
-						<n-button
-							type="primary"
-							class="w-full col-span-5"
-							@click="submitRegistration"
-						>
-							注册
-						</n-button>
-
-						<n-button
-							class="w-full col-span-5"
-							:render-icon="goBackIcon"
-							@click="handleBack"
-						>
-							返回
-						</n-button>
-					</div>
-				</n-form>
-			</div>
+				<div class="flex flex-col gap-2 mt-8">
+					<n-button
+						type="primary"
+						block
+						strong
+						round
+						size="large"
+						:loading="isSubmitting"
+						@click="submitRegistration"
+					>
+						立即注册
+					</n-button>
+					<n-button quaternary block round @click="handleBack">
+						<template #icon
+							><n-icon :component="GoBackIcon"
+						/></template>
+						返回登录
+					</n-button>
+				</div>
+			</n-form>
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
-/**
- * Register.vue
- * 注册页面（含表单校验）
- */
-import { h, ref, VNode } from 'vue'
+import { ref, reactive } from 'vue'
 import { ArrowBackCircleOutline as GoBackIcon } from '@vicons/ionicons5'
 import { useMessage, type FormInst, type FormRules } from 'naive-ui'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
-import { useTitleStore } from '../../stores/title'
 import { regionData } from 'element-china-area-data'
 
-/* ================== 常量 ================== */
-const registerUrl = 'http://localhost:8080/user/register'
-const uploadAvatarUrl = 'http://localhost:8080/files/update/avatar'
+/* ================== 配置 ================== */
+const API = {
+	REGISTER: 'http://localhost:8080/user/register',
+	UPLOAD: 'http://localhost:8080/files/update/avatar',
+}
 
-/* ================== 基础 ================== */
+const emailSuffix = '@oakevergames.com'
 const router = useRouter()
 const message = useMessage()
 const formRef = ref<FormInst | null>(null)
-const emailSuffix = ref('@oakevergames.com')
-const avatarUrl = ref('')
+const isSubmitting = ref(false)
 
-/* ================== 表单模型 ================== */
-const formModel = ref({
+/* ================== 数据模型 ================== */
+const formModel = reactive({
 	userName: '',
 	email: '',
-	gender: null as string | null,
-	address: [] as string[],
+	gender: null,
+	address: null,
 	password: '',
 	confirmPassword: '',
 	avatarUrl: '',
 })
 
-/* ================== 校验规则 ================== */
-const rules: FormRules = {
-	avatarUrl: [{ required: true, message: '请上传头像', trigger: 'change' }],
-	userName: [
-		{ required: true, message: '请输入用户名', trigger: ['blur', 'input'] },
-		{ min: 6, message: '用户名至少 6 个字符', trigger: 'blur' },
-	],
-	email: [
-		{ required: true, message: '请输入邮箱', trigger: ['blur', 'input'] },
-		{
-			pattern: /^[a-zA-Z0-9_.-]+$/,
-			message: '邮箱格式不正确',
-			trigger: 'blur',
-		},
-	],
-	gender: [{ required: true, message: '请选择性别', trigger: 'change' }],
-	address: [{ required: true, message: '请输入地址', trigger: 'blur' }],
-	password: [
-		{ required: true, message: '请输入密码', trigger: 'blur' },
-		{ min: 6, message: '密码至少 6 位', trigger: 'blur' },
-	],
-	confirmPassword: [
-		{ required: true, message: '请确认密码', trigger: 'blur' },
-		{
-			validator: (_, value) => value === formModel.value.password,
-			message: '两次密码输入不一致',
-			trigger: 'blur',
-		},
-	],
-}
-
-function onlyAlphaNumber(value: string) {
-	return /^[a-zA-z0-9]*$/.test(value)
-}
-
-/* ================== 性别选项 ================== */
-const sexChange = [
-	{ value: 'male', label: '男' },
-	{ value: 'female', label: '女' },
+const sexOptions = [
+	{ label: '男', value: 'male' },
+	{ label: '女', value: 'female' },
 ]
 
-/* ================== 提交 ================== */
-function submitRegistration() {
+const chinaAreaOptions = regionData
+
+/* ================== 校验规则 ================== */
+const rules: FormRules = {
+	avatarUrl: { required: true, message: '请上传个性头像', trigger: 'change' },
+	userName: [
+		{ required: true, message: '请输入用户名' },
+		{ min: 6, message: '长度不能少于 6 位', trigger: 'blur' },
+	],
+	email: { required: true, message: '请输入邮箱前缀' },
+	gender: { required: true, message: '请选择性别' },
+	address: { required: true, message: '请选择地区' },
+	password: { required: true, min: 6, message: '密码至少 6 位' },
+	confirmPassword: [
+		{ required: true, message: '请再次输入密码' },
+		{
+			validator: (_, v) => v === formModel.password,
+			message: '两次密码输入不一致',
+			trigger: ['blur', 'password-input'],
+		},
+	],
+}
+
+/* ================== 逻辑处理 ================== */
+const onlyAlphaNumber = (v: string) => /^[a-zA-z0-9]*$/.test(v)
+
+async function customUploadRequest({ file, onFinish, onError }: any) {
+	const formData = new FormData()
+	formData.append('file', file.file)
+	try {
+		const res = await axios.post(API.UPLOAD, formData)
+		onFinish({ file })
+		// 假设接口返回数据在 data.fileUrl
+		formModel.avatarUrl = res.data.fileUrl
+		message.success('头像处理成功')
+	} catch (err) {
+		onError()
+		message.error('上传失败')
+	}
+}
+
+function beforeUpload({ file }: any) {
+	if (!file.type.startsWith('image/')) {
+		message.error('只允许图片格式')
+		return false
+	}
+	return true
+}
+
+const submitRegistration = () => {
 	formRef.value?.validate(async (errors) => {
-		if (errors) {
-			message.error('请正确填写表单信息')
-			return
-		}
+		if (errors) return
 
-		const submitData = {
-			...formModel.value,
-			email: formModel.value.email + emailSuffix.value,
-			avatarUrl: avatarUrl.value,
-		}
-
-		const response = await axios.post(registerUrl, submitData)
-
-		if (response.data.code === 200) {
-			message.success('注册成功，请登录')
-			router.push('/login')
-		} else {
-			message.error(response.data.message || '注册失败')
+		isSubmitting.value = true
+		try {
+			const payload = {
+				...formModel,
+				email: formModel.email + emailSuffix,
+			}
+			const res = await axios.post(API.REGISTER, payload)
+			if (res.data.code === 200) {
+				message.success('注册成功，欢迎加入')
+				router.push('/login')
+			}
+		} catch (err) {
+			message.error('系统繁忙，请稍后再试')
+		} finally {
+			isSubmitting.value = false
 		}
 	})
 }
 
-/* ================== 头像上传 ================== */
-async function customUploadRequest({ file, onFinish, onError }: any) {
-	const formData = new FormData()
-	formData.append('file', file.file)
-
-	try {
-		const response = await axios.post(uploadAvatarUrl, formData, {
-			headers: { 'Content-Type': 'multipart/form-data' },
-		})
-
-		file.response = response.data
-		onFinish({ file })
-	} catch (error) {
-		onError(error)
-	}
+const handleBack = () => {
+	window.electron?.ipcRenderer.send('register-success-open-loginWindow')
 }
-
-function beforeUpload({ file }): any {
-	const isImage = file.type.startsWith('image/')
-	if (!isImage) message.error('只能上传图片文件')
-	return isImage
-}
-
-function handleUploadFinish({ file }): void {
-	const response = file.response
-	if (response?.status === 'success') {
-		formModel.value.avatarUrl = response.fileUrl
-		avatarUrl.value = response.fileUrl
-		message.success('头像上传成功')
-	} else {
-		message.error('头像上传失败')
-	}
-}
-
-function handleUploadError(): void {
-	message.error('头像上传失败')
-}
-
-function handleBack(): void {
-	window.electron.ipcRenderer.send('register-success-open-loginWindow')
-}
-
-/* ================== 图标 & 标题 ================== */
-function goBackIcon(): VNode {
-	return h(GoBackIcon)
-}
-
-const titleStore = useTitleStore()
-titleStore.setTitle('注册账号')
-
-const chinaAreaOptions = regionData
 </script>
 
-<style scoped></style>
+<style scoped>
+.register-container {
+	height: 100vh;
+	width: 100vw;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	background: radial-gradient(circle at top left, #f8fafc, #e2e8f0);
+}
+
+.register-card {
+	width: 440px;
+	background: rgba(255, 255, 255, 0.9);
+	backdrop-filter: blur(10px);
+	border-radius: 24px;
+	padding: 40px 0 20px 0;
+}
+
+/* 针对上传组件的圆形美化 */
+:deep(.n-upload-trigger.n-upload-trigger--image-card) {
+	border-radius: 50% !important;
+	border: 2px dashed #e5e7eb;
+	transition: all 0.3s ease;
+}
+
+:deep(.n-upload-trigger.n-upload-trigger--image-card:hover) {
+	border-color: #10b981;
+	background-color: #f0fdf4;
+}
+
+:deep(.n-upload-file-list.n-upload-file-list--grid) {
+	justify-content: center;
+}
+
+:deep(.n-upload-file.n-upload-file--image-card) {
+	border-radius: 50% !important;
+}
+
+/* 隐藏滚动条但保留功能 */
+:deep(.n-scrollbar-rail) {
+	width: 4px;
+}
+</style>
