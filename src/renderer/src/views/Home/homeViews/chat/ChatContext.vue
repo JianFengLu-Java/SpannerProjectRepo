@@ -1,7 +1,7 @@
 <template>
 	<div
 		v-if="currentChat"
-		class="h-full w-full flex flex-col justify-between can-select"
+		class="h-full w-full flex flex-col justify-between can"
 	>
 		<!-- heard  -->
 		<div
@@ -127,10 +127,16 @@ const menus = ref<menusItem[]>([
 ])
 </script>
 
-<style>
-.can-select {
+<style scoped>
+/* 使用 :deep 穿透组件，确保 ChatContainer 内部的消息也被选中 */
+.can-select-text,
+.can-select-text :deep(*) {
+	-webkit-user-select: text !important;
 	user-select: text !important;
+	/* 必须加上这个，否则在设置了 drag 的容器下依然无法点击选中 */
+	-webkit-app-region: no-drag;
 }
+
 .chat-messages,
 .chat-messages * {
 	user-select: text;
