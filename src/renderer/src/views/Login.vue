@@ -90,7 +90,7 @@
 									class="border-b w-full border-gray-200"
 								></div>
 								<div
-									class="w-full h-6 flex justify-center items-center bg-[#75da93]"
+									class="w-full h-6 flex justify-center items-center bg-[#444]"
 								>
 									<p class="text-xs font-bold text-white">
 										请使用手机 App 扫码登录
@@ -117,7 +117,7 @@
 				<!-- 底部 -->
 				<div class="footer mt-2">
 					<n-checkbox size="large">记住我</n-checkbox>
-					<a class="forgot">忘记密码？</a>
+					<a class="forgot text-[15px]">忘记密码？</a>
 				</div>
 			</div>
 		</div>

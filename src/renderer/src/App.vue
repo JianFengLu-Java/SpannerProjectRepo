@@ -13,6 +13,7 @@ const themeOverrides: GlobalThemeOverrides = {
 	},
 	Checkbox: {
 		borderRadius: '100%',
+		colorChecked: '#333333',
 	},
 	Card: {
 		borderRadius: '8px',
