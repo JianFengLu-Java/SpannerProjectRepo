@@ -1,17 +1,6 @@
 <template>
-	<div class="register-container">
-		<div class="register-card shadow-2xl border border-gray-100">
-			<div class="header-section text-center mb-6">
-				<h1
-					class="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-500 bg-clip-text text-transparent"
-				>
-					创建新账号
-				</h1>
-				<p class="text-xs text-gray-400 mt-2">
-					加入 Spanner Tools，开启高效工作流
-				</p>
-			</div>
-
+	<div class="register-container overflow-hidden">
+		<div class="register-card shadow-sm border border-gray-300">
 			<n-form
 				ref="formRef"
 				:model="formModel"
@@ -34,8 +23,11 @@
 							<n-avatar
 								round
 								:size="80"
-								:src="formModel.avatarUrl || ''"
-								fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg"
+								:src="
+									formModel.avatarUrl ||
+									'https://http.cat/200'
+								"
+								fallback-src="https://http.cat/200"
 								class="avatar-preview border-2 border-dashed border-gray-300 group-hover:border-green-500 transition-all"
 							/>
 							<div class="upload-mask">修改头像</div>
@@ -73,7 +65,7 @@
 						</n-input-group>
 					</n-form-item>
 
-					<div class="grid grid-cols-2 gap-3">
+					<div class="grid grid-cols-1 gap-3">
 						<n-form-item label="性别" path="gender">
 							<n-select
 								v-model:value="formModel.gender"
@@ -87,7 +79,7 @@
 								:options="chinaAreaOptions"
 								placeholder="省/市"
 								check-strategy="child"
-								expand-trigger="hover"
+								expand-trigger="click"
 							/>
 						</n-form-item>
 					</div>

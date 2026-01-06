@@ -1,7 +1,7 @@
 <template>
-	<div class="login-root">
+	<div class="login-root overflow-hidden">
 		<div
-			class="w-[360px] border rounded-3xl overflow-hidden border-gray-200"
+			class="w-[360px] border rounded-3xl shadow-sm overflow-hidden border-gray-300"
 		>
 			<div
 				class="relative w-full flex justify-center flex-col items-center h-40 overflow-hidden"
