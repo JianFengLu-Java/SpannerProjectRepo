@@ -160,7 +160,10 @@ export const useChatStore = defineStore('chat', () => {
 		if (chat) {
 			// 如果找到
 			chat.lastMessage = message // 更新最后消息内容
-			chat.timestamp = new Date().toLocaleTimeString() // 更新时间戳为当前时间
+			chat.timestamp = new Date().toLocaleTimeString([], {
+				hour: '2-digit',
+				minute: '2-digit',
+			}) // 更新时间戳为当前时间
 		}
 	}
 
@@ -296,7 +299,7 @@ export const useChatStore = defineStore('chat', () => {
 
 		messages.value[activeChatId.value].push(newMessage)
 
-		const plainText = content.replace(/<[^>]*>?/gm, '').slice(0, 15)
+		const plainText = content.replace(/<[^>]*>?/gm, '').slice(0, 30)
 		updateLastMessage(activeChatId.value, plainText || '[图片]') // 同步更新侧边栏预览
 	}
 

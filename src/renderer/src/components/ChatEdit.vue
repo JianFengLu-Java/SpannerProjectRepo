@@ -102,7 +102,11 @@ const editor = useEditor({
 	onFocus: () => (isFocus.value = true),
 	onBlur: () => (isFocus.value = false),
 	onUpdate: ({ editor }) => {
-		canSend.value = !editor.isEmpty
+		const isTextEmpty = editor.getText().trim().length === 0
+		const hasImage =
+			editor.isActive('image') || editor.getHTML().includes('<img')
+
+		canSend.value = !isTextEmpty || hasImage
 		checkLayoutWithImages()
 		editor.commands.scrollIntoView()
 	},
@@ -112,7 +116,16 @@ const editor = useEditor({
 
 const handleSendMessage = () => {
 	if (!editor.value || editor.value.isEmpty) return
+	// 提取纯文本并去空格
+	const plainText = editor.value.getText().trim()
+	// 检查是否有图片
+	const hasImage = editor.value.getHTML().includes('<img')
 
+	// 如果没有文字且没有图片，直接拦截
+	if (plainText.length === 0 && !hasImage) {
+		message.warning('不能发送空白内容')
+		return
+	}
 	// 1. 发送逻辑...
 	const getHTML = editor.value.getHTML()
 
@@ -149,7 +162,9 @@ const insertImageFile = (file: File) => {
 }
 const syncCanSend = () => {
 	if (editor.value) {
-		canSend.value = !editor.value.isEmpty
+		const isTextEmpty = editor.value.getText().trim().length === 0
+		const hasImage = editor.value.getHTML().includes('<img')
+		canSend.value = !isTextEmpty || hasImage
 	}
 }
 

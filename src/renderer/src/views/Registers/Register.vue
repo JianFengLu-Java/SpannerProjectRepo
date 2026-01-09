@@ -5,10 +5,12 @@
 				ref="formRef"
 				:model="formModel"
 				:rules="rules"
-				label-placement="top"
+				label-placement="left"
 				class="px-8"
 				size="medium"
 				:show-label="true"
+				label-width="auto"
+				require-mark-placement="right-hanging"
 			>
 				<div class="flex flex-col items-center mb-2">
 					<n-form-item
@@ -65,24 +67,22 @@
 						</n-input-group>
 					</n-form-item>
 
-					<div class="grid grid-cols-1 gap-3">
-						<n-form-item label="性别" path="gender">
-							<n-select
-								v-model:value="formModel.gender"
-								:options="sexOptions"
-								placeholder="选择"
-							/>
-						</n-form-item>
-						<n-form-item label="所在地" path="address">
-							<n-cascader
-								v-model:value="formModel.address"
-								:options="chinaAreaOptions"
-								placeholder="省/市"
-								check-strategy="child"
-								expand-trigger="click"
-							/>
-						</n-form-item>
-					</div>
+					<n-form-item label="性别" path="gender">
+						<n-select
+							v-model:value="formModel.gender"
+							:options="sexOptions"
+							placeholder="选择"
+						/>
+					</n-form-item>
+					<n-form-item label="所在地" path="address">
+						<n-cascader
+							v-model:value="formModel.address"
+							:options="chinaAreaOptions"
+							placeholder="省/市"
+							check-strategy="child"
+							expand-trigger="click"
+						/>
+					</n-form-item>
 
 					<n-form-item label="登录密码" path="password">
 						<n-input
@@ -107,14 +107,14 @@
 						type="primary"
 						block
 						strong
-						round
 						size="large"
 						:loading="isSubmitting"
 						@click="submitRegistration"
+						color="#333"
 					>
 						立即注册
 					</n-button>
-					<n-button quaternary block round @click="handleBack">
+					<n-button quaternary block @click="handleBack">
 						<template #icon
 							><n-icon :component="GoBackIcon"
 						/></template>
@@ -132,7 +132,7 @@
 			:segmented="{ content: 'soft', footer: 'soft' }"
 			:mask-closable="false"
 		>
-			<div class="flex gap-8">
+			<div class="flex gap-4">
 				<div class="flex-1">
 					<div
 						class="h-[340px] bg-gray-50 rounded-xl overflow-hidden border border-gray-100 relative shadow-inner"
@@ -150,11 +150,9 @@
 					</div>
 				</div>
 
-				<div
-					class="w-[100px] flex flex-col items-center border-l border-gray-100 pl-8 pt-4"
-				>
+				<div class="w-[100px] flex flex-col items-center gap-6 pt-4">
 					<p
-						class="text-xs font-bold text-gray-500 mb-6 uppercase tracking-wider"
+						class="text-xs font-bold text-gray-500 uppercase tracking-wider"
 					>
 						预览效果
 					</p>
@@ -170,9 +168,17 @@
 							</div>
 						</div>
 					</div>
-					<p class="text-[11px] text-gray-400 mt-2 mb-8">
-						100 × 100 像素
-					</p>
+					<div class="preview-container medium shadow-sm">
+						<div :style="getPreviewStyle(60)">
+							<div :style="previews.div" class="preview-content">
+								<img
+									:src="previews.url"
+									:style="previews.img"
+									class="max-w-none"
+								/>
+							</div>
+						</div>
+					</div>
 
 					<div class="preview-container small shadow-sm">
 						<div :style="getPreviewStyle(48)">
@@ -185,7 +191,6 @@
 							</div>
 						</div>
 					</div>
-					<p class="text-[11px] text-gray-400 mt-2">48 × 48 像素</p>
 				</div>
 			</div>
 
@@ -451,7 +456,10 @@ const handleBack = () => {
 	width: 100px;
 	height: 100px;
 }
-
+.preview-container.medium {
+	width: 60px;
+	height: 60px;
+}
 .preview-container.small {
 	width: 48px;
 	height: 48px;

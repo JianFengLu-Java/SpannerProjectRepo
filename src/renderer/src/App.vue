@@ -7,6 +7,10 @@ const titleStore = useTitleStore()
 
 const themeOverrides: GlobalThemeOverrides = {
 	Select: {},
+	Form: {
+		feedbackFontSizeMedium: '11px',
+		feedbackHeightMedium: '20px',
+	},
 	Message: {
 		borderRadius: '8px',
 		color: '#ccc',
@@ -50,7 +54,7 @@ const themeOverrides: GlobalThemeOverrides = {
 		<div class="h-screen w-screen overflow-hidden relative">
 			<div class="h-full w-full overflow-hidden">
 				<n-message-provider
-					:container-style="{ marginTop: '16px' }"
+					:container-style="{ marginTop: '18px' }"
 					max="5"
 				>
 					<router-view />

@@ -172,7 +172,7 @@ function handleLogin(): void {
 	isLoading.value = true
 	axios
 		.post('http://localhost:8080/user/login', {
-			username: userName.value,
+			account: userName.value,
 			password: password.value,
 		})
 		.then(async (response) => {
