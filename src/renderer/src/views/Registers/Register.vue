@@ -45,9 +45,9 @@
 				</div>
 
 				<div class="space-y-0">
-					<n-form-item label="用户名" path="userName">
+					<n-form-item label="真实姓名" path="realName">
 						<n-input
-							v-model:value="formModel.userName"
+							v-model:value="formModel.realName"
 							:allow-input="onlyAlphaNumber"
 							placeholder="建议使用英文或数字"
 							clearable
@@ -221,6 +221,7 @@ import axios from 'axios'
 import { regionData } from 'element-china-area-data'
 import { VueCropper } from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
+import router from '@renderer/router'
 
 /* ================== 配置与常量 ================== */
 const API = {
@@ -245,7 +246,7 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const cropperRef = ref<any>(null)
 
 const formModel = reactive({
-	userName: '',
+	realName: '',
 	email: '',
 	gender: null,
 	address: null,
@@ -257,7 +258,7 @@ const formModel = reactive({
 /* ================== 表单校验规则 ================== */
 const rules: FormRules = {
 	avatarUrl: { required: true, message: '请设置个人头像', trigger: 'change' },
-	userName: [
+	realName: [
 		{ required: true, message: '请输入用户名' },
 		{ min: 6, message: '用户名至少 6 位', trigger: 'blur' },
 	],
@@ -364,9 +365,13 @@ const submitRegistration = () => {
 			if (res.data.code === 200) {
 				message.success('注册成功')
 				// 发送给 Electron 主进程：关闭子窗口并通知 Login 刷新
-				window.electron.ipcRenderer.send(
-					'register-success-open-loginWindow',
-				)
+				// window.electron.ipcRenderer.send(
+				// 	'register-success-open-loginWindow',
+				// )
+				router.push({
+					name: 'RegisterResult',
+					query: { userInfo: res.data.data.account },
+				})
 			} else {
 				message.error(res.data.message || '注册失败')
 			}
