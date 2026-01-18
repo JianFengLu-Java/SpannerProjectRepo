@@ -25,8 +25,8 @@ function createWindow(): void {
 			preload: join(__dirname, '../preload/index.js'),
 			sandbox: false,
 		},
-		frame: false,
-		titleBarStyle: 'hiddenInset',
+		frame: process.platform === 'darwin' ? false : true,
+		titleBarStyle: 'hidden',
 	})
 
 	mainWindow.on('ready-to-show', () => {

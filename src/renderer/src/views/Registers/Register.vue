@@ -221,7 +221,12 @@ import axios from 'axios'
 import { regionData } from 'element-china-area-data'
 import { VueCropper } from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
+import { useTitleStore } from '@renderer/stores/title'
 import router from '@renderer/router'
+
+const title = useTitleStore()
+
+title.setTitle('注册')
 
 /* ================== 配置与常量 ================== */
 const API = {

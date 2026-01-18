@@ -13,7 +13,7 @@
 
 				<div class="logo-wrapper absolute top-0">
 					<img
-						src="http://localhost:9000/pic/bg_login.jpg"
+						src="http://47.108.39.129:9000/pic/bg_login.jpg"
 						class="select-none"
 					/>
 				</div>

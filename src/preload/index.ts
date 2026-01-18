@@ -6,6 +6,7 @@ const api = {
 	hello: () => {
 		ipcRenderer.send('hello')
 	},
+	platform: process.platform,
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -170,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted, h, nextTick } from 'vue'
+import { ref, computed, onUnmounted, h, nextTick, onMounted } from 'vue'
 import { useTitleStore } from '@renderer/stores/title'
 import { useChatStore } from '@renderer/stores/chat'
 import {
@@ -329,6 +329,10 @@ const openContextMenu = (e: MouseEvent, chat: any): void => {
 const closeContextMenu = (): void => {
 	showContextMenu.value = false
 }
+
+onMounted(() => {
+	titleStore.setTitle('聊天')
+})
 
 // 处理菜单项选择
 const handleContextMenuSelect = (key: string): void => {

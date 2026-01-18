@@ -10,6 +10,15 @@
 	</div>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { useTitleStore } from '@renderer/stores/title'
+import { onMounted } from 'vue'
+
+const title = useTitleStore()
+
+onMounted(() => {
+	title.setTitle('设置')
+})
+</script>
 
 <style scoped></style>

@@ -12,13 +12,16 @@ function createBaseWindow(
 ): BrowserWindow {
 	const win = new BrowserWindow({
 		show: false,
-		frame: false,
-		titleBarStyle: 'hiddenInset',
+		frame: process.platform === 'darwin' ? false : true,
+		titleBarStyle:
+			process.platform === 'darwin' ? 'hiddenInset' : 'default',
+
 		webPreferences: {
 			preload: join(__dirname, '../preload/index.js'),
 			sandbox: false,
 			contextIsolation: true,
 		},
+		autoHideMenuBar: true,
 		...options,
 	})
 

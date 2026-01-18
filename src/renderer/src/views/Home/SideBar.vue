@@ -5,7 +5,8 @@
 		<div class="h-full w-[76px] fixed top-0 drag -z-10"></div>
 		<!-- 顶部：头像 -->
 		<div
-			class="flex mt-10 flex-col items-center gap-4 cursor-pointer no-drag"
+			class="flex flex-col items-center gap-4 cursor-pointer no-drag"
+			:class="platfrom === 'darwin' ? 'mt-10' : 'mt-2'"
 		>
 			<n-dropdown
 				trigger="click"
@@ -136,6 +137,8 @@ console.log('用户信息：', user.avatarUrl)
  */
 const router = useRouter()
 const route = useRoute()
+
+const platfrom = window.api.platform
 
 /**
  * 菜单项接口
