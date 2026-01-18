@@ -9,38 +9,76 @@
 			class="flex flex-col max-w-[75%] min-w-0"
 			:class="isMe ? 'items-end' : 'items-start'"
 		>
+			<!-- ===== 纯图片消息：无气泡 ===== -->
 			<div
-				class="px-3 py-2 rounded-lg text-[14px] wrap-anywhere whitespace-pre-wrap h-fit msg-content-selectable"
+				v-if="isOnlyImage"
+				class="msg-content-selectable"
+				@click="handleClickEvent"
+				v-html="content"
+			/>
+
+			<!-- ===== 其他消息：有气泡 ===== -->
+			<div
+				v-else
+				class="rounded-lg text-[14px] wrap-anywhere whitespace-pre-wrap h-fit msg-content-selectable"
 				:class="
 					isMe
-						? 'bg-[#eeeeee] text-zinc-900 '
-						: 'bg-[#555555] text-white '
+						? 'bg-[#eeeeee] text-zinc-900 px-3 py-2'
+						: 'bg-[#555555] text-white px-3 py-2'
 				"
 				@click="handleClickEvent"
 				v-html="content"
-			></div>
+			/>
 
-			<span class="text-[10px] text-gray-400 px-1 avatar-no-select">{{
-				time
-			}}</span>
+			<span class="text-[10px] text-gray-400 px-1 avatar-no-select">
+				{{ time }}
+			</span>
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUpdated } from 'vue'
+import { computed, onMounted, onUpdated } from 'vue'
 
-defineProps<{
+const props = defineProps<{
 	content: string
 	isMe: boolean
 	avatar: string
 	time: string
 }>()
 
-// 定义事件，通知父组件图片加载完了
+/**
+ * 判断是否为「纯图片消息」
+ * ✅ 允许 img 被 p / a / br 包裹
+ */
+const isOnlyImage = computed(() => {
+	if (!props.content) return false
+
+	// 1. 去掉空白
+	let html = props.content.replace(/\s/g, '')
+
+	// 2. 去掉 <p> / </p> / <br>
+	html = html
+		.replace(/<p[^>]*>/gi, '')
+		.replace(/<\/p>/gi, '')
+		.replace(/<br\s*\/?>/gi, '')
+
+	// 3. 统计 img
+	const imgMatches = html.match(/<img[^>]+>/gi)
+	if (!imgMatches || imgMatches.length === 0) return false
+
+	// 4. 去掉 img 和 a 包裹，看是否还有其它内容
+	const stripped = html
+		.replace(/<a[^>]*>/gi, '')
+		.replace(/<\/a>/gi, '')
+		.replace(/<img[^>]+>/gi, '')
+
+	return stripped === ''
+})
+
 const emit = defineEmits(['image-loaded'])
 
-const handleClickEvent = (e: MouseEvent): void => {
+const handleClickEvent = (e: MouseEvent) => {
 	const target = e.target as HTMLElement
 	if (target.tagName === 'IMG') {
 		window.electron.ipcRenderer.send(
@@ -50,58 +88,41 @@ const handleClickEvent = (e: MouseEvent): void => {
 	}
 }
 
-/**
- * 核心逻辑：监听消息内的图片加载
- */
 const attachLoadEvents = () => {
-	// 找到所有图片
 	const imgs = document.querySelectorAll('.msg-content-selectable img')
 	imgs.forEach((img) => {
 		const image = img as HTMLImageElement
-		// 如果图片还没加载完，监听 load 事件
 		if (!image.complete) {
-			image.onload = () => {
-				emit('image-loaded') // 通知父组件：高度变了，请重新滚到底部
-			}
+			image.onload = () => emit('image-loaded')
 		}
 	})
 }
 
 onMounted(attachLoadEvents)
-onUpdated(attachLoadEvents) // 因为 content 是 v-html，更新时也要重新绑定
+onUpdated(attachLoadEvents)
 </script>
 
 <style scoped>
-/* --- 关键：给图片增加占位样式 --- */
 :deep(.msg-content-selectable img) {
-	cursor: pointer !important;
 	display: block;
-	max-width: 100%;
-	/* 1. 核心：预设最小高度，防止图片加载前高度为0导致定位偏差 */
-	min-height: 120px;
-	/* 2. 增加一点加载中的背景感 */
-	background: rgba(0, 0, 0, 0.05);
-	border-radius: 4px;
-	margin-top: 4px;
+	cursor: pointer;
+	max-width: 240px;
+	max-height: 320px;
+	width: auto;
+	height: auto;
+	border-radius: 8px;
+	border: #79797a94 solid 1px;
 }
 
 .msg-content-selectable,
-.msg-content-selectable :deep(*),
-.msg-content-selectable * {
-	user-select: text !important;
-	-webkit-user-select: text !important;
-	cursor: text !important;
-	-webkit-app-region: no-drag !important;
-}
-
-:deep(.msg-content-selectable img:hover) {
-	opacity: 0.8;
+.msg-content-selectable :deep(*) {
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
 }
 
 .avatar-no-select {
-	user-select: none !important;
-	-webkit-user-select: none !important;
-	-webkit-user-drag: none !important;
-	pointer-events: auto !important;
+	user-select: none;
+	-webkit-user-select: none;
 }
 </style>

@@ -183,10 +183,14 @@ import { NDropdown, NIcon, NAvatar, NVirtualList } from 'naive-ui'
 
 import { storeToRefs } from 'pinia'
 import ChatContext from './chat/ChatContext.vue'
+import { useUserInfoStore } from '@renderer/stores/userInfo'
 
 const listWidth = ref(300)
 const titleStore = useTitleStore()
 const chatStore = useChatStore()
+const userInfoStore = useUserInfoStore()
+
+const userName = userInfoStore.userName
 
 const { chatlist, pinnedChats, activeChatId } = storeToRefs(chatStore)
 
@@ -331,7 +335,7 @@ const closeContextMenu = (): void => {
 }
 
 onMounted(() => {
-	titleStore.setTitle('聊天')
+	titleStore.setTitle('欢迎你！' + userName)
 })
 
 // 处理菜单项选择

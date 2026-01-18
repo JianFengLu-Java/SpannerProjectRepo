@@ -178,7 +178,10 @@ function handleLogin(): void {
 		.then(async (response) => {
 			if (response.status) {
 				message.success('登录成功')
-				userInfoStore.setUserInfo(response.data.data)
+				userInfoStore.setUserInfo(
+					response.data.data,
+					response.data.token,
+				)
 				await nextTick()
 				window.electron.ipcRenderer.send('login-success-open-home')
 			} else {

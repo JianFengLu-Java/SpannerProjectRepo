@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'path'
+import crypto from 'crypto'
 
 // 定义窗口类型，方便维护
 type WindowType = 'login' | 'register' | 'home' | 'view-img'
@@ -115,12 +116,34 @@ export function openHomeWindow(): void {
 }
 
 export function viewIMGWindow(imgURL: string): void {
+	// 1. 对 URL 进行 MD5 哈希处理，生成唯一的固定长度 ID
+	const hash = crypto.createHash('md5').update(imgURL).digest('hex')
+	const winKey = `view-img-${hash}` as WindowType
+
+	// 2. 检查该图片的窗口是否已经打开
+	const existingWin = windowRegistry.get(winKey)
+
+	if (existingWin && !existingWin.isDestroyed()) {
+		// 如果窗口存在，聚焦并置顶
+		existingWin.focus()
+		return
+	}
+
+	// 3. 如果不存在，则创建新窗口
 	const win = createBaseWindow({
 		width: 600,
 		height: 600,
 	})
+
+	// 注意：加载页面仍需使用原始 imgURL
 	const page = `view-img?url=${encodeURIComponent(imgURL)}`
 	loadPage(win, page)
-	const winKey = 'view-img' as WindowType
+
+	// 4. 将新窗口存入 Registry
 	windowRegistry.set(winKey, win)
+
+	// 5. 监听窗口关闭，清理 Registry
+	win.on('closed', () => {
+		windowRegistry.delete(winKey)
+	})
 }

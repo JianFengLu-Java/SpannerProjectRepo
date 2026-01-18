@@ -242,7 +242,7 @@ export const useChatStore = defineStore('chat', () => {
 				id: 202,
 				chatId: 2,
 				senderId: 'me',
-				text: '我们周一到周五 9:00 - 18:00 在线。',
+				text: '我们周一到周五 9:00 - 18:00 在线。<img src="https://http.cat/200">',
 				timestamp: '09:15',
 				type: 'text',
 			},

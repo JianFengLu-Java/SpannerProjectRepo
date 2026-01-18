@@ -373,15 +373,19 @@ const submitRegistration = () => {
 				// window.electron.ipcRenderer.send(
 				// 	'register-success-open-loginWindow',
 				// )
+
+				console.log(res.data.data.account)
+
 				router.push({
 					name: 'RegisterResult',
-					query: { userInfo: res.data.data.account },
+					params: { userInfo: res.data.data.account },
 				})
 			} else {
 				message.error(res.data.message || '注册失败')
 			}
 		} catch (err) {
 			message.error('网络错误或服务器异常')
+			console.error(err)
 		} finally {
 			isSubmitting.value = false
 		}

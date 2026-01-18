@@ -47,6 +47,25 @@
 			</n-input-group>
 			<div>1</div>
 		</n-modal>
+		<n-modal
+			v-model:show="showAddFriendModal"
+			preset="dialog"
+			style="
+				width: 600px;
+				position: center;
+				top: -200px;
+				border-radius: 18px;
+			"
+			:bordered="false"
+			size="huge"
+			transform-origin="center"
+		>
+			<n-input-group>
+				<n-input type="text" placeholder="请输入用户账号查找" />
+				<n-button type="primary"> 查找 </n-button>
+			</n-input-group>
+			<div>1</div>
+		</n-modal>
 		<div>
 			<n-dropdown
 				trigger="click"
@@ -79,6 +98,23 @@
 						},
 						onClick: () => {
 							console.log('新建群组')
+						},
+					},
+					{
+						label: '添加好友',
+						key: 'new-friend',
+						icon() {
+							return h(NIcon, null, {
+								default: () => h(Add),
+							})
+						},
+						props: {
+							onClick: () => {
+								console.log(
+									'添加好友，打开modal对话框，搜索好友account，查询ID发送好友请求',
+								)
+								showAddFriendModal = true
+							},
 						},
 					},
 				]"
@@ -159,7 +195,7 @@ console.log('用户信息：', user.avatarUrl)
 const router = useRouter()
 const route = useRoute()
 const showSearchModal = ref(false)
-
+const showAddFriendModal = ref(false)
 const platfrom = window.api.platform
 
 /**

@@ -8,17 +8,22 @@ export const useUserInfoStore = defineStore(
 		const gender = ref('')
 		const email = ref('')
 		const avatarUrl = ref('')
+		const userToken = ref('')
 
-		function setUserInfo(info: {
-			userName: string
-			gender: string
-			email: string
-			avatarUrl: string
-		}): void {
-			userName.value = info.userName
+		function setUserInfo(
+			info: {
+				realName: string
+				gender: string
+				email: string
+				avatarUrl: string
+			},
+			token: string,
+		): void {
+			userName.value = info.realName
 			gender.value = info.gender
 			email.value = info.email
 			avatarUrl.value = info.avatarUrl
+			userToken.value = token
 		}
 
 		function logout(): void {

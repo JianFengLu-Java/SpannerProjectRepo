@@ -5,7 +5,7 @@
 		:description="`你的账号是 ${prop.userInfo}`"
 	>
 		<template #footer>
-			<n-button @click="$router.push('/login')">我喜欢</n-button>
+			<n-button @click="handleLogin">返回登录</n-button>
 		</template>
 	</n-result>
 </template>
@@ -14,6 +14,10 @@
 const prop = defineProps({
 	userInfo: String,
 })
+
+const handleLogin = () => {
+	window.electron.ipcRenderer.send('register-success-open-loginWindow')
+}
 </script>
 
 <style lang="scss" scoped></style>
