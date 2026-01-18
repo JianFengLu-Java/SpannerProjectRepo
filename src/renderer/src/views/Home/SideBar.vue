@@ -20,12 +20,33 @@
 		<div>
 			<div
 				class="text-zinc-800 w-9 h-9 flex justify-center bg-gray-50 items-center rounded-full hover:bg-zinc-300 cursor-pointer no-drag"
+				@click="showSearchModal = true"
 			>
 				<n-icon size="20">
 					<Search />
 				</n-icon>
 			</div>
 		</div>
+		<n-modal
+			v-model:show="showSearchModal"
+			preset="dialog"
+			title="搜索"
+			style="
+				width: 600px;
+				position: center;
+				top: -200px;
+				border-radius: 18px;
+			"
+			:bordered="false"
+			size="huge"
+			transform-origin="center"
+		>
+			<n-input-group>
+				<n-input type="text" placeholder="请输入关键词..." />
+				<n-button type="primary"> 搜索 </n-button>
+			</n-input-group>
+			<div>1</div>
+		</n-modal>
 		<div>
 			<n-dropdown
 				trigger="click"
@@ -137,6 +158,7 @@ console.log('用户信息：', user.avatarUrl)
  */
 const router = useRouter()
 const route = useRoute()
+const showSearchModal = ref(false)
 
 const platfrom = window.api.platform
 

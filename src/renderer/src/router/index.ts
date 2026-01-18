@@ -1,3 +1,4 @@
+import path from 'path'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
@@ -10,6 +11,11 @@ const routes = [
 		path: '/login',
 		name: 'Login',
 		component: () => import('../views/Login.vue'),
+	},
+	{
+		path: '/view-img',
+		name: 'ViewIMG',
+		component: () => import('../views/IMGView/IMGView.vue'),
 	},
 	{
 		path: '/register',

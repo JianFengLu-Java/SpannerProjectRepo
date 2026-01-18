@@ -3,6 +3,7 @@ import {
 	openLoginWindow,
 	openHomeWindow,
 	openRegisterWindow,
+	viewIMGWindow,
 } from '../windowStatue/windowManage'
 
 export function setupIpcHandlers(): void {
@@ -24,5 +25,10 @@ export function setupIpcHandlers(): void {
 	// 退出登录
 	ipcMain.on('logout-open-loginWindow', () => {
 		openLoginWindow()
+	})
+
+	//打开图片预览【测试】
+	ipcMain.on('view-img', (e, imgUrl) => {
+		viewIMGWindow(imgUrl)
 	})
 }

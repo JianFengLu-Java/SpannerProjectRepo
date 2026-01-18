@@ -2,7 +2,7 @@ import { BrowserWindow } from 'electron'
 import { join } from 'path'
 
 // 定义窗口类型，方便维护
-type WindowType = 'login' | 'register' | 'home'
+type WindowType = 'login' | 'register' | 'home' | 'view-img'
 
 // 窗口注册表：保存所有正在运行的窗口实例
 const windowRegistry = new Map<WindowType, BrowserWindow>()
@@ -112,4 +112,15 @@ export function openHomeWindow(): void {
 	// 成功进入首页后，销毁登录相关的窗口
 	windowRegistry.get('login')?.close()
 	windowRegistry.get('register')?.close()
+}
+
+export function viewIMGWindow(imgURL: string): void {
+	const win = createBaseWindow({
+		width: 600,
+		height: 600,
+	})
+	const page = `view-img?url=${encodeURIComponent(imgURL)}`
+	loadPage(win, page)
+	const winKey = 'view-img' as WindowType
+	windowRegistry.set(winKey, win)
 }

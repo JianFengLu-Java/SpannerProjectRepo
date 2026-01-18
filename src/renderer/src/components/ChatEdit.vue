@@ -221,7 +221,12 @@ onUnmounted(() => {
 
 function handleClickEditor(e: MouseEvent): void {
 	const target = e.target as HTMLElement
-	if (target.tagName === 'IMG') message.info('选择了图片')
+	if (target.tagName === 'IMG') {
+		window.electron.ipcRenderer.send(
+			'view-img',
+			(target as HTMLImageElement).src,
+		)
+	}
 }
 </script>
 
