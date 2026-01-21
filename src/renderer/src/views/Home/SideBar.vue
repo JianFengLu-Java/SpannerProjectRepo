@@ -6,36 +6,55 @@
 		<div
 			class="h-full fixed top-0 drag -z-10"
 			:style="{ width: isExpanded ? width + 'px' : '76px' }"
+			@mousedown="handleDown"
 		></div>
 
 		<div
-			class="flex flex-col items-center gap-4 cursor-pointer no-drag w-full"
+			class="flex flex-col items-center gap-4 no-drag"
 			:class="[
 				platfrom === 'darwin' ? 'mt-10' : 'mt-2',
-				isExpanded ? 'px-4 items-start' : 'items-center',
+				isExpanded ? 'px-4 items-start w-full' : 'items-center',
 			]"
 		>
-			<n-dropdown
-				trigger="click"
-				placement="right-start"
-				style="border: 1px solid #ccc; border-radius: 10px"
-				:options="userMenuOptions"
-			>
-				<div class="flex items-center gap-3">
-					<n-avatar round :src="user.avatarUrl" />
-					<div v-if="isExpanded" class="flex flex-col">
-						<span class="text-sm font-bold truncate w-24">{{
-							user.userName
-						}}</span>
-						<span class="text-[10px] text-gray-500">在线</span>
-					</div>
+			<div class="flex items-center gap-3 w-full">
+				<n-dropdown
+					trigger="click"
+					placement="right-start"
+					style="border: 1px solid #ccc; border-radius: 10px"
+					:options="userMenuOptions"
+				>
+					<n-avatar
+						round
+						:src="user.avatarUrl"
+						class="cursor-pointer shrink-0"
+					/>
+				</n-dropdown>
+				<div v-if="isExpanded" class="flex flex-col flex-1">
+					<span class="text-sm font-bold">{{ user.userName }}</span>
+					<span class="text-[10px] text-gray-500">在线</span>
 				</div>
-			</n-dropdown>
+				<div v-if="isExpanded">
+					<n-dropdown
+						trigger="click"
+						placement="right-start"
+						style="
+							width: 140px;
+							border: 1px solid #ccc;
+							border-radius: 10px;
+						"
+						:options="addMenuOptions"
+					>
+						<n-icon size="20" class="text-gray-400">
+							<Add16Filled />
+						</n-icon>
+					</n-dropdown>
+				</div>
+			</div>
 		</div>
 
-		<div class="no-drag w-full px-4 flex justify-center">
+		<div class="no-drag w-full px-2 flex justify-center">
 			<div
-				class="text-zinc-800 flex items-center bg-gray-50 rounded-full hover:bg-zinc-300 cursor-pointer transition-all overflow-hidden"
+				class="text-zinc-800 flex items-center bg-gray-50 rounded-xl border border-gray-200 hover:bg-zinc-300 cursor-pointer transition-all overflow-hidden"
 				:class="
 					isExpanded
 						? 'w-full h-8 px-3 gap-2'
@@ -54,7 +73,7 @@
 			</div>
 		</div>
 
-		<div class="no-drag w-full px-4 flex justify-center">
+		<div v-if="!isExpanded" class="no-drag w-full px-4 flex justify-center">
 			<n-dropdown
 				trigger="click"
 				placement="right-start"
@@ -92,18 +111,18 @@
 				v-for="item in menus"
 				:key="item.key"
 				:class="[
-					'flex items-center cursor-pointer rounded-xl transition-all no-drag',
+					'flex items-center cursor-pointer  transition-all no-drag',
 					isExpanded
-						? 'w-full px-4 h-9 gap-1'
-						: 'w-16 h-14 flex-col justify-center gap-0.5',
+						? 'w-full px-2 h-9 gap-2 rounded-lg'
+						: 'w-16 h-16 flex-col justify-center gap-1 rounded-xl',
 					route.name === item.name
 						? ' bg-white text-primary-600'
 						: 'hover:bg-gray-50 ',
 				]"
 				@click="go(item)"
 			>
-				<n-badge :dot="item.hasMessage" color="red" size="small">
-					<div class="h-8 w-8 flex justify-center items-center">
+				<n-badge :dot="item.hasMessage">
+					<div class="flex justify-center items-center">
 						<n-icon
 							size="18"
 							:color="route.name === item.name ? '#444' : '#aaa'"
@@ -115,7 +134,7 @@
 
 				<span
 					v-if="isExpanded"
-					class="text-xs font-medium whitespace-nowrap overflow-hidden"
+					class="text-xs whitespace-nowrap overflow-hidden"
 					:style="{
 						color: route.name === item.name ? '#444' : '#aaa',
 					}"
@@ -125,7 +144,7 @@
 
 				<span
 					v-else
-					class="text-[10px] leading-none font-medium"
+					class="text-[10px] leading-none"
 					:style="{
 						color: route.name === item.name ? '#444' : '#aaa',
 					}"
@@ -205,6 +224,7 @@ import {
 	ChevronForwardOutline as ChevronForward,
 } from '@vicons/ionicons5'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
+import { Add16Filled } from '@vicons/fluent'
 
 defineProps<{ isExpanded: boolean; width: number }>()
 const emit = defineEmits(['toggle'])
@@ -324,6 +344,10 @@ const iconMap: Record<string, Component> = {
 	chat: Chatbubbles,
 	user: Person,
 	setting: Settings,
+}
+
+const handleDown = (e: MouseEvent): void => {
+	document.body.click()
 }
 
 const menus = ref<MenuItem[]>([])
