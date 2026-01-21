@@ -9,6 +9,7 @@ import { useMessage } from 'naive-ui'
 import { useChatStore } from '@renderer/stores/chat'
 import { storeToRefs } from 'pinia'
 import StarterKit from '@tiptap/starter-kit'
+import { EmojiAdd16Regular, FontDecrease20Regular } from '@vicons/fluent'
 
 // --- 新增：接收 currentId 确保闭环 ---
 const props = defineProps<{
@@ -231,7 +232,7 @@ function handleClickEditor(e: MouseEvent): void {
 </script>
 
 <template>
-	<div class="chat-edit-wrapper">
+	<div class="">
 		<div
 			class="w-full rounded-xl border h-fit bg-white transition-all duration-200 p-1.5"
 			:class="[
@@ -313,7 +314,7 @@ function handleClickEditor(e: MouseEvent): void {
 							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-500 hover:text-green-600"
 							@click="fileInput?.click()"
 						>
-							<n-icon size="20"><At /></n-icon>
+							<n-icon size="20"><ImageOutline /></n-icon>
 							<input
 								ref="fileInput"
 								type="file"
@@ -329,12 +330,17 @@ function handleClickEditor(e: MouseEvent): void {
 						<div
 							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-500 hover:text-green-600"
 						>
-							<n-icon size="20"><ImageOutline /></n-icon>
+							<n-icon size="20"><At /></n-icon>
 						</div>
 						<div
 							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-500 hover:text-green-600"
 						>
-							<n-icon size="20"><ImageOutline /></n-icon>
+							<n-icon size="20"><EmojiAdd16Regular /></n-icon>
+						</div>
+						<div
+							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-500 hover:text-green-600"
+						>
+							<n-icon size="20"><FontDecrease20Regular /></n-icon>
 						</div>
 
 						<n-button
@@ -344,6 +350,24 @@ function handleClickEditor(e: MouseEvent): void {
 							color="#333"
 							@click="handleSendMessage"
 						>
+							<template #Icon>
+								<n-icon size="16" color="#fff">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="2"
+										stroke="currentColor"
+										class="w-4 h-4"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+										/>
+									</svg>
+								</n-icon>
+							</template>
 							发送
 						</n-button>
 					</div>
@@ -351,7 +375,7 @@ function handleClickEditor(e: MouseEvent): void {
 			</div>
 		</div>
 
-		<div class="w-full flex justify-end h-5">
+		<div class="w-full flex justify-end h-2.5">
 			<div
 				v-if="!editor?.isEmpty"
 				class="px-2 text-[10px] text-gray-400 select-none"

@@ -40,7 +40,7 @@
 			<ChatContainer :messages="currentChatMessages" />
 		</div>
 		<!-- input -->
-		<div class="h-fit py-3 w-full px-4">
+		<div class="h-fit py-2 w-full px-4 border-t border-gray-200 shrink-0">
 			<chat-edit
 				v-if="activeChatId !== null"
 				:key="activeChatId"

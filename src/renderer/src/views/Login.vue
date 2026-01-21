@@ -143,6 +143,7 @@ import {
 } from '@vicons/ionicons5'
 import { useTitleStore } from '../stores/title'
 import { useUserInfoStore } from '../stores/userInfo'
+import request from '../utils/request'
 import axios from 'axios'
 
 const titleStore = useTitleStore()
@@ -170,8 +171,8 @@ function handleLogin(): void {
 	}
 
 	isLoading.value = true
-	axios
-		.post('http://localhost:8080/user/login', {
+	request
+		.post('/user/login', {
 			account: userName.value,
 			password: password.value,
 		})

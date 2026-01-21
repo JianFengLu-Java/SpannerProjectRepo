@@ -21,6 +21,7 @@ function createBaseWindow(
 			preload: join(__dirname, '../preload/index.js'),
 			sandbox: false,
 			contextIsolation: true,
+			webSecurity: false,
 		},
 		autoHideMenuBar: true,
 		...options,

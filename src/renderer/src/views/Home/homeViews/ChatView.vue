@@ -12,7 +12,7 @@
 			@select="handleContextMenuSelect"
 		/>
 		<div
-			class="h-full flex flex-col bg-white rounded-xl transition-all duration-200"
+			class="h-full flex flex-col bg-white rounded-xl overflow-hidden transition-all duration-200"
 			:style="{ width: `${listWidth}px` }"
 		>
 			<!-- 搜索和功能栏 -->
@@ -106,6 +106,7 @@
 								<!-- 头像和状态 -->
 								<div>
 									<n-badge
+										:key="'item' + item"
 										:value="item.unreadCount"
 										:offset="[-3, 0]"
 										color="red"
@@ -185,7 +186,7 @@ import { storeToRefs } from 'pinia'
 import ChatContext from './chat/ChatContext.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 
-const listWidth = ref(300)
+const listWidth = ref(200)
 const titleStore = useTitleStore()
 const chatStore = useChatStore()
 const userInfoStore = useUserInfoStore()
@@ -250,7 +251,7 @@ const startDrag = (e: MouseEvent): void => {
 	const onMove = (moveEvent: MouseEvent): void => {
 		if (!isDragging) return
 		const delta = moveEvent.clientX - startX
-		listWidth.value = Math.min(400, Math.max(260, startWidth + delta))
+		listWidth.value = Math.min(400, Math.max(200, startWidth + delta))
 	}
 
 	const stopDrag = (): void => {
@@ -275,8 +276,8 @@ const contextMenuOptions = computed(() => {
 	const chat = selectedChat.value
 	if (!chat) return []
 
-	const isPinned = pinnedChats.value.some((c) => c.id === chat.id)
-	const isRead = chat.unreadCount === 0
+	const isPinned = pinnedChats.value.some((c) => c.id === chat?.id)
+	const isRead = chat?.unreadCount === 0
 
 	return [
 		isPinned
