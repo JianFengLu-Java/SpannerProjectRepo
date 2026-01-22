@@ -1,5 +1,7 @@
 <template>
-	<div class="h-full w-full flex bg-[#ECEDEE] gap-0 relative overflow-hidden">
+	<div
+		class="h-full w-full flex bg-gradient-to-br from-[#f4f4f4] to-[#ebe2df] gap-0 relative overflow-hidden"
+	>
 		<SideBar
 			:is-expanded="isExpanded"
 			:width="sideBarWidth"

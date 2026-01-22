@@ -1,79 +1,101 @@
 <template>
 	<div
-		class="gap-3 h-full flex flex-col items-center justify-between rounded-[14px] transition-[width] duration-300 ease-in-out relative bg-[#ECEDEE]"
+		class="main-sidebar gap-3 h-full flex flex-col items-center justify-between rounded-[14px] transition-all duration-300 ease-in-out relative"
 		:style="{ width: isExpanded ? width + 'px' : '76px' }"
 	>
 		<div
 			class="h-full fixed top-0 drag -z-10"
 			:style="{ width: isExpanded ? width + 'px' : '76px' }"
-			@mousedown="handleDown"
+			@mousedown="handleDragMouseDown"
 		></div>
 
 		<div
-			class="flex flex-col items-center gap-4 no-drag"
-			:class="[
-				platfrom === 'darwin' ? 'mt-10' : 'mt-2',
-				isExpanded ? 'px-4 items-start w-full' : 'items-center',
-			]"
+			class="flex flex-col no-drag w-full"
+			:class="[platfrom === 'darwin' ? 'mt-10' : 'mt-2']"
 		>
-			<div class="flex items-center gap-3 w-full">
-				<n-dropdown
-					trigger="click"
-					placement="right-start"
-					style="border: 1px solid #ccc; border-radius: 10px"
-					:options="userMenuOptions"
-				>
-					<n-avatar
-						round
-						:src="user.avatarUrl"
-						class="cursor-pointer shrink-0"
-					/>
-				</n-dropdown>
-				<div v-if="isExpanded" class="flex flex-col flex-1">
-					<span class="text-sm font-bold">{{ user.userName }}</span>
-					<span class="text-[10px] text-gray-500">在线</span>
-				</div>
-				<div v-if="isExpanded">
+			<div class="flex items-center w-full relative h-12">
+				<div class="flex items-center shrink-0 pl-[18px]">
 					<n-dropdown
 						trigger="click"
 						placement="right-start"
-						style="
-							width: 140px;
-							border: 1px solid #ccc;
-							border-radius: 10px;
-						"
-						:options="addMenuOptions"
+						style="border: 1px solid #ccc; border-radius: 10px"
+						:options="userMenuOptions"
 					>
-						<n-icon size="20" class="text-gray-400">
-							<Add16Filled />
-						</n-icon>
+						<n-avatar
+							round
+							:size="40"
+							:src="user.avatarUrl"
+							class="cursor-pointer shrink-0 avatar-layer"
+						/>
 					</n-dropdown>
 				</div>
+
+				<Transition name="fade-slide">
+					<div
+						v-if="isExpanded"
+						class="flex flex-col flex-1 overflow-hidden ml-3"
+					>
+						<span
+							class="text-sm font-bold whitespace-nowrap truncate"
+						>
+							{{ user.userName }}
+						</span>
+						<span
+							class="text-[10px] text-gray-500 whitespace-nowrap"
+							>在线</span
+						>
+					</div>
+				</Transition>
+
+				<Transition name="fade-scale">
+					<div v-if="isExpanded" class="shrink-0 pr-4">
+						<n-dropdown
+							trigger="click"
+							placement="right-start"
+							style="
+								width: 140px;
+								border: 1px solid #ccc;
+								border-radius: 10px;
+							"
+							:options="addMenuOptions"
+						>
+							<n-icon
+								size="20"
+								class="text-gray-400 cursor-pointer hover:text-gray-600 transition-colors"
+							>
+								<Add16Filled />
+							</n-icon>
+						</n-dropdown>
+					</div>
+				</Transition>
 			</div>
 		</div>
 
-		<div class="no-drag w-full px-2 flex justify-center">
+		<div class="no-drag w-full px-2 flex justify-center mt-2">
 			<div
-				class="text-zinc-800 flex items-center bg-gray-50 rounded-xl border border-gray-200 hover:bg-zinc-300 cursor-pointer transition-all overflow-hidden"
-				:class="
-					isExpanded
-						? 'w-full h-8 px-3 gap-2'
-						: 'w-9 h-9	 justify-center'
-				"
+				class="search-bar-container text-zinc-800 flex items-center cursor-pointer overflow-hidden transition-custom"
+				:class="isExpanded ? 'is-expanded' : 'is-collapsed'"
 				@click="showSearchModal = true"
 			>
-				<n-icon size="20">
+				<n-icon size="20" color="#666" class="shrink-0">
 					<Search />
 				</n-icon>
-				<span
-					v-if="isExpanded"
-					class="text-[12px] text-zinc-500 whitespace-nowrap"
-					>搜索内容...</span
-				>
+
+				<Transition name="fade">
+					<span
+						v-if="isExpanded"
+						class="text-[12px] text-zinc-500 whitespace-nowrap ml-2"
+					>
+						搜索内容(⌘+K)
+					</span>
+				</Transition>
 			</div>
 		</div>
 
-		<div v-if="!isExpanded" class="no-drag w-full px-4 flex justify-center">
+		<div
+			v-if="!isExpanded"
+			class="no-drag w-full px-4 flex justify-center transition-all"
+		>
 			<n-dropdown
 				trigger="click"
 				placement="right-start"
@@ -85,39 +107,29 @@
 				:options="addMenuOptions"
 			>
 				<div
-					class="text-zinc-800 flex items-center bg-gray-50 rounded-full hover:bg-zinc-300 cursor-pointer transition-all overflow-hidden"
-					:class="
-						isExpanded
-							? 'w-full h-8 px-3 gap-2'
-							: 'w-9 h-9 justify-center'
-					"
+					class="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center hover:bg-zinc-300 cursor-pointer transition-all"
 				>
 					<n-icon size="20">
 						<Add />
 					</n-icon>
-					<span
-						v-if="isExpanded"
-						class="text-[12px] text-zinc-500 whitespace-nowrap"
-						>新建/添加</span
-					>
 				</div>
 			</n-dropdown>
 		</div>
 
 		<div
-			class="flex-1 w-full flex flex-col items-center gap-1 rounded-md pt-0 p-2"
+			class="flex-1 w-full flex flex-col items-center gap-1 rounded-md pt-0 p-2 overflow-y-auto"
 		>
 			<div
 				v-for="item in menus"
 				:key="item.key"
 				:class="[
-					'flex items-center cursor-pointer  transition-all no-drag',
+					'flex items-center cursor-pointer transition-all no-drag',
 					isExpanded
-						? 'w-full px-2 h-9 gap-2 rounded-lg'
+						? 'w-full px-3 h-9 gap-3 rounded-lg'
 						: 'w-16 h-16 flex-col justify-center gap-1 rounded-xl',
 					route.name === item.name
 						? ' bg-white text-primary-600'
-						: 'hover:bg-gray-50 ',
+						: 'hover:bg-gray-200/50 ',
 				]"
 				@click="go(item)"
 			>
@@ -141,7 +153,6 @@
 				>
 					{{ item.label }}
 				</span>
-
 				<span
 					v-else
 					class="text-[10px] leading-none"
@@ -156,7 +167,7 @@
 
 		<div
 			:class="[
-				'mb-4 no-drag w-full flex border-t border-gray-200/50 pt-4',
+				'mb-4 no-drag w-full flex  border-gray-200/50 pt-4',
 				isExpanded ? 'justify-end px-4' : 'justify-center',
 			]"
 		>
@@ -177,7 +188,6 @@
 			preset="dialog"
 			title="搜索"
 			style="width: 600px; border-radius: 18px"
-			:bordered="false"
 		>
 			<n-input-group>
 				<n-input type="text" placeholder="请输入关键词..." />
@@ -189,7 +199,6 @@
 			v-model:show="showAddFriendModal"
 			preset="dialog"
 			style="width: 600px; border-radius: 18px"
-			:bordered="false"
 		>
 			<n-input-group>
 				<n-input type="text" placeholder="请输入用户账号查找" />
@@ -272,59 +281,43 @@ const userMenuOptions = [
 		key: 'user-info',
 		label: '个人信息',
 		type: 'render',
-		render: () => {
-			return h('div', { class: 'p-4 flex flex-col w-200px' }, [
+		render: () =>
+			h('div', { class: 'p-4 flex flex-col w-200px' }, [
 				h('div', { class: 'flex ' }, [
 					h(NAvatar, {
-						class: ' text-lg mb-2',
+						class: 'mb-2',
 						src: user.avatarUrl,
 						size: 62,
 						round: true,
 					}),
-					h(
-						'div',
-						{ class: 'ml-4 h-full flex flex-col justify-center' },
-						[
-							h(
-								'div',
-								{
-									class: 'text-lg font-semibold flex items-center text-gray-800',
-								},
-								[
-									h('span', null, user.userName),
-									h(
-										NTag,
-										{
-											class: 'ml-2 text-xs',
-											type: 'success',
-											size: 'small',
-											round: true,
-										},
-										{
-											default: () => '董事长',
-											icon: () =>
-												h(
-													NIcon,
-													{ size: 12 },
-													{
-														default: () =>
-															h(Person),
-													},
-												),
-										},
-									),
-								],
-							),
-							h(
-								'div',
-								{ class: 'text-xs text-gray-500' },
-								user.email,
-							),
-						],
-					),
+					h('div', { class: 'ml-4 flex flex-col justify-center' }, [
+						h(
+							'div',
+							{
+								class: 'text-lg font-semibold flex items-center text-gray-800',
+							},
+							[
+								h('span', null, user.userName),
+								h(
+									NTag,
+									{
+										class: 'ml-2',
+										type: 'success',
+										size: 'small',
+										round: true,
+									},
+									{ default: () => '在线' },
+								),
+							],
+						),
+						h(
+							'div',
+							{ class: 'text-xs text-gray-500' },
+							user.email,
+						),
+					]),
 				]),
-			])
-		},
+			]),
 	},
 	{ type: 'divider' },
 	{ label: '我的个人名片', key: 'my-card' },
@@ -346,8 +339,8 @@ const iconMap: Record<string, Component> = {
 	setting: Settings,
 }
 
-const handleDown = (e: MouseEvent): void => {
-	document.body.click()
+const handleDragMouseDown = () => {
+	document.body.click() // 解决 Dropdown 在拖拽区不消失的问题
 }
 
 const menus = ref<MenuItem[]>([])
@@ -366,9 +359,7 @@ onMounted(() => {
 })
 
 function go(item: MenuItem): void {
-	if (route.name !== item.name) {
-		router.push({ name: item.name })
-	}
+	if (route.name !== item.name) router.push({ name: item.name })
 }
 </script>
 
@@ -380,19 +371,84 @@ function go(item: MenuItem): void {
 	-webkit-app-region: no-drag;
 }
 
-/* 菜单文字淡入效果 */
-.whitespace-nowrap {
-	animation: fadeIn 0.4s ease-out;
+/* 基础过渡曲线 */
+.main-sidebar {
+	transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@keyframes fadeIn {
-	from {
-		opacity: 0;
-		transform: translateX(-5px);
-	}
-	to {
-		opacity: 1;
-		transform: translateX(0);
-	}
+/* 头像层不闪烁优化 */
+.avatar-layer {
+	backface-visibility: hidden;
+	transform: translateZ(0);
+}
+
+/* 名字滑入动画 */
+.fade-slide-enter-active {
+	transition: all 0.3s ease-out 0.1s;
+}
+.fade-slide-leave-active {
+	transition: all 0.2s ease-in;
+	position: absolute;
+	left: 58px; /* 18px + 40px */
+}
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+	opacity: 0;
+	transform: translateX(-10px);
+}
+
+/* 添加按钮缩放动画 */
+.fade-scale-enter-active {
+	transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s;
+}
+.fade-scale-leave-active {
+	transition: all 0.15s ease-in;
+}
+.fade-scale-enter-from,
+.fade-scale-leave-to {
+	opacity: 0;
+	transform: scale(0.5);
+}
+
+/* 搜索框专属动画 */
+.transition-custom {
+	transition:
+		width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+		height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+		background-color 0.2s linear,
+		border-radius 0.3s ease;
+	will-change: width, height;
+}
+
+.is-expanded {
+	width: 100%;
+	height: 32px;
+	padding: 0 12px;
+	background-color: #e5e7ebb7;
+	border-radius: 8px;
+	border: 1px solid rgba(156, 163, 175, 0.2);
+}
+
+.is-collapsed {
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	justify-content: center;
+	background-color: #f9fafb;
+	border-radius: 50%;
+	border: 1px solid transparent;
+}
+
+/* 搜索框文字过渡 */
+.fade-enter-active {
+	transition: opacity 0.2s ease 0.1s;
+}
+.fade-leave-active {
+	transition: opacity 0.1s ease;
+	position: absolute;
+}
+.fade-enter-from,
+.fade-leave-to {
+	opacity: 0;
 }
 </style>

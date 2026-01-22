@@ -223,15 +223,17 @@ import { VueCropper } from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
 import { useTitleStore } from '@renderer/stores/title'
 import router from '@renderer/router'
+import { env } from 'process'
 
 const title = useTitleStore()
 
 title.setTitle('注册')
 
 /* ================== 配置与常量 ================== */
+const endpoint = import.meta.env.VITE_API_URL
 const API = {
-	REGISTER: 'http://localhost:8080/user/register',
-	UPLOAD: 'http://localhost:8080/files/update/avatar',
+	REGISTER: endpoint + '/user/register',
+	UPLOAD: endpoint + '/files/update/avatar',
 }
 const emailSuffix = '@oakevergames.com'
 const message = useMessage()
