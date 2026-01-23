@@ -48,8 +48,7 @@
 					<n-form-item label="真实姓名" path="realName">
 						<n-input
 							v-model:value="formModel.realName"
-							:allow-input="onlyAlphaNumber"
-							placeholder="建议使用英文或数字"
+							placeholder="您的姓名"
 							clearable
 						/>
 					</n-form-item>
@@ -267,7 +266,7 @@ const rules: FormRules = {
 	avatarUrl: { required: true, message: '请设置个人头像', trigger: 'change' },
 	realName: [
 		{ required: true, message: '请输入用户名' },
-		{ min: 6, message: '用户名至少 6 位', trigger: 'blur' },
+		{ min: 2, message: '姓名至少 2 个汉字', trigger: 'blur' },
 	],
 	email: { required: true, message: '请输入邮箱前缀' },
 	gender: { required: true, message: '请选择性别' },
@@ -308,8 +307,6 @@ const getPreviewStyle = (size: number) => {
 }
 /* ================== 逻辑处理：头像裁剪 ================== */
 const triggerUpload = () => fileInput.value?.click()
-
-const onlyAlphaNumber = (v: string) => /^[a-zA-z0-9]*$/.test(v)
 
 const onFileChange = (e: Event) => {
 	const file = (e.target as HTMLInputElement).files?.[0]

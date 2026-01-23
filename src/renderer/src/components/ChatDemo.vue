@@ -1,15 +1,15 @@
 <template>
 	<div>
-		<n-button @click="connect" :disabled="connected">Connect</n-button>
+		<n-button :disabled="connected" @click="connect">Connect</n-button>
 		<n-input
 			v-model:value="sendContent"
 			placeholder="Type your message"
 			:disabled="!connected"
 		/>
-		<n-button @click="send" :disabled="!connected || !sendContent"
+		<n-button :disabled="!connected || !sendContent" @click="send"
 			>Send</n-button
 		>
-		<n-button @click="disconnect" :disabled="!connected"
+		<n-button :disabled="!connected" @click="disconnect"
 			>Disconnect</n-button
 		>
 

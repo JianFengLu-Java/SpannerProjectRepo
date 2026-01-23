@@ -1,27 +1,34 @@
 <template>
-	<div class="login-root overflow-hidden">
+	<div
+		class="flex h-screen w-screen items-center justify-center bg-linear-to-br from-grad-start to-grad-end"
+	>
 		<div
-			class="w-[360px] border rounded-3xl shadow-sm overflow-hidden border-gray-300"
+			class="w-[360px] border rounded-3xl shadow-xl overflow-hidden border-border-default"
 		>
 			<div
 				class="relative w-full flex justify-center flex-col items-center h-40 overflow-hidden"
 			>
-				<p class="text-white font-bold text-5xl z-10">LinkR</p>
-				<p class="text-white/75 font-medium text-sm z-10">
-					连接思维,提高效率
+				<p class="text-white font-bold text-5xl z-10 tracking-tight">
+					LinkR
+				</p>
+				<p
+					class="text-white/80 font-medium text-sm z-10 tracking-widest mt-1"
+				>
+					连接思维 · 提高效率
 				</p>
 
-				<div class="logo-wrapper absolute top-0">
+				<div class="absolute inset-0">
 					<img
 						src="http://47.108.39.129:9000/pic/bg_login.jpg"
-						class="select-none"
+						class="w-full h-full object-cover select-none blur-lg scale-110"
 					/>
+					<div class="absolute inset-0 bg-black/30"></div>
 				</div>
 			</div>
 			<!-- Logo -->
 
 			<!-- Tabs -->
-			<div class="p-8 gap-2 bg-white">
+			<div class="p-8 gap-2 bg-page-bg">
 				<n-tabs
 					type="segment"
 					size="medium"

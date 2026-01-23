@@ -1,12 +1,38 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
+@theme {
+  /* 1. 定义基础变量（默认是浅色模式的值） */
+  --color-page-bg: #ffffff;
+  --color-card-bg: #ffffff;
+  --color-text-main: #1e293b;
+  --color-border-main: #e2e8f0;
+  --color-border-default: #efefef;
+  
+  --color-primary: #10b981;
+  --color-primary-hover: #34d399;
+	
+  --color-grad-start: #f4f4f4;
+  --color-grad-end: #ebe2df;
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;                /* Chrome / Safari */
 }
 
-/* 无拖拽区域 */
+/* 2. 在 @theme 外部，通过 .dark 类名覆盖变量 */
+@layer base {
+  .dark {
+    /* 当 html 拥有 .dark 类时，这些变量的值会被重写 */
+    --color-page-bg: #18181c;
+    --color-card-bg: #242428;
+    --color-text-main: #e5e7eb;
+    --color-border-main: #333333; /* 修正了你代码中多出的一个 3 */
+  	--color-border-default: #3f4144;
+
+    --color-grad-start: #1e1e20;
+    --color-grad-end: #121214;
+
+    /* 强制告知浏览器使用深色方案（处理滚动条等） */
+    color-scheme: dark;
+  }
+}
 .no-drag {
 	-webkit-app-region: no-drag;
-	user-select: none;
 }

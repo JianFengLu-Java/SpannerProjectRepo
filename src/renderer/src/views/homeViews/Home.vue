@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="h-full w-full flex bg-gradient-to-br from-[#f4f4f4] to-[#ebe2df] gap-0 relative overflow-hidden"
+		class="h-full w-full flex bg-gradient-to-br from-grad-start to-grad-end gap-0 relative overflow-hidden transition-all duration-500 ease-in-out"
 	>
 		<SideBar
 			:is-expanded="isExpanded"

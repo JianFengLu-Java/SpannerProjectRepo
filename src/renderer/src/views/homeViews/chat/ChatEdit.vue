@@ -234,7 +234,7 @@ function handleClickEditor(e: MouseEvent): void {
 <template>
 	<div class="">
 		<div
-			class="w-full rounded-xl border h-fit bg-white transition-all duration-200 p-1.5"
+			class="w-full rounded-xl border h-fit bg-page-bg transition-all duration-200 p-1.5"
 			:class="[
 				isFocus
 					? 'border-gray-500 ring-[3px] ring-gray-100/70'

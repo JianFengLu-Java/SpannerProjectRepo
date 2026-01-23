@@ -4,7 +4,7 @@ import {
 	openHomeWindow,
 	openRegisterWindow,
 	viewIMGWindow,
-} from '../windowStatue/windowManage'
+} from '../windowState/windowManage'
 
 export function setupIpcHandlers(): void {
 	// 登录成功

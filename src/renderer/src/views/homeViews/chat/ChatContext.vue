@@ -27,7 +27,7 @@
 				<div
 					v-for="item in menus"
 					:key="item.key"
-					class="z-100! no-drag grid-cols-1 flex items-center justify-center rounded-md h-8 hover:bg-gray-100 cursor-pointer"
+					class="z-9999! no-drag grid-cols-1 flex items-center justify-center rounded-md h-8 hover:bg-gray-100 cursor-pointer"
 				>
 					<n-icon size="15" color="#555">
 						<component :is="iconMap[item.icon]" />
@@ -56,7 +56,7 @@
 	</div>
 	<div
 		v-if="!currentChat"
-		class="h-full w-full flex justify-center items-center bg-gray-50 rounded-xl"
+		class="h-full w-full flex justify-center items-center bg-page-bg rounded-xl"
 	>
 		点击开始聊天
 	</div>

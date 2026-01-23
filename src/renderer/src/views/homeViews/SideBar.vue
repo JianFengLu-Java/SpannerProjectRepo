@@ -182,28 +182,123 @@
 				</n-icon>
 			</div>
 		</div>
-
 		<n-modal
 			v-model:show="showSearchModal"
 			preset="dialog"
-			title="搜索"
-			style="width: 600px; border-radius: 18px"
+			title="全局搜索"
+			:show-icon="false"
+			transform-origin="center"
+			style="width: 600px; border-radius: 20px; padding: 12px"
 		>
-			<n-input-group>
-				<n-input type="text" placeholder="请输入关键词..." />
-				<n-button type="primary"> 搜索 </n-button>
-			</n-input-group>
+			<div class="flex flex-col gap-4 mt-4">
+				<n-input
+					type="text"
+					placeholder="搜索联系人、群组、聊天记录..."
+					size="large"
+					clearable
+				>
+					<template #prefix>
+						<n-icon><SearchOutline /></n-icon>
+					</template>
+				</n-input>
+
+				<div class="search-content min-h-[200px]">
+					<div class="grid grid-cols-3 gap-3">
+						<div
+							v-for="item in ['联系人', '群组', '文件']"
+							:key="item"
+							class="flex flex-col items-center p-4 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+						>
+							<div
+								class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 mb-2"
+							></div>
+							<span class="text-xs text-gray-500">{{
+								item
+							}}</span>
+						</div>
+					</div>
+				</div>
+			</div>
 		</n-modal>
 
 		<n-modal
 			v-model:show="showAddFriendModal"
-			preset="dialog"
-			style="width: 600px; border-radius: 18px"
+			preset="card"
+			title="添加好友"
+			transform-origin="center"
+			:segmented="{ content: true, footer: true }"
+			:bordered="false"
+			style="max-width: 420px; width: 95%; border-radius: 20px"
 		>
-			<n-input-group>
-				<n-input type="text" placeholder="请输入用户账号查找" />
-				<n-button type="primary"> 查找 </n-button>
-			</n-input-group>
+			<div class="flex flex-col gap-5">
+				<n-input-group>
+					<n-input
+						placeholder="输入 UID / 账号"
+						size="large"
+						:style="{ flex: 1 }"
+					/>
+					<n-button type="primary" size="large" ghost>
+						查找
+					</n-button>
+				</n-input-group>
+
+				<div
+					class="bg-gray-50/80 p-5 rounded-2xl border border-dashed border-gray-200 overflow-hidden"
+				>
+					<div class="flex items-center gap-4">
+						<n-avatar
+							round
+							:size="56"
+							src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
+							class="flex-shrink-0 border-2 border-white shadow-sm"
+						/>
+						<div class="min-w-0 flex-1">
+							<h3
+								class="text-base font-bold m-0 truncate text-gray-800"
+							>
+								欲盖弥彰
+							</h3>
+							<p class="text-[11px] text-gray-400 m-0">
+								UID: 1000293
+							</p>
+						</div>
+					</div>
+
+					<div class="mt-4">
+						<p
+							class="text-[11px] font-medium text-gray-500 mb-1.5 ml-1 uppercase tracking-wider"
+						>
+							验证信息
+						</p>
+						<n-input
+							type="textarea"
+							placeholder="我是..."
+							:autosize="{ minRows: 2, maxRows: 2 }"
+							class="bg-white border-none shadow-sm"
+							style="border-radius: 10px"
+						/>
+					</div>
+				</div>
+
+				<div class="grid grid-cols-2 gap-3 mt-1">
+					<n-button
+						strong
+						secondary
+						size="large"
+						@click="showAddFriendModal = false"
+						style="border-radius: 12px"
+					>
+						取消
+					</n-button>
+					<n-button
+						type="primary"
+						size="large"
+						style="border-radius: 12px"
+					>
+						发送申请
+					</n-button>
+				</div>
+			</div>
 		</n-modal>
 	</div>
 </template>

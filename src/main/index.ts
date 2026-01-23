@@ -5,7 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { setupIpcHandlers } from './controller/setupIpcHandlers'
 import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
-import { openLoginWindow } from './windowStatue/windowManage'
+import { openLoginWindow } from './windowState/windowManage'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)

@@ -12,11 +12,11 @@
 			@select="handleContextMenuSelect"
 		/>
 		<div
-			class="h-full flex flex-col bg-white rounded-xl overflow-hidden transition-all duration-200"
+			class="h-full flex flex-col bg-page-bg rounded-xl overflow-hidden transition-all duration-200"
 			:style="{ width: `${listWidth}px` }"
 		>
 			<!-- 搜索和功能栏 -->
-			<div class="p-3 pb-1 border-gray-100">
+			<div class="p-3 pb-1">
 				<div class="flex items-center gap-2">
 					<n-dropdown
 						:options="options"
@@ -40,7 +40,7 @@
 			<!-- 置顶会话 -->
 			<div
 				v-if="pinnedChats.length > 0"
-				class="px-3 pb-1 border-b border-gray-100"
+				class="px-3 pb-1 border-b border-border-default"
 			>
 				<div class="flex items-center gap-2 mb-2">
 					<span
@@ -164,7 +164,7 @@
 		</div>
 
 		<!-- 主聊天区域 -->
-		<div class="flex-1 bg-white rounded-xl">
+		<div class="flex-1 rounded-xl bg-page-bg">
 			<ChatContext />
 		</div>
 	</div>
