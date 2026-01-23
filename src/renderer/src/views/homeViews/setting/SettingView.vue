@@ -8,10 +8,10 @@
 		"
 	>
 		<div
-			class="h-16 flex items-center px-2 border-b transition-colors duration-300"
+			class="h-16 flex items-center px-3 border-b transition-colors duration-300"
 			:class="themeStore.isDark ? 'border-gray-800' : 'border-gray-100'"
 		>
-			<span class="text-xl font-bold tracking-tight">设置</span>
+			<span class="text-xl tracking-tight">设置</span>
 		</div>
 
 		<div class="flex-1 flex overflow-hidden">
@@ -36,7 +36,7 @@
 					]"
 					@click="activeKey = menu.key"
 				>
-					<span class="text-sm font-medium">{{ menu.label }}</span>
+					<span class="text-sm">{{ menu.label }}</span>
 				</div>
 			</div>
 
@@ -46,10 +46,10 @@
 					class="max-w-2xl animate-fade-in"
 				>
 					<header class="mb-2">
-						<h2 class="text-2xl font-bold mb-2">
+						<h2 class="text-lg mb-2">
 							{{ menus[0].label }}
 						</h2>
-						<p class="text-gray-400 text-sm">
+						<p class="text-gray-400 text-xs">
 							在这里您可以自定义应用的外观和布局
 						</p>
 					</header>
