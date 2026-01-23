@@ -5,54 +5,55 @@ const routes = [
 	{
 		path: '/',
 		name: 'view',
-		component: () => import('../views/Login.vue'),
+		component: () => import('../views/loginViews/Login.vue'),
 	},
 	{
 		path: '/login',
 		name: 'Login',
-		component: () => import('../views/Login.vue'),
+		component: () => import('../views/loginViews/Login.vue'),
 	},
 	{
 		path: '/view-img',
 		name: 'ViewIMG',
-		component: () => import('../views/IMGView/IMGView.vue'),
+		component: () => import('../views/imgView/IMGView.vue'),
 	},
 	{
 		path: '/register',
 		name: 'Register',
-		component: () => import('../views/Registers/Register.vue'),
+		component: () => import('../views/registerViews/Register.vue'),
 	},
 	{
 		path: '/registerResult/:userInfo',
 		name: 'RegisterResult',
-		component: () => import('../views/Registers/RegisterResult.vue'),
+		component: () => import('../views/registerViews/RegisterResult.vue'),
 		props: true,
 	},
 	{
 		path: '/home',
 		name: 'Home',
-		component: () => import('../views/Home/Home.vue'),
+		component: () => import('../views/homeViews/Home.vue'),
 		children: [
 			{
 				path: '', // 默认子路由
-				name: 'home',
-				component: () => import('../views/Home/homeViews/ChatView.vue'),
+				name: 'default',
+				component: () => import('../views/homeViews/chat/ChatView.vue'),
 			},
 			{
 				path: 'chat', // 对应 /home/chat
 				name: 'chat',
-				component: () => import('../views/Home/homeViews/ChatView.vue'),
+				component: () => import('../views/homeViews/chat/ChatView.vue'),
 			},
 			{
 				path: 'user', // 对应 /home/user
 				name: 'user',
-				component: () => import('../views/Home/homeViews/UserView.vue'),
+				component: () =>
+					import('../views/homeViews/friend/FriendList.vue'),
 			},
 			{
 				path: 'setting', // 对应 /home/setting
 				name: 'setting',
 				component: () =>
-					import('../views/Home/homeViews/SettingView.vue'),
+					import('../views/homeViews/setting/SettingView.vue'),
 			},
 		],
 	},

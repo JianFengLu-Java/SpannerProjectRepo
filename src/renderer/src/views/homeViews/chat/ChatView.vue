@@ -183,7 +183,7 @@ import {
 import { NDropdown, NIcon, NAvatar, NVirtualList } from 'naive-ui'
 
 import { storeToRefs } from 'pinia'
-import ChatContext from './chat/ChatContext.vue'
+import ChatContext from './ChatContext.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 
 const listWidth = ref(200)
@@ -269,15 +269,40 @@ const startDrag = (e: MouseEvent): void => {
 const showContextMenu = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
-const selectedChat = ref(null)
+const selectedChat = ref<ChatItem | null>(null)
+
+interface ChatItem {
+	id: number
+	name: string
+	avatar: string
+	lastMessage: string
+	timestamp: string
+	online: boolean
+	unreadCount?: number
+	isPinned?: boolean
+}
+
+// 打开右键菜单
+const openContextMenu = (e: MouseEvent, chat: any): void => {
+	// selectChat(chat)
+	selectedChat.value = chat
+	showContextMenu.value = false
+	nextTick().then(() => {
+		showContextMenu.value = true
+		contextMenuX.value = e.clientX
+		contextMenuY.value = e.clientY
+	})
+}
 
 // 右键菜单选项
 const contextMenuOptions = computed(() => {
 	const chat = selectedChat.value
 	if (!chat) return []
 
-	const isPinned = pinnedChats.value.some((c) => c.id === chat?.id)
-	const isRead = chat?.unreadCount === 0
+	const isPinned = pinnedChats.value.some(
+		(c) => c.id === (chat as { id: number }).id,
+	)
+	const isRead = (chat as { unreadCount: number }).unreadCount === 0
 
 	return [
 		isPinned
@@ -318,18 +343,6 @@ const contextMenuOptions = computed(() => {
 	]
 })
 
-// 打开右键菜单
-const openContextMenu = (e: MouseEvent, chat: any): void => {
-	// selectChat(chat)
-	selectedChat.value = chat
-	showContextMenu.value = false
-	nextTick().then(() => {
-		showContextMenu.value = true
-		contextMenuX.value = e.clientX
-		contextMenuY.value = e.clientY
-	})
-}
-
 // 关闭右键菜单
 const closeContextMenu = (): void => {
 	showContextMenu.value = false
@@ -345,7 +358,7 @@ const handleContextMenuSelect = (key: string): void => {
 
 	switch (key) {
 		case 'pin':
-			chatStore.pinChat(selectedChat.value.id)
+			chatStore.pinChat(selectedChat.value!.id)
 			break
 		case 'unpin':
 			chatStore.unpinChat(selectedChat.value.id)

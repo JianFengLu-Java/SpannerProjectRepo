@@ -43,7 +43,7 @@ import { computed, onMounted, onUpdated } from 'vue'
 const props = defineProps<{
 	content: string
 	isMe: boolean
-	avatar: string
+	avatar?: string
 	time: string
 }>()
 
@@ -78,7 +78,7 @@ const isOnlyImage = computed(() => {
 
 const emit = defineEmits(['image-loaded'])
 
-const handleClickEvent = (e: MouseEvent) => {
+const handleClickEvent = (e: MouseEvent): void => {
 	const target = e.target as HTMLElement
 	if (target.tagName === 'IMG') {
 		window.electron.ipcRenderer.send(
@@ -88,7 +88,7 @@ const handleClickEvent = (e: MouseEvent) => {
 	}
 }
 
-const attachLoadEvents = () => {
+const attachLoadEvents = (): void => {
 	const imgs = document.querySelectorAll('.msg-content-selectable img')
 	imgs.forEach((img) => {
 		const image = img as HTMLImageElement

@@ -141,9 +141,9 @@ import {
 	RefreshSharp,
 	RefreshCircleSharp,
 } from '@vicons/ionicons5'
-import { useTitleStore } from '../stores/title'
-import { useUserInfoStore } from '../stores/userInfo'
-import request from '../utils/request'
+import { useTitleStore } from '@renderer/stores/title'
+import { useUserInfoStore } from '@renderer/stores/userInfo'
+import request from '@renderer/utils/request'
 import axios from 'axios'
 
 const titleStore = useTitleStore()

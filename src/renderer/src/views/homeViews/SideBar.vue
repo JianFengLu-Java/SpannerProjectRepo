@@ -126,7 +126,7 @@
 					'flex items-center cursor-pointer transition-all no-drag',
 					isExpanded
 						? 'w-full px-3 h-9 gap-3 rounded-lg'
-						: 'w-16 h-16 flex-col justify-center gap-1 rounded-xl',
+						: 'w-12 h-12 flex-col justify-center gap-1 rounded-xl',
 					route.name === item.name
 						? ' bg-white text-primary-600'
 						: 'hover:bg-gray-200/50 ',
@@ -348,7 +348,7 @@ onMounted(() => {
 	menus.value = [
 		{
 			key: 'home',
-			name: 'home',
+			name: 'chat',
 			icon: 'chat',
 			label: '消息',
 			hasMessage: true,

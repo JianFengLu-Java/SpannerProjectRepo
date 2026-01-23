@@ -5,7 +5,7 @@
 	>
 		<!-- heard  -->
 		<div
-			class="h-20 border-b shrink-0 border-gray-200 flex item-center justify-between w-full p-3"
+			class="h-14 shrink-0 border-gray-200 flex item-center justify-between w-full p-3"
 		>
 			<div class="flex gap-2 items-center">
 				<n-avatar
@@ -35,6 +35,12 @@
 				</div>
 			</div>
 		</div>
+		<div class="border-b border-gray-200 px-4">
+			<div v-for="lab in labs" :key="lab.key" class="">
+				<n-icon><component :is="iconMap[lab.icon]" /></n-icon>
+			</div>
+		</div>
+
 		<!-- context -->
 		<div class="flex-1 overflow-hidden relative">
 			<ChatContainer :messages="currentChatMessages" />
@@ -57,19 +63,20 @@
 </template>
 
 <script setup lang="ts">
-import ChatEdit from '@renderer/components/ChatEdit.vue'
+import ChatEdit from './ChatEdit.vue'
 import { useChatStore } from '@renderer/stores/chat'
 import {
 	Calendar,
 	Call,
 	EllipsisHorizontal,
+	FileTray,
 	PersonAddSharp,
 	Search,
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Component } from 'vue'
-import ChatContainer from '@renderer/components/ChatContainer.vue'
+import ChatContainer from './ChatContainer.vue'
 const chatStore = useChatStore()
 
 const { activeChat, activeChatId } = storeToRefs(chatStore)
@@ -95,7 +102,16 @@ const iconMap: Record<string, Component> = {
 	userAdd: PersonAddSharp,
 	calendar: Calendar,
 	more: EllipsisHorizontal,
+	file: FileTray,
 }
+
+const labs = ref<menusItem[]>([
+	{
+		key: 'fileList',
+		label: '文件',
+		icon: 'file',
+	},
+])
 
 //菜单配置
 const menus = ref<menusItem[]>([
