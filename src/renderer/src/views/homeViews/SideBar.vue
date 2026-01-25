@@ -36,7 +36,7 @@
 						class="flex flex-col flex-1 overflow-hidden ml-3"
 					>
 						<span
-							class="text-sm font-bold whitespace-nowrap truncate"
+							class="text-sm font-bold whitespace-nowrap truncate text-text-main"
 						>
 							{{ user.userName }}
 						</span>
@@ -404,7 +404,11 @@ const userMenuOptions = [
 								class: 'text-lg font-semibold flex items-center text-gray-800',
 							},
 							[
-								h('span', null, user.userName),
+								h(
+									'span',
+									{ class: 'text-text-main' },
+									user.userName,
+								),
 								h(
 									NTag,
 									{

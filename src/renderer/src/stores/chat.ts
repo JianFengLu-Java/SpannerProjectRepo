@@ -105,6 +105,16 @@ export const useChatStore = defineStore('chat', () => {
 			unreadCount: 0,
 			isPinned: false,
 		},
+		{
+			id: 9,
+			name: '李娜',
+			avatar: 'http://spanner.top:9000/login-bg.jpg',
+			lastMessage: '你好',
+			timestamp: '周四',
+			online: true,
+			unreadCount: 1,
+			isPinned: false,
+		},
 	])
 
 	const pinnedChats = ref<ChatItem[]>([
@@ -208,9 +218,11 @@ export const useChatStore = defineStore('chat', () => {
 				id: 101,
 				chatId: 1,
 				senderId: 'other',
-				text: '你好，张三在这里asdasdasdasdasdasdadasdasdasdasdasdasdasdasdasdasasdasdasdsasdasdasds。',
-				timestamp: '10:00',
+				text: '你好，张三ccccc在这里asdasdasdasdasdasdadasdasdasdasdasdasdasdasdasdasasdasdasdsasdasdasds。',
+				timestamp: '10:000',
 				type: 'text',
+				hasResult: true,
+				result: '6666',
 			},
 			{
 				id: 102,
@@ -342,4 +354,6 @@ interface Message {
 	text: string
 	timestamp: string
 	type: 'text' | 'image' | 'file'
+	hasResult?: boolean
+	result?: string
 }

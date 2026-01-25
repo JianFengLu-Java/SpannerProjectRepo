@@ -9,8 +9,10 @@ import {
 import Dragable from './components/Dragable.vue'
 import { useThemeStore } from '@renderer/stores/theme'
 import { getThemeOverrides } from '@renderer/config/theme'
+import WinTitleBar from './components/WinTitleBar.vue'
 
 const themeStore = useThemeStore()
+const isWin: boolean = window.api.platform === 'win32'
 
 // --- 新增：同步 Tailwind v4 的黑夜模式类名 ---
 watchEffect(() => {
@@ -31,8 +33,12 @@ const currentOverrides = computed(() => getThemeOverrides(themeStore.isDark))
 		:theme-overrides="currentOverrides"
 	>
 		<n-global-style />
-		<dragable />
-		<div class="h-screen w-screen overflow-hidden relative">
+		<dragable v-if="!isWin" />
+		<div class="h-screen w-screen overflow-hidden flex flex-col relative">
+			<win-title-bar
+				v-if="isWin"
+				class="shrink-0 absolute top-0 z-1000!"
+			/>
 			<div class="h-full w-full overflow-hidden">
 				<n-message-provider
 					:container-style="{ marginTop: '22px' }"

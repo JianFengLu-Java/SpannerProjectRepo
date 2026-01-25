@@ -20,15 +20,21 @@
 			<!-- ===== 其他消息：有气泡 ===== -->
 			<div
 				v-else
-				class="rounded-lg text-[14px] wrap-anywhere whitespace-pre-wrap h-fit msg-content-selectable"
+				class="rounded-lg text-[14px] wrap-anywhere whitespace-pre-wrap h-fit"
 				:class="
 					isMe
-						? 'bg-[#eeeeee] text-zinc-900 px-3 py-2'
-						: 'bg-[#555555] text-white px-3 py-2'
+						? 'bg-[#0e6a86] text-white px-3 py-2'
+						: 'bg-[#dbdbdb] text-[#333] px-3 py-2'
 				"
 				@click="handleClickEvent"
-				v-html="content"
-			/>
+			>
+				<div v-html="content" class="msg-content-selectable"></div>
+				<div v-if="hasResult">
+					<n-tag type="success" size="small" round closable>{{
+						result
+					}}</n-tag>
+				</div>
+			</div>
 
 			<span class="text-[10px] text-gray-400 px-1 avatar-no-select">
 				{{ time }}
@@ -45,6 +51,8 @@ const props = defineProps<{
 	isMe: boolean
 	avatar?: string
 	time: string
+	hasResult?: boolean
+	result?: string
 }>()
 
 /**

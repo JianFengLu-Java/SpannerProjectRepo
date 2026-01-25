@@ -130,6 +130,8 @@ onMounted(() => {
 								: activeChat?.avatar
 						"
 						:time="item.timestamp"
+						:has-result="item.hasResult"
+						:result="item.result"
 						@image-loaded="handleImageLoaded"
 					/>
 				</div>

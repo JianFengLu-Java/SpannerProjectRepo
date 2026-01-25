@@ -1,6 +1,7 @@
 <template>
 	<div
 		class="h-full w-full flex bg-gradient-to-br from-grad-start to-grad-end gap-0 relative overflow-hidden transition-all duration-500 ease-in-out"
+		:class="[isWin ? 'pt-[32px]' : '']"
 	>
 		<SideBar
 			:is-expanded="isExpanded"
@@ -30,6 +31,7 @@ import SideBar from './SideBar.vue'
 
 const isExpanded = ref(false)
 const sideBarWidth = ref(200) // 展开后的初始宽度
+const isWin = window.api.platform === 'win32'
 
 const toggleSidebar = () => {
 	isExpanded.value = !isExpanded.value
