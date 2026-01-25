@@ -28,7 +28,7 @@
 						'flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-all duration-200 group',
 						activeKey === menu.key
 							? themeStore.isDark
-								? 'bg-white text-black '
+								? 'bg-white/10 text-white '
 								: 'bg-[#6666668e] text-white '
 							: themeStore.isDark
 								? 'text-gray-400 hover:bg-white/5'

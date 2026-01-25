@@ -107,8 +107,8 @@ onMounted(() => {
 </script>
 
 <template>
-	<div class="h-full relative overflow-hidden bg-[#ffffff]/50">
-		<div v-if="isSwitching" class="absolute inset-0 z-10 bg-[#f9f9f9]" />
+	<div class="h-full relative overflow-hidden bg-page-bg">
+		<div v-if="isSwitching" class="absolute inset-0 z-10 bg-page-bg" />
 
 		<n-virtual-list
 			ref="virtualListInst"

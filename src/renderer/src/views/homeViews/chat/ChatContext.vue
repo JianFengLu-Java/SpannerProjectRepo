@@ -15,7 +15,7 @@
 				></n-avatar>
 				<div class="flex flex-col">
 					<span
-						class="text-[16px] no-drag font-medium w-fit text-zinc-800"
+						class="text-[16px] no-drag font-medium w-fit text-text-main"
 						>{{ currentChat?.name }}</span
 					>
 					<span class="text-[11px] text-gray-400"
@@ -35,7 +35,7 @@
 				</div>
 			</div>
 		</div>
-		<div class="border-b border-gray-200 px-4">
+		<div class="border-b border-border-main px-4">
 			<div v-for="lab in labs" :key="lab.key" class="">
 				<n-icon><component :is="iconMap[lab.icon]" /></n-icon>
 			</div>
@@ -46,7 +46,9 @@
 			<ChatContainer :messages="currentChatMessages" />
 		</div>
 		<!-- input -->
-		<div class="h-fit py-2 w-full px-4 border-t border-gray-200 shrink-0">
+		<div
+			class="h-fit py-2 w-full px-4 border-t border-border-main shrink-0"
+		>
 			<chat-edit
 				v-if="activeChatId !== null"
 				:key="activeChatId"

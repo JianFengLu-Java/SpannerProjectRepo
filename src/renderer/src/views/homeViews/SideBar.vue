@@ -73,8 +73,12 @@
 
 		<div class="no-drag w-full px-2 flex justify-center mt-2">
 			<div
-				class="search-bar-container text-zinc-800 flex items-center cursor-pointer overflow-hidden transition-custom"
-				:class="isExpanded ? 'is-expanded' : 'is-collapsed'"
+				class="text-zinc-800 flex items-center cursor-pointer overflow-hidden transition-custom hover:bg-sidebar-unselect-item/30"
+				:class="
+					isExpanded
+						? 'is-expanded  bg-card-bg'
+						: 'is-collapsed bg-card-bg hover:bg-sidebar-unselect-item/30'
+				"
 				@click="showSearchModal = true"
 			>
 				<n-icon size="20" color="#666" class="shrink-0">
@@ -107,7 +111,7 @@
 				:options="addMenuOptions"
 			>
 				<div
-					class="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center hover:bg-zinc-300 cursor-pointer transition-all"
+					class="w-9 h-9 bg-card-bg rounded-full flex items-center justify-center hover:bg-sidebar-unselect-item/30 cursor-pointer transition-all"
 				>
 					<n-icon size="20">
 						<Add />
@@ -128,8 +132,8 @@
 						? 'w-full px-3 h-9 gap-3 rounded-lg'
 						: 'w-12 h-12 flex-col justify-center gap-1 rounded-xl',
 					route.name === item.name
-						? ' bg-white text-primary-600'
-						: 'hover:bg-gray-200/50 ',
+						? ' bg-sidebar-select-bg text-primary-600'
+						: ' hover:bg-sidebar-select-bg/35 ',
 				]"
 				@click="go(item)"
 			>
@@ -137,7 +141,11 @@
 					<div class="flex justify-center items-center">
 						<n-icon
 							size="18"
-							:color="route.name === item.name ? '#444' : '#aaa'"
+							:class="[
+								route.name === item.name
+									? ' text-sidebar-select-item'
+									: ' text-sidebar-unselect-item',
+							]"
 						>
 							<component :is="iconMap[item.icon]" />
 						</n-icon>
@@ -147,18 +155,22 @@
 				<span
 					v-if="isExpanded"
 					class="text-xs whitespace-nowrap overflow-hidden"
-					:style="{
-						color: route.name === item.name ? '#444' : '#aaa',
-					}"
+					:class="[
+						route.name === item.name
+							? ' text-sidebar-select-item'
+							: ' text-sidebar-unselect-item',
+					]"
 				>
 					{{ item.label }}
 				</span>
 				<span
 					v-else
 					class="text-[10px] leading-none"
-					:style="{
-						color: route.name === item.name ? '#444' : '#aaa',
-					}"
+					:class="[
+						route.name === item.name
+							? ' text-sidebar-select-item'
+							: ' text-sidebar-unselect-item',
+					]"
 				>
 					{{ item.label }}
 				</span>
@@ -519,7 +531,6 @@ function go(item: MenuItem): void {
 	width: 100%;
 	height: 32px;
 	padding: 0 12px;
-	background-color: #e5e7ebb7;
 	border-radius: 8px;
 	border: 1px solid rgba(156, 163, 175, 0.2);
 }
@@ -529,7 +540,6 @@ function go(item: MenuItem): void {
 	height: 36px;
 	padding: 0;
 	justify-content: center;
-	background-color: #f9fafb;
 	border-radius: 50%;
 	border: 1px solid transparent;
 }

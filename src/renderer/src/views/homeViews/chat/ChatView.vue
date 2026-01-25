@@ -24,14 +24,14 @@
 						placement="bottom-start"
 					>
 						<div
-							class="no-drag z-60! items-center justify-center flex rounded-md w-8 h-8 hover:bg-gray-100 transition-colors duration-200 cursor-pointer"
+							class="no-drag z-60! items-center justify-center flex rounded-md w-8 h-8 hover:bg-sidebar-select-bg/50 transition-colors duration-200 cursor-pointer"
 						>
 							<n-icon size="20" class="text-gray-600">
 								<List28Filled />
 							</n-icon>
 						</div>
 					</n-dropdown>
-					<span class="text-sm font-medium text-gray-800 flex-1"
+					<span class="text-sm font-medium text-text-main flex-1"
 						>聊天</span
 					>
 				</div>
@@ -52,9 +52,9 @@
 					<div
 						v-for="chat in pinnedChats"
 						:key="chat.id"
-						class="flex items-center *: p-2 rounded-lg cursor-pointer flex-col hover:bg-gray-50 transition-colors duration-200"
+						class="flex items-center *: p-2 rounded-lg cursor-pointer flex-col hover:bg-sidebar-select-bg/40 transition-colors duration-200"
 						:class="{
-							'bg-gray-200/80 hover:bg-gray-200/80':
+							' bg-sidebar-select-bg/80 hover:bg-sidebar-select-bg/80':
 								activeChatId === chat.id,
 						}"
 						@click="selectChat(chat)"
@@ -92,9 +92,9 @@
 					<template #default="{ item, index }">
 						<div
 							:key="item.id"
-							class="px-2 py-2 m-2 mr-3 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors duration-100"
+							class="px-2 py-2 m-2 mr-3 hover:bg-chatItem-select-bg/80 rounded-lg cursor-pointer transition-colors duration-100"
 							:class="{
-								'bg-gray-200/80 hover:bg-gray-200/80':
+								'bg-chatItem-select-bg hover:bg-chatItem-select-bg/80':
 									activeChatId === item.id,
 								'border-t':
 									index === 0 && pinnedChats.length === 0,
@@ -129,7 +129,7 @@
 										class="flex flex-col justify-between min-w-0 flex-1"
 									>
 										<div
-											class="text-sm text-gray-700 truncate"
+											class="text-sm text-text-main truncate"
 										>
 											{{ item.name }}
 										</div>

@@ -66,13 +66,13 @@ const editor = useEditor({
 		Image.configure({
 			inline: true,
 			HTMLAttributes: {
-				class: 'max-w-[180px] rounded-lg border border-gray-100 vertical-middle my-1',
+				class: 'max-w-[180px] rounded-lg border border-border-main vertical-middle my-1',
 			},
 		}),
 	],
 	editorProps: {
 		attributes: {
-			class: 'focus:outline-none py-1 leading-6 text-gray-800 break-all w-full',
+			class: 'focus:outline-none py-1 leading-6 text-text-main break-all w-full',
 		},
 		handlePaste: (view, event) => {
 			const items = event.clipboardData?.items
@@ -234,11 +234,11 @@ function handleClickEditor(e: MouseEvent): void {
 <template>
 	<div class="">
 		<div
-			class="w-full rounded-xl border h-fit bg-page-bg transition-all duration-200 p-1.5"
+			class="w-full rounded-xl border h-fit bg-sidebar-select-bg transition-all duration-200 p-1.5"
 			:class="[
 				isFocus
-					? 'border-gray-500 ring-[3px] ring-gray-100/70'
-					: 'border-gray-200',
+					? 'border-border-default ring-2 ring-border-main'
+					: 'border-border-main',
 			]"
 		>
 			<div ref="containerRef" class="flex flex-wrap items-end relative">
@@ -258,13 +258,13 @@ function handleClickEditor(e: MouseEvent): void {
 						}"
 					>
 						<div
-							class="flex items-center bg-white shadow-xl border border-gray-200 rounded-lg p-1 gap-1"
+							class="flex items-center bg-page-bg shadow-xl border border-border-main rounded-lg p-1 gap-1"
 						>
 							<button
 								type="button"
-								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-200 text-gray-600 hover:bg-gray-100 font-bold"
+								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-200 text-gray-600 hover:bg-sidebar-select-bg/70 font-bold"
 								:class="{
-									'text-green-600 bg-green-50':
+									'text-green-600 bg-sidebar-select-bg/30':
 										editor.isActive('bold'),
 								}"
 								@click="
@@ -275,9 +275,9 @@ function handleClickEditor(e: MouseEvent): void {
 							</button>
 							<button
 								type="button"
-								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-200 text-gray-600 hover:bg-gray-100 italic font-serif"
+								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-200 text-gray-600 hover:bg-sidebar-select-bg/70 italic font-serif"
 								:class="{
-									'text-green-600 bg-green-50':
+									'text-green-600 bg-sidebar-select-bg/30':
 										editor.isActive('italic'),
 								}"
 								@click="
@@ -296,7 +296,7 @@ function handleClickEditor(e: MouseEvent): void {
 
 					<div
 						v-if="editor?.isEmpty"
-						class="absolute left-1 ml-1 pointer-events-none text-gray-400 select-none"
+						class="absolute left-1 ml-1 pointer-events-none text-text-main/40xs select-none"
 					>
 						输入消息...
 					</div>
@@ -308,10 +308,10 @@ function handleClickEditor(e: MouseEvent): void {
 					:class="[isMultiline ? 'w-full justify-end' : 'mt-0']"
 				>
 					<div
-						class="rounded-xl flex bg-gray-100/80 gap-1 p-1 items-center"
+						class="rounded-xl flex bg-gray-100/30 gap-1 p-1 items-center"
 					>
 						<div
-							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-500 hover:text-green-600"
+							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
 							@click="fileInput?.click()"
 						>
 							<n-icon size="20"><ImageOutline /></n-icon>
@@ -328,17 +328,17 @@ function handleClickEditor(e: MouseEvent): void {
 						</div>
 
 						<div
-							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-500 hover:text-green-600"
+							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
 						>
 							<n-icon size="20"><At /></n-icon>
 						</div>
 						<div
-							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-500 hover:text-green-600"
+							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
 						>
 							<n-icon size="20"><EmojiAdd16Regular /></n-icon>
 						</div>
 						<div
-							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-gray-500 hover:text-green-600"
+							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
 						>
 							<n-icon size="20"><FontDecrease20Regular /></n-icon>
 						</div>
@@ -368,7 +368,7 @@ function handleClickEditor(e: MouseEvent): void {
 									</svg>
 								</n-icon>
 							</template>
-							发送
+							<p class="text-white">发送</p>
 						</n-button>
 					</div>
 				</div>

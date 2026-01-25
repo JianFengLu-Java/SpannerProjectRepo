@@ -1,38 +1,74 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
-  /* 1. 定义基础变量（默认是浅色模式的值） */
-  --color-page-bg: #ffffff;
-  --color-card-bg: #ffffff;
-  --color-text-main: #1e293b;
-  --color-border-main: #e2e8f0;
-  --color-border-default: #efefef;
-  
-  --color-primary: #10b981;
-  --color-primary-hover: #34d399;
-	
-  --color-grad-start: #f4f4f4;
-  --color-grad-end: #ebe2df;
+	/* 1. 定义基础变量（默认是浅色模式的值） */
+	--color-page-bg: #ffffff;
+	--color-card-bg: #ffffff;
+	--color-text-main: #1e293b;
+	--color-border-main: #e2e8f0;
+	--color-border-default: #efefef;
 
+	--color-primary: #10b981;
+	--color-primary-hover: #34d399;
+	--color-sidebar-select-bg: #ffffff;
+	--color-sidebar-select-item: #444;
+	--color-sidebar-unselect-item: #aaa;
+	--color-chatItem-select-bg: #8e959730;
+
+	--color-grad-start: #f4f4f4;
+	--color-grad-end: #ebe2df;
 }
 
 /* 2. 在 @theme 外部，通过 .dark 类名覆盖变量 */
 @layer base {
-  .dark {
-    /* 当 html 拥有 .dark 类时，这些变量的值会被重写 */
-    --color-page-bg: #18181c;
-    --color-card-bg: #242428;
-    --color-text-main: #e5e7eb;
-    --color-border-main: #333333; /* 修正了你代码中多出的一个 3 */
-  	--color-border-default: #3f4144;
+	.dark {
+		/* 当 html 拥有 .dark 类时，这些变量的值会被重写 */
+		--color-page-bg: #18181c;
+		--color-card-bg: #242428;
+		--color-text-main: #e5e7eb;
+		--color-border-main: #333333; /* 修正了你代码中多出的一个 3 */
+		--color-border-default: #3f4144;
+		--color-sidebar-select-bg: #3e3f3f;
+		--color-sidebar-select-item: #fff;
+		--color-sidebar-unselect-item: #555555;
+		--color-chatItem-select-bg: #ffffff38;
+		--color-grad-start: #1e1e20;
+		--color-grad-end: #121214;
 
-    --color-grad-start: #1e1e20;
-    --color-grad-end: #121214;
-
-    /* 强制告知浏览器使用深色方案（处理滚动条等） */
-    color-scheme: dark;
-  }
+		/* 强制告知浏览器使用深色方案（处理滚动条等） */
+		color-scheme: dark;
+	}
 }
 .no-drag {
 	-webkit-app-region: no-drag;
+}
+@layer components {
+	/* 作用于 Tiptap 渲染出来的实际编辑区 */
+	.tiptap.ProseMirror {
+		@apply outline-none transition-colors duration-200;
+
+		/* 针对不同层级的文本颜色进行细调 */
+		@apply text-gray-800 dark:text-gray-200;
+
+		/* 链接样式 */
+		a {
+			@apply text-blue-600 dark:text-blue-400 underline;
+		}
+
+		/* 代码块/行内代码适配 */
+		code {
+			@apply bg-gray-100 dark:bg-gray-800 text-red-500 dark:text-red-400 px-1 rounded;
+		}
+
+		/* 引用块样式 */
+		blockquote {
+			@apply border-l-4 border-gray-300 dark:border-gray-700 pl-4 italic text-gray-600 dark:text-gray-400;
+		}
+
+		/* 占位符适配 (如果你使用了 Placeholder 扩展) */
+		p.is-editor-empty:first-child::before {
+			@apply text-gray-400 dark:text-gray-500 float-left h-0 pointer-events-none;
+			content: attr(data-placeholder);
+		}
+	}
 }
