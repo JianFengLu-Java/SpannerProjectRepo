@@ -8,8 +8,8 @@
 		<div
 			class="flex flex-col max-w-[75%] min-w-0"
 			:class="isMe ? 'items-end' : 'items-start'"
+			@contextmenu="handleContextMenu"
 		>
-			<!-- ===== 纯图片消息：无气泡 ===== -->
 			<div
 				v-if="isOnlyImage"
 				class="msg-content-selectable"
@@ -17,7 +17,6 @@
 				v-html="content"
 			/>
 
-			<!-- ===== 其他消息：有气泡 ===== -->
 			<div
 				v-else
 				class="rounded-lg text-[14px] wrap-anywhere whitespace-pre-wrap h-fit"
@@ -36,9 +35,9 @@
 				</div>
 			</div>
 
-			<span class="text-[10px] text-gray-400 px-1 avatar-no-select">
-				{{ time }}
-			</span>
+			<span class="text-[10px] text-gray-400 px-1 avatar-no-select">{{
+				time
+			}}</span>
 		</div>
 	</div>
 </template>
@@ -55,36 +54,53 @@ const props = defineProps<{
 	result?: string
 }>()
 
-/**
- * 判断是否为「纯图片消息」
- * ✅ 允许 img 被 p / a / br 包裹
- */
+const emit = defineEmits<{
+	(e: 'image-loaded'): void
+	(
+		e: 'contextmenu',
+		ev: MouseEvent,
+		type: 'text' | 'image',
+		extra?: any,
+	): void
+}>()
+
+const handleContextMenu = (e: MouseEvent) => {
+	const target = e.target as HTMLElement
+	const selection = window.getSelection()?.toString()
+
+	if (target.tagName === 'IMG') {
+		// 图片右键：阻止默认并传出 src
+		e.preventDefault()
+		emit('contextmenu', e, 'image', {
+			src: (target as HTMLImageElement).src,
+		})
+	} else if (selection && selection.trim().length > 0) {
+		// 选中文字右键：此时不 preventDefault，允许系统原生的全选/复制操作，
+		// 或者你也可以 preventDefault 使用自定义菜单
+		emit('contextmenu', e, 'text', { text: selection })
+	} else {
+		// 空白气泡处右键
+		emit('contextmenu', e, 'text')
+	}
+}
+
 const isOnlyImage = computed(() => {
 	if (!props.content) return false
-
-	// 1. 去掉空白
 	let html = props.content.replace(/\s/g, '')
-
-	// 2. 去掉 <p> / </p> / <br>
 	html = html
 		.replace(/<p[^>]*>/gi, '')
 		.replace(/<\/p>/gi, '')
 		.replace(/<br\s*\/?>/gi, '')
-
-	// 3. 统计 img
 	const imgMatches = html.match(/<img[^>]+>/gi)
-	if (!imgMatches || imgMatches.length === 0) return false
-
-	// 4. 去掉 img 和 a 包裹，看是否还有其它内容
-	const stripped = html
-		.replace(/<a[^>]*>/gi, '')
-		.replace(/<\/a>/gi, '')
-		.replace(/<img[^>]+>/gi, '')
-
-	return stripped === ''
+	return (
+		imgMatches &&
+		imgMatches.length > 0 &&
+		html
+			.replace(/<a[^>]*>/gi, '')
+			.replace(/<\/a>/gi, '')
+			.replace(/<img[^>]+>/gi, '') === ''
+	)
 })
-
-const emit = defineEmits(['image-loaded'])
 
 const handleClickEvent = (e: MouseEvent): void => {
 	const target = e.target as HTMLElement
@@ -100,9 +116,7 @@ const attachLoadEvents = (): void => {
 	const imgs = document.querySelectorAll('.msg-content-selectable img')
 	imgs.forEach((img) => {
 		const image = img as HTMLImageElement
-		if (!image.complete) {
-			image.onload = () => emit('image-loaded')
-		}
+		if (!image.complete) image.onload = () => emit('image-loaded')
 	})
 }
 
@@ -116,19 +130,14 @@ onUpdated(attachLoadEvents)
 	cursor: pointer;
 	max-width: 240px;
 	max-height: 320px;
-	width: auto;
-	height: auto;
 	border-radius: 8px;
 	border: #79797a94 solid 1px;
 }
-
 .msg-content-selectable,
 .msg-content-selectable :deep(*) {
 	user-select: text;
 	-webkit-user-select: text;
-	cursor: text;
 }
-
 .avatar-no-select {
 	user-select: none;
 	-webkit-user-select: none;

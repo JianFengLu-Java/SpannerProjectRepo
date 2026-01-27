@@ -124,6 +124,7 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 			borderRadius: '12px',
 			color: modalBg,
 			optionColorHover: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f3f4f6',
+			fontSizeSmall: '13px',
 		},
 		Badge: {
 			fontSize: '10px',

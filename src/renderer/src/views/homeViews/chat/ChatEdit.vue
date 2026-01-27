@@ -32,6 +32,9 @@ const showLinkInput = ref(false)
 let resizeObserver: ResizeObserver | null = null
 const canSend = ref(false)
 
+// 添加边界元素引用
+const boundaryElement = ref<HTMLElement | null>(null)
+
 // 计算属性：规范化 ID
 const normalizedId = computed(() => {
 	if (typeof props.currentId === 'string') {
@@ -40,6 +43,178 @@ const normalizedId = computed(() => {
 	return props.currentId
 })
 
+// 修复后的 bubbleMenuTippyOptions
+// 修复后的 bubbleMenuTippyOptions
+const bubbleMenuTippyOptions = computed(() => {
+	// 获取边界元素的函数
+	const getBoundary = () => {
+		// 如果已经通过ref获取到，直接使用
+		if (boundaryElement.value) {
+			return boundaryElement.value
+		}
+
+		// 否则尝试从DOM中查找
+		if (typeof document !== 'undefined') {
+			const element = document.querySelector(
+				'.chat-context-root',
+			) as HTMLElement
+			if (element) {
+				boundaryElement.value = element
+				return element
+			}
+		}
+
+		return null
+	}
+
+	const boundary = getBoundary()
+
+	// 基础配置
+	const options: any = {
+		appendTo: () => boundary || document.body,
+		placement: 'top',
+		interactive: true,
+	}
+
+	// 如果有边界元素，添加popper选项
+	if (boundary) {
+		options.popperOptions = {
+			strategy: 'absolute',
+			modifiers: [
+				{
+					name: 'offset',
+					options: {
+						// 关键修改：[水平偏移, 垂直偏移]
+						// 第一个值控制水平位置，第二个值控制垂直距离
+						offset: ({ placement, reference, popper }) => {
+							// 计算水平偏移，让菜单居中显示
+							const referenceWidth = reference.width
+							const popperWidth = popper.width
+							const horizontalOffset =
+								(referenceWidth - popperWidth) / 2
+
+							// 确保偏移量不会太大
+							const safeHorizontalOffset = Math.max(
+								-20,
+								Math.min(20, horizontalOffset),
+							)
+
+							// 返回偏移量：[水平偏移, 垂直偏移]
+							// 负值向上偏移，正值向下偏移
+							return [safeHorizontalOffset, -8] // 向上偏移8px
+						},
+					},
+				},
+				{
+					name: 'preventOverflow',
+					options: {
+						boundary: boundary,
+						padding: {
+							top: 10, // 顶部padding
+							bottom: 10, // 底部padding
+							left: 10, // 左侧padding
+							right: 10, // 右侧padding
+						},
+						// tether: true, // 改为true，让菜单更智能地跟随选区
+						tetherOffset: 8, // 系留偏移量
+						rootBoundary: 'document',
+						altBoundary: false,
+					},
+				},
+				{
+					name: 'flip',
+					options: {
+						boundary: boundary,
+						fallbackPlacements: [
+							'bottom',
+							'top-start',
+							'bottom-start',
+							'top-end',
+							'bottom-end',
+						],
+						padding: 10,
+						flipVariations: true, // 启用变体翻转
+						allowedAutoPlacements: ['top', 'bottom'], // 只允许上下翻转
+					},
+				},
+				{
+					name: 'arrow',
+					enabled: false, // 禁用箭头
+				},
+			],
+		}
+	} else {
+		// 如果没有找到边界元素，使用viewport作为边界
+		options.popperOptions = {
+			strategy: 'absolute',
+			modifiers: [
+				{
+					name: 'offset',
+					options: {
+						offset: [0, -8], // 向上偏移8px
+					},
+				},
+				{
+					name: 'preventOverflow',
+					options: {
+						boundary: 'viewport',
+						padding: 10,
+						tether: true,
+						tetherOffset: 8,
+						rootBoundary: 'viewport',
+					},
+				},
+				{
+					name: 'flip',
+					options: {
+						fallbackPlacements: [
+							'bottom',
+							'top-start',
+							'bottom-start',
+							'top-end',
+							'bottom-end',
+						],
+						padding: 10,
+					},
+				},
+			],
+		}
+	}
+
+	// 添加自定义的show和hide事件处理
+	options.onShow = (instance: any) => {
+		// 显示时添加微小的动画延迟
+		setTimeout(() => {
+			if (instance.popper) {
+				instance.popper.style.transition =
+					'opacity 0.15s ease, transform 0.15s ease'
+			}
+		}, 0)
+	}
+
+	options.onMount = (instance: any) => {
+		// 确保菜单不会太靠近边缘
+		nextTick(() => {
+			if (instance.popper) {
+				const rect = instance.popper.getBoundingClientRect()
+				const viewportWidth = window.innerWidth
+
+				// 检查是否太靠近左侧
+				if (rect.left < 10) {
+					instance.popper.style.left = '10px'
+				}
+
+				// 检查是否太靠近右侧
+				if (rect.right > viewportWidth - 10) {
+					instance.popper.style.right = '10px'
+					instance.popper.style.left = 'auto'
+				}
+			}
+		})
+	}
+
+	return options
+})
 // 同步草稿函数
 const syncDraft = () => {
 	if (normalizedId.value && editor.value) {
@@ -209,6 +384,28 @@ const shouldShowBubbleMenu = ({ editor }: { editor: Editor }) => {
 		return false
 	}
 
+	// 额外的边界检查：确保选区在边界元素内
+	const boundary =
+		boundaryElement.value || document.querySelector('.chat-context-root')
+	if (boundary) {
+		const boundaryRect = boundary.getBoundingClientRect()
+		const { from, to } = selection
+		const startCoords = editor.view.coordsAtPos(from)
+		const endCoords = editor.view.coordsAtPos(to)
+
+		// 计算选区的中间点
+		const middleTop = (startCoords.top + endCoords.top) / 2
+		const middleBottom = (startCoords.bottom + endCoords.bottom) / 2
+
+		// 检查选区中间点是否在边界元素内
+		const isInBoundary =
+			middleTop >= boundaryRect.top && middleBottom <= boundaryRect.bottom
+
+		if (!isInBoundary) {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -293,6 +490,14 @@ onMounted(() => {
 		editor.value?.commands.focus()
 	}, 100)
 
+	// 获取边界元素
+	nextTick(() => {
+		const element = document.querySelector('.chat-context-root')
+		if (element) {
+			boundaryElement.value = element as HTMLElement
+		}
+	})
+
 	checkLayout()
 })
 
@@ -344,25 +549,12 @@ onUnmounted(() => {
 				<div
 					class="flex-1 min-w-[120px] px-1 min-h-9 cursor-text flex items-center"
 				>
-					<!-- BubbleMenu 关键修改 -->
+					<!-- BubbleMenu -->
 					<BubbleMenu
 						v-if="editor"
 						:editor="editor"
 						:should-show="shouldShowBubbleMenu"
-						:tippy-options="{
-							duration: [150, 75],
-							animation: 'shift-away',
-							zIndex: 9999,
-
-							placement: 'top',
-							offset: [0, 8],
-							interactive: true,
-							hideOnClick: false,
-							trigger: 'mouseenter',
-							theme: 'light',
-							arrow: false,
-							maxWidth: 'none',
-						}"
+						:tippy-options="bubbleMenuTippyOptions"
 					>
 						<div
 							class="flex items-center bg-page-bg shadow-lg border border-border-main rounded-lg p-1 gap-1 backdrop-blur-sm"
@@ -662,5 +854,24 @@ onUnmounted(() => {
 
 :deep(.tiptap-editor::-webkit-scrollbar-thumb:hover) {
 	background: #94a3b8;
+}
+
+/* 修复BubbleMenu的样式 - 关键修改 */
+:deep(.tiptap .bubble-menu) {
+	position: absolute !important;
+	z-index: 9999 !important;
+	transform-origin: bottom center;
+	opacity: 0;
+	transform: translateY(10px) scale(0.95);
+	animation: bubbleMenuShow 0.2s ease forwards;
+}
+
+:deep(.tiptap .bubble-menu > div) {
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 确保链接输入框在正确层级 */
+.link-input {
+	z-index: 10000;
 }
 </style>

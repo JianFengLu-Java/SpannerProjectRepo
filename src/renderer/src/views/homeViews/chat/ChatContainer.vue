@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, VNode } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import { useChatStore } from '@renderer/stores/chat'
 import { storeToRefs } from 'pinia'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
-import { VirtualListInst } from 'naive-ui'
 import ChatMessage from './ChatMessage.vue'
 
 const props = defineProps<{ messages: any[] }>()
@@ -11,16 +10,82 @@ const chatStore = useChatStore()
 const { activeChat } = storeToRefs(chatStore)
 const userInfo = useUserInfoStore()
 
-const virtualListInst = ref<VirtualListInst | null>(null)
+const virtualListInst = ref<any>(null)
 const isSwitching = ref(false)
 
-/**
- * 核心滚动函数（回归最简版）
- */
+// --- 统一的右键状态 ---
+const showDropdown = ref(false)
+const xRef = ref(0)
+const yRef = ref(0)
+const currentOptions = ref<any[]>([])
+const contextData = ref<{ type: string; extra: any; msg: any } | null>(null)
+
+const onShowMenu = (
+	e: MouseEvent,
+	type: 'text' | 'image',
+	extra: any,
+	msg: any,
+) => {
+	e.preventDefault()
+	showDropdown.value = false
+	contextData.value = { type, extra, msg }
+
+	if (type === 'image') {
+		currentOptions.value = [
+			{ label: '查看图片', key: 'view' },
+			{ label: '复制图片链接', key: 'copy-link' },
+			{ label: '保存到本地', key: 'save' },
+			{ type: 'divider', key: 'd1' },
+			{ label: '删除', key: 'delete' },
+		]
+	} else {
+		const hasSelection = !!extra?.text
+		currentOptions.value = [
+			{
+				label: hasSelection ? '复制选中文字' : '复制整条消息',
+				key: 'copy',
+			},
+			{ label: '转发', key: 'forward' },
+			{ type: 'divider', key: 'd1' },
+			{ label: '删除', key: 'delete' },
+		]
+	}
+
+	nextTick(() => {
+		xRef.value = e.clientX
+		yRef.value = e.clientY
+		showDropdown.value = true
+	})
+}
+
+const handleMenuSelect = (key: string) => {
+	showDropdown.value = false
+	const { extra, msg } = contextData.value || {}
+
+	switch (key) {
+		case 'copy':
+			const text = extra?.text || msg?.text?.replace(/<[^>]*>/g, '')
+			navigator.clipboard.writeText(text)
+			break
+		case 'copy-link':
+			navigator.clipboard.writeText(extra?.src || '')
+			break
+		case 'save':
+			window.electron.ipcRenderer.send('save-image', extra?.src)
+			break
+		case 'view':
+			window.electron.ipcRenderer.send('view-img', extra?.src)
+			break
+		case 'delete':
+			// TODO: 调用删除 API
+			console.log('删除 ID:', msg.id)
+			break
+	}
+}
+
+// --- 滚动与图片逻辑（保持不变） ---
 const scrollToBottom = (behavior: 'auto' | 'smooth' = 'auto'): void => {
 	if (!virtualListInst.value || props.messages.length === 0) return
-
-	// 这里的延迟是为了给 ResizeObserver 留出高度收集的时间
 	setTimeout(() => {
 		virtualListInst.value?.scrollTo({
 			index: props.messages.length - 1,
@@ -28,70 +93,42 @@ const scrollToBottom = (behavior: 'auto' | 'smooth' = 'auto'): void => {
 		})
 	}, 60)
 }
-/**
- * 获取虚拟列表的滚动容器 DOM
- */
-const getScrollEl = (): HTMLElement | null => {
-	return (virtualListInst.value as any)?.$el.querySelector(
-		'.n-virtual-list-viewport',
-	) as HTMLElement | null
-}
 
-/**
- * 图片加载完成的回调
- */
 const handleImageLoaded = (): void => {
-	const el = getScrollEl()
-	if (!el) return
-
-	// 判断当前滚动条位置，如果在底部附近（比如 300px 内），则追随滚动
-	// 这样能保证用户在向上翻阅历史记录时，新图片加载不会强行把页面拉到底部
-	const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300
-
-	if (isNearBottom) {
-		// 调用你已有的置底函数，使用 smooth 让视觉更平滑一点点
+	const el = virtualListInst.value?.$el.querySelector(
+		'.n-virtual-list-viewport',
+	)
+	if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
 		scrollToBottom('smooth')
 	}
 }
-// 1. 监听消息长度变化（发送/接收新消息）
+
 watch(
 	() => props.messages.length,
 	(_, oldLen) => {
-		// 只有在非切换状态下才执行新消息跟随
-		if (isSwitching.value) return
-		scrollToBottom(oldLen === 0 ? 'auto' : 'smooth')
+		if (!isSwitching.value) scrollToBottom(oldLen === 0 ? 'auto' : 'smooth')
 	},
 )
 
-// 2. 切换聊天频道
 const scrollMap = new Map<string, number>()
-
 watch(
 	() => activeChat.value?.id,
 	async (newId, oldId) => {
-		// 保存旧位置
-		const el = (virtualListInst.value as any)?.$el.querySelector(
+		const el = virtualListInst.value?.$el.querySelector(
 			'.n-virtual-list-viewport',
 		)
 		if (oldId && el) scrollMap.set(oldId.toString(), el.scrollTop)
-
-		// 开启切换锁定（防止用户看到跳动）
 		isSwitching.value = true
-
 		await nextTick()
-
 		if (newId) {
 			const savedPos = scrollMap.get(newId.toString())
 			if (savedPos !== undefined) {
-				// 恢复历史位置
 				setTimeout(() => {
 					virtualListInst.value?.scrollTo({ top: savedPos })
 					isSwitching.value = false
 				}, 30)
 			} else {
-				// 无历史记录则定位到底部
 				scrollToBottom('auto')
-				// 定位完成后关闭锁定
 				setTimeout(() => {
 					isSwitching.value = false
 				}, 100)
@@ -101,9 +138,7 @@ watch(
 	{ immediate: true },
 )
 
-onMounted(() => {
-	scrollToBottom('auto')
-})
+onMounted(() => scrollToBottom('auto'))
 </script>
 
 <template>
@@ -116,12 +151,12 @@ onMounted(() => {
 			:items="messages"
 			:item-size="80"
 			item-resizable
-			:overscan="30"
 			key-field="id"
 		>
 			<template #default="{ item }">
 				<div :key="item.id" class="px-4 py-2">
 					<chat-message
+						v-bind="item"
 						:content="item.text"
 						:is-me="item.senderId === 'me'"
 						:avatar="
@@ -130,12 +165,25 @@ onMounted(() => {
 								: activeChat?.avatar
 						"
 						:time="item.timestamp"
-						:has-result="item.hasResult"
-						:result="item.result"
 						@image-loaded="handleImageLoaded"
+						@contextmenu="
+							(e, type, extra) => onShowMenu(e, type, extra, item)
+						"
 					/>
 				</div>
 			</template>
 		</n-virtual-list>
+
+		<n-dropdown
+			size="small"
+			trigger="manual"
+			placement="bottom-start"
+			:show="showDropdown"
+			:x="xRef"
+			:y="yRef"
+			:options="currentOptions"
+			@select="handleMenuSelect"
+			@clickoutside="showDropdown = false"
+		/>
 	</div>
 </template>

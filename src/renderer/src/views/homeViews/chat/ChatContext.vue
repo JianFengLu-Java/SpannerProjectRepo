@@ -1,5 +1,8 @@
 <template>
-	<div v-if="currentChat" class="h-full w-full flex flex-col justify-between">
+	<div
+		v-if="currentChat"
+		class="h-full w-full flex flex-col justify-between chat-context-root relative"
+	>
 		<!-- header -->
 		<div
 			class="h-14 shrink-0 border-gray-200 flex items-center justify-between w-full p-3"
@@ -39,12 +42,12 @@
 			</div>
 		</div>
 
-		<!-- 消息区域 - 使用 overflow-auto 而不是 overflow-hidden -->
+		<!-- 消息区域 -->
 		<div class="flex-1 overflow-auto">
 			<ChatContainer :messages="currentChatMessages" />
 		</div>
 
-		<!-- 输入区域 - 简化，不要加太多样式 -->
+		<!-- 输入区域 -->
 		<div
 			class="h-fit py-2 w-full px-4 border-t border-border-main shrink-0"
 		>
@@ -75,7 +78,7 @@ import {
 	Search,
 } from '@vicons/ionicons5'
 import { storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 import type { Component } from 'vue'
 import ChatContainer from './ChatContainer.vue'
 
@@ -143,6 +146,16 @@ const menus = ref<menusItem[]>([
 		icon: 'more',
 	},
 ])
+
+// 添加一个方法用于子组件获取边界元素
+const getBoundaryElement = () => {
+	return document.querySelector('.chat-context-root') as HTMLElement
+}
+
+// 暴露给子组件使用
+defineExpose({
+	getBoundaryElement,
+})
 </script>
 
 <style scoped>
@@ -159,14 +172,16 @@ const menus = ref<menusItem[]>([
 	user-select: text;
 }
 
-/* 确保所有容器都允许溢出 */
-:deep(div) {
-	overflow: visible !important;
-}
-
 /* 确保消息区域可以滚动 */
 .flex-1 {
 	overflow: auto !important;
 	overflow-x: hidden !important;
+}
+
+/* 确保父容器有正确的定位和层级 */
+.chat-context-root {
+	position: relative;
+	overflow: hidden;
+	z-index: 1;
 }
 </style>

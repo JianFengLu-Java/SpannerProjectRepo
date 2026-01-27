@@ -14,7 +14,7 @@
 			:class="[platfrom === 'darwin' ? 'mt-10' : 'mt-2']"
 		>
 			<div class="flex items-center w-full relative h-12">
-				<div class="flex items-center shrink-0 pl-[18px]">
+				<div class="flex items-center shrink-0 pl-[21px]">
 					<n-dropdown
 						trigger="click"
 						placement="right-start"
@@ -71,7 +71,7 @@
 			</div>
 		</div>
 
-		<div class="no-drag w-full px-2 flex justify-center mt-2">
+		<div class="no-drag w-full px-2 flex justify-center">
 			<div
 				class="text-zinc-800 flex items-center cursor-pointer overflow-hidden transition-custom hover:bg-sidebar-unselect-item/30"
 				:class="
