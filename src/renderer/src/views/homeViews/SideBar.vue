@@ -23,7 +23,7 @@
 					>
 						<n-avatar
 							round
-							:size="40"
+							:size="34"
 							:src="user.avatarUrl"
 							class="cursor-pointer shrink-0 avatar-layer"
 						/>

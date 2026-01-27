@@ -1,11 +1,8 @@
 <template>
-	<div
-		v-if="currentChat"
-		class="h-full w-full flex flex-col justify-between can"
-	>
-		<!-- heard  -->
+	<div v-if="currentChat" class="h-full w-full flex flex-col justify-between">
+		<!-- header -->
 		<div
-			class="h-14 shrink-0 border-gray-200 flex item-center justify-between w-full p-3"
+			class="h-14 shrink-0 border-gray-200 flex items-center justify-between w-full p-3"
 		>
 			<div class="flex gap-2 items-center">
 				<n-avatar
@@ -27,7 +24,7 @@
 				<div
 					v-for="item in menus"
 					:key="item.key"
-					class="z-9999! no-drag grid-cols-1 flex items-center justify-center rounded-md h-8 hover:bg-gray-100 cursor-pointer"
+					class="no-drag grid-cols-1 flex items-center justify-center rounded-md h-8 hover:bg-gray-100 cursor-pointer"
 				>
 					<n-icon size="15" color="#555">
 						<component :is="iconMap[item.icon]" />
@@ -35,17 +32,19 @@
 				</div>
 			</div>
 		</div>
+
 		<div class="border-b border-border-main px-4">
 			<div v-for="lab in labs" :key="lab.key" class="">
 				<n-icon><component :is="iconMap[lab.icon]" /></n-icon>
 			</div>
 		</div>
 
-		<!-- context -->
-		<div class="flex-1 overflow-hidden relative">
+		<!-- 消息区域 - 使用 overflow-auto 而不是 overflow-hidden -->
+		<div class="flex-1 overflow-auto">
 			<ChatContainer :messages="currentChatMessages" />
 		</div>
-		<!-- input -->
+
+		<!-- 输入区域 - 简化，不要加太多样式 -->
 		<div
 			class="h-fit py-2 w-full px-4 border-t border-border-main shrink-0"
 		>
@@ -79,6 +78,7 @@ import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Component } from 'vue'
 import ChatContainer from './ChatContainer.vue'
+
 const chatStore = useChatStore()
 
 const { activeChat, activeChatId } = storeToRefs(chatStore)
@@ -97,7 +97,7 @@ const currentChatMessages = computed(() => {
 	return chatStore.messages[activeChatId.value] || []
 })
 
-//图标映射
+// 图标映射
 const iconMap: Record<string, Component> = {
 	search: Search,
 	call: Call,
@@ -115,7 +115,7 @@ const labs = ref<menusItem[]>([
 	},
 ])
 
-//菜单配置
+// 菜单配置
 const menus = ref<menusItem[]>([
 	{
 		key: 'search',
@@ -151,12 +151,22 @@ const menus = ref<menusItem[]>([
 .can-select-text :deep(*) {
 	-webkit-user-select: text !important;
 	user-select: text !important;
-	/* 必须加上这个，否则在设置了 drag 的容器下依然无法点击选中 */
 	-webkit-app-region: no-drag;
 }
 
 .chat-messages,
 .chat-messages * {
 	user-select: text;
+}
+
+/* 确保所有容器都允许溢出 */
+:deep(div) {
+	overflow: visible !important;
+}
+
+/* 确保消息区域可以滚动 */
+.flex-1 {
+	overflow: auto !important;
+	overflow-x: hidden !important;
 }
 </style>

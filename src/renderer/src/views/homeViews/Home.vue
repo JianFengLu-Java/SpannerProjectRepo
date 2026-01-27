@@ -1,7 +1,6 @@
 <template>
 	<div
 		class="h-full w-full flex bg-gradient-to-br from-grad-start to-grad-end gap-0 relative overflow-hidden transition-all duration-500 ease-in-out"
-		:class="[isWin ? 'pt-[32px]' : '']"
 	>
 		<SideBar
 			:is-expanded="isExpanded"
@@ -15,7 +14,10 @@
 			@mousedown="initDrag"
 		></div>
 
-		<div class="h-full flex-1 overflow-hidden pl-0 p-1.5">
+		<div
+			class="h-full flex-1 overflow-hidden pl-0 p-1.5"
+			:class="[isWin ? 'pt-[32px]' : '']"
+		>
 			<router-view v-slot="{ Component, route }">
 				<keep-alive>
 					<component :is="Component" :key="route.name" />
