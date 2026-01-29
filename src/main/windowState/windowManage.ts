@@ -1,14 +1,62 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, Tray, Menu, app, nativeImage } from 'electron'
 import { join } from 'path'
 import crypto from 'crypto'
+import iconPath from '../../../resources/icon.png?asset'
 
 // 定义窗口类型，方便维护
-type WindowType = 'login' | 'register' | 'home' | 'view-img'
+type WindowType = 'login' | 'register' | 'home' | 'view-img' | 'chat'
 
 // 窗口注册表：保存所有正在运行的窗口实例
-const windowRegistry = new Map<WindowType, BrowserWindow>()
+export const windowRegistry = new Map<string, BrowserWindow>()
+let tray: Tray | null = null
+let minimizeToTray = true // 默认开启
+
+export function setMinimizeToTray(value: boolean): void {
+	minimizeToTray = value
+}
+
+function createTray(): void {
+	if (tray) return
+
+	const icon = nativeImage.createFromPath(iconPath)
+	tray = new Tray(icon.resize({ width: 16, height: 16 }))
+	const contextMenu = Menu.buildFromTemplate([
+		{
+			label: '显示应用',
+			click: () => {
+				const homeWin = windowRegistry.get('home')
+				if (homeWin) {
+					homeWin.show()
+					homeWin.focus()
+				}
+			},
+		},
+		{ type: 'separator' },
+		{
+			label: '退出',
+			click: () => {
+				app.quit()
+			},
+		},
+	])
+
+	tray.setToolTip('Spanner App')
+	tray.setContextMenu(contextMenu)
+	tray.on('click', () => {
+		const homeWin = windowRegistry.get('home')
+		if (homeWin) {
+			if (homeWin.isVisible()) {
+				homeWin.hide()
+			} else {
+				homeWin.show()
+				homeWin.focus()
+			}
+		}
+	})
+}
 
 function createBaseWindow(
+	type: WindowType,
 	options: Electron.BrowserWindowConstructorOptions,
 ): BrowserWindow {
 	const win = new BrowserWindow({
@@ -25,11 +73,15 @@ function createBaseWindow(
 		...options,
 	})
 
-	// 窗口关闭时自动从注册表中移除
-	win.on('closed', () => {
-		windowRegistry.forEach((instance, key) => {
-			if (instance === win) windowRegistry.delete(key)
-		})
+	// 窗口关闭时逻辑
+	win.on('close', (e) => {
+		if (type === 'home' && minimizeToTray) {
+			e.preventDefault()
+			win.hide()
+			return
+		}
+		// 其他情况下，或者不允许最小化到托盘时，正常关闭
+		windowRegistry.delete(type)
 	})
 
 	return win
@@ -48,7 +100,7 @@ function loadPage(window: BrowserWindow, page: string): void {
  * 核心：打开窗口的方法（支持单例）
  */
 function getOrCreateWindow(
-	type: WindowType,
+	type: WindowType | string,
 	options: Electron.BrowserWindowConstructorOptions,
 ): BrowserWindow {
 	// 单例检查：如果窗口已存在，直接聚焦
@@ -60,7 +112,7 @@ function getOrCreateWindow(
 	}
 
 	// 创建新窗口
-	const win = createBaseWindow(options)
+	const win = createBaseWindow(type as WindowType, options)
 	windowRegistry.set(type, win)
 	return win
 }
@@ -77,14 +129,16 @@ export function openLoginWindow(): void {
 	loadPage(loginWin, 'login')
 
 	// 2. 关键：关闭注册窗口
-	// 查找注册窗口实例，如果存在则关闭它
 	const regWin = windowRegistry.get('register')
 	if (regWin && !regWin.isDestroyed()) {
-		regWin.close() // 触发 close 事件，windowRegistry 会在监听里自动 delete 它
+		regWin.destroy() // 直接销毁，避开 close 事件的阻止逻辑
 	}
 
 	// 3. 如果是从主页登出的，也关闭主页
-	windowRegistry.get('home')?.close()
+	const homeWin = windowRegistry.get('home')
+	if (homeWin && !homeWin.isDestroyed()) {
+		homeWin.destroy()
+	}
 }
 
 export function openRegisterWindow(): void {
@@ -95,29 +149,30 @@ export function openRegisterWindow(): void {
 	})
 	loadPage(regWin, 'register')
 
-	// 逻辑建议：通常打开注册时，登录窗口可以隐藏或关闭。
-	// 如果你希望打开注册时登录窗口消失：
-	windowRegistry.get('login')?.close()
+	windowRegistry.get('login')?.destroy()
 }
 
 export function openHomeWindow(): void {
 	const homeWin = getOrCreateWindow('home', {
 		width: 1000,
 		height: 750,
-		minWidth: 800,
+		minWidth: 550,
 		minHeight: 600,
 	})
 	loadPage(homeWin, 'home')
 
 	// 成功进入首页后，销毁登录相关的窗口
-	windowRegistry.get('login')?.close()
-	windowRegistry.get('register')?.close()
+	windowRegistry.get('login')?.destroy()
+	windowRegistry.get('register')?.destroy()
+
+	// 初始化托盘
+	createTray()
 }
 
 export function viewIMGWindow(imgURL: string): void {
 	// 1. 对 URL 进行 MD5 哈希处理，生成唯一的固定长度 ID
 	const hash = crypto.createHash('md5').update(imgURL).digest('hex')
-	const winKey = `view-img-${hash}` as WindowType
+	const winKey = `view-img-${hash}`
 
 	// 2. 检查该图片的窗口是否已经打开
 	const existingWin = windowRegistry.get(winKey)
@@ -129,7 +184,7 @@ export function viewIMGWindow(imgURL: string): void {
 	}
 
 	// 3. 如果不存在，则创建新窗口
-	const win = createBaseWindow({
+	const win = createBaseWindow('view-img', {
 		width: 600,
 		height: 600,
 	})
@@ -142,6 +197,33 @@ export function viewIMGWindow(imgURL: string): void {
 	windowRegistry.set(winKey, win)
 
 	// 5. 监听窗口关闭，清理 Registry
+	win.on('closed', () => {
+		windowRegistry.delete(winKey)
+	})
+}
+export function openChatWindow(chatId: number, chatName: string): void {
+	const winKey = `chat-${chatId}`
+	const existingWin = windowRegistry.get(winKey)
+
+	if (existingWin && !existingWin.isDestroyed()) {
+		existingWin.show()
+		existingWin.focus()
+		return
+	}
+
+	const win = createBaseWindow('chat', {
+		width: 600,
+		height: 700,
+		minWidth: 400,
+		minHeight: 500,
+		title: chatName,
+	})
+
+	const page = `chat-standalone?id=${chatId}&name=${encodeURIComponent(chatName)}`
+	loadPage(win, page)
+
+	windowRegistry.set(winKey, win)
+
 	win.on('closed', () => {
 		windowRegistry.delete(winKey)
 	})

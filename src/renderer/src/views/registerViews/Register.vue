@@ -1,6 +1,17 @@
 <template>
-	<div class="register-container overflow-hidden">
-		<div class="register-card shadow-sm border border-gray-300">
+	<div
+		class="flex h-screen w-screen items-center justify-center bg-linear-to-br from-grad-start to-grad-end"
+	>
+		<div
+			class="w-[440px] bg-white rounded-2xl shadow-sm border border-gray-100 py-8"
+		>
+			<div class="px-8 mb-6 text-center">
+				<h2 class="text-2xl font-bold text-gray-800">创建账号</h2>
+				<p class="text-gray-500 text-sm mt-1">
+					注册 LinkR，开启高效协作之旅
+				</p>
+			</div>
+
 			<n-form
 				ref="formRef"
 				:model="formModel"
@@ -12,27 +23,42 @@
 				label-width="auto"
 				require-mark-placement="right-hanging"
 			>
-				<div class="flex flex-col items-center mb-2">
+				<div class="flex flex-col items-center mb-6">
 					<n-form-item
 						path="avatarUrl"
 						:show-label="false"
-						:show-feedback="false"
+						class="avatar-form-item"
+						:show-feedback="true"
 					>
 						<div
-							class="avatar-wrapper group"
+							class="avatar-wrapper group relative w-[88px] h-[88px] shrink-0"
 							@click="triggerUpload"
 						>
 							<n-avatar
 								round
-								:size="80"
-								:src="
-									formModel.avatarUrl ||
-									'https://http.cat/200'
-								"
-								fallback-src="https://http.cat/200"
-								class="avatar-preview border-2 border-dashed border-gray-300 group-hover:border-green-500 transition-all"
-							/>
-							<div class="upload-mask">修改头像</div>
+								:size="88"
+								:src="formModel.avatarUrl"
+								class="border border-gray-100 group-hover:border-primary/50 transition-all duration-300 block"
+								color="#f3f4f6"
+							>
+								<template #icon v-if="!formModel.avatarUrl">
+									<n-icon
+										:size="48"
+										color="#e2e8f0"
+										:component="PersonIcon"
+									/>
+								</template>
+							</n-avatar>
+							<div
+								class="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer text-white text-xs font-medium backdrop-blur-[1px]"
+							>
+								更换
+							</div>
+							<div
+								class="absolute bottom-0 right-0 bg-white rounded-full p-1 border border-gray-100 text-gray-600 flex items-center justify-center shadow-sm"
+							>
+								<n-icon :size="14" :component="CameraIcon" />
+							</div>
 						</div>
 						<input
 							type="file"
@@ -44,7 +70,7 @@
 					</n-form-item>
 				</div>
 
-				<div class="space-y-0">
+				<div class="space-y-1">
 					<n-form-item label="真实姓名" path="realName">
 						<n-input
 							v-model:value="formModel.realName"
@@ -60,9 +86,10 @@
 								placeholder="邮箱前缀"
 								clearable
 							/>
-							<n-input-group-label class="bg-gray-50!">{{
-								emailSuffix
-							}}</n-input-group-label>
+							<n-input-group-label
+								class="bg-gray-50! text-gray-400"
+								>{{ emailSuffix }}</n-input-group-label
+							>
 						</n-input-group>
 					</n-form-item>
 
@@ -70,16 +97,16 @@
 						<n-select
 							v-model:value="formModel.gender"
 							:options="sexOptions"
-							placeholder="选择"
+							placeholder="请选择"
 						/>
 					</n-form-item>
 					<n-form-item label="所在地" path="address">
 						<n-cascader
 							v-model:value="formModel.address"
 							:options="chinaAreaOptions"
-							placeholder="省/市"
+							placeholder="省/市/区"
 							check-strategy="child"
-							expand-trigger="click"
+							expand-trigger="hover"
 						/>
 					</n-form-item>
 
@@ -101,7 +128,7 @@
 					</n-form-item>
 				</div>
 
-				<div class="flex flex-col gap-2 mt-6">
+				<div class="flex flex-col gap-3 mt-8">
 					<n-button
 						type="primary"
 						block
@@ -113,7 +140,13 @@
 					>
 						立即注册
 					</n-button>
-					<n-button quaternary block @click="handleBack">
+					<n-button
+						quaternary
+						block
+						@click="handleBack"
+						size="medium"
+						class="text-gray-500"
+					>
 						<template #icon
 							><n-icon :component="GoBackIcon"
 						/></template>
@@ -127,14 +160,14 @@
 			v-model:show="showCropper"
 			preset="card"
 			title="编辑个人头像"
-			style="width: 500px"
+			style="width: 600px"
 			:segmented="{ content: 'soft', footer: 'soft' }"
 			:mask-closable="false"
 		>
-			<div class="flex gap-4">
+			<div class="flex gap-6">
 				<div class="flex-1">
 					<div
-						class="h-[340px] bg-gray-50 rounded-xl overflow-hidden border border-gray-100 relative shadow-inner"
+						class="h-[360px] bg-gray-50 rounded-xl overflow-hidden border border-gray-100 relative shadow-inner"
 					>
 						<vue-cropper
 							ref="cropperRef"
@@ -149,9 +182,9 @@
 					</div>
 				</div>
 
-				<div class="w-[100px] flex flex-col items-center gap-6 pt-4">
+				<div class="w-[140px] flex flex-col items-center gap-6 pt-2">
 					<p
-						class="text-xs font-bold text-gray-500 uppercase tracking-wider"
+						class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"
 					>
 						预览效果
 					</p>
@@ -167,6 +200,10 @@
 							</div>
 						</div>
 					</div>
+					<div class="text-xs text-center text-gray-400 mt-[-10px]">
+						100 x 100
+					</div>
+
 					<div class="preview-container medium shadow-sm">
 						<div :style="getPreviewStyle(60)">
 							<div :style="previews.div" class="preview-content">
@@ -178,17 +215,8 @@
 							</div>
 						</div>
 					</div>
-
-					<div class="preview-container small shadow-sm">
-						<div :style="getPreviewStyle(48)">
-							<div :style="previews.div" class="preview-content">
-								<img
-									:src="previews.url"
-									:style="previews.img"
-									class="max-w-none"
-								/>
-							</div>
-						</div>
+					<div class="text-xs text-center text-gray-400 mt-[-10px]">
+						60 x 60
 					</div>
 				</div>
 			</div>
@@ -200,11 +228,11 @@
 					>
 					<n-button
 						type="primary"
-						class="px-8 shadow-md shadow-green-100"
+						class="px-6"
 						:loading="isUploading"
 						@click="handleCropSave"
 					>
-						保存并应用
+						保存头像
 					</n-button>
 				</div>
 			</template>
@@ -214,7 +242,11 @@
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { ArrowBackCircleOutline as GoBackIcon } from '@vicons/ionicons5'
+import {
+	ArrowBackCircleOutline as GoBackIcon,
+	Person as PersonIcon,
+	Camera as CameraIcon,
+} from '@vicons/ionicons5'
 import { useMessage, type FormInst, type FormRules } from 'naive-ui'
 import axios from 'axios'
 import { regionData } from 'element-china-area-data'
@@ -222,7 +254,6 @@ import { VueCropper } from 'vue-cropper'
 import 'vue-cropper/dist/index.css'
 import { useTitleStore } from '@renderer/stores/title'
 import router from '@renderer/router'
-import { env } from 'process'
 
 const title = useTitleStore()
 
@@ -290,7 +321,7 @@ const realTimePreview = (data: any) => {
 
 /**
  * 核心：计算缩放比例
- * size: 预览圆圈的目标尺寸 (100 或 48)
+ * size: 预览圆圈的目标尺寸 (100 或 60)
  */
 const getPreviewStyle = (size: number) => {
 	if (!previews.value.w) return {}
@@ -355,7 +386,7 @@ const handleCropSave = () => {
 const submitRegistration = () => {
 	formRef.value?.validate(async (errors) => {
 		if (errors) {
-			message.warning('请检查信息是否完整')
+			// message.warning('请检查信息是否完整')
 			return
 		}
 
@@ -368,11 +399,6 @@ const submitRegistration = () => {
 			const res = await axios.post(API.REGISTER, payload)
 			if (res.data.code === 200) {
 				message.success('注册成功')
-				// 发送给 Electron 主进程：关闭子窗口并通知 Login 刷新
-				// window.electron.ipcRenderer.send(
-				// 	'register-success-open-loginWindow',
-				// )
-
 				console.log(res.data.data.account)
 
 				router.push({
@@ -397,58 +423,16 @@ const handleBack = () => {
 </script>
 
 <style scoped>
-.register-container {
-	height: 100vh;
-	width: 100vw;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	background: radial-gradient(circle at top left, #f8fafc, #e2e8f0);
-}
-
-.register-card {
-	width: 440px;
-	background: rgba(255, 255, 255, 0.95);
-	backdrop-filter: blur(10px);
-	border-radius: 20px;
-	padding: 30px 0 15px 0;
-}
-
-.avatar-wrapper {
-	position: relative;
-	width: 80px;
-	height: 80px;
-	border-radius: 50%;
-	overflow: hidden;
-	cursor: pointer;
-}
-
-.avatar-preview {
-	background-color: #f3f4f6;
-}
-
-.upload-mask {
-	position: absolute;
-	inset: 0;
-	background: rgba(0, 0, 0, 0.45);
-	color: white;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 11px;
-	opacity: 0;
-	transition: opacity 0.3s ease;
-}
-
-.avatar-wrapper:hover .upload-mask {
-	opacity: 1;
-}
-
 .hidden {
 	display: none;
 }
 
-/* 覆盖 Naive UI 一些默认边距 */
+/* 自定义头像下的错误提示位置 */
+:deep(.avatar-form-item) .n-form-item-feedback-wrapper {
+	justify-content: center;
+	display: flex;
+}
+
 :deep(.n-form-item .n-form-item-label) {
 	font-size: 13px;
 	font-weight: 500;
@@ -472,10 +456,6 @@ const handleBack = () => {
 .preview-container.medium {
 	width: 60px;
 	height: 60px;
-}
-.preview-container.small {
-	width: 48px;
-	height: 48px;
 }
 
 /* 关键：取消图片的所有自动缩放限制 */

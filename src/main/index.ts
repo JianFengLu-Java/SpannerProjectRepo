@@ -6,6 +6,7 @@ import { setupIpcHandlers } from './controller/setupIpcHandlers'
 import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
 import { openLoginWindow } from './windowState/windowManage'
+import { initDatabase } from './database/db'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -65,13 +66,16 @@ function createWindow(): void {
 	}
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
 	// Set app user model id for windows
 	electronApp.setAppUserModelId('com.electron')
 
 	app.on('browser-window-created', (_, window) => {
 		optimizer.watchWindowShortcuts(window)
 	})
+
+	// 初始化数据库
+	await initDatabase()
 
 	openLoginWindow()
 	setupIpcHandlers()

@@ -1,5 +1,5 @@
 <template>
-	<div class="h-full w-full flex">
+	<div class="h-full w-full flex overflow-hidden">
 		<!-- 左侧聊天列表 -->
 		<n-dropdown
 			placement="bottom-start"
@@ -11,9 +11,15 @@
 			:on-clickoutside="closeContextMenu"
 			@select="handleContextMenuSelect"
 		/>
+
+		<!-- 会话列表容器 -->
+		<!-- 会话列表容器 -->
 		<div
-			class="h-full flex flex-col bg-page-bg rounded-xl overflow-hidden transition-all duration-200"
-			:style="{ width: `${listWidth}px` }"
+			v-if="windowWidth >= 800"
+			class="h-full flex flex-col bg-page-bg rounded-xl overflow-hidden transition-all duration-300 ease-in-out shrink-0 relative"
+			:style="{
+				width: `${listWidth}px`,
+			}"
 		>
 			<!-- 搜索和功能栏 -->
 			<div class="p-3 pb-1">
@@ -52,7 +58,7 @@
 					<div
 						v-for="chat in pinnedChats"
 						:key="chat.id"
-						class="flex items-center *: p-2 rounded-lg cursor-pointer flex-col hover:bg-sidebar-select-bg/40 transition-colors duration-200"
+						class="flex items-center p-2 rounded-lg cursor-pointer flex-col hover:bg-sidebar-select-bg/40 transition-colors duration-200"
 						:class="{
 							' bg-sidebar-select-bg/80 hover:bg-sidebar-select-bg/80':
 								activeChatId === chat.id,
@@ -74,7 +80,7 @@
 						</n-badge>
 						<div>
 							<span
-								class="text-[10px] font-normal text-gray-500"
+								class="text-[10px] font-normal text-gray-500 truncate w-12 text-center"
 								>{{ chat.name }}</span
 							>
 						</div>
@@ -86,7 +92,7 @@
 			<div class="flex-1 overflow-hidden">
 				<n-virtual-list
 					:items="chatlist"
-					:item-size="68"
+					:item-size="60"
 					class="h-full"
 				>
 					<template #default="{ item, index }">
@@ -106,7 +112,6 @@
 								<!-- 头像和状态 -->
 								<div>
 									<n-badge
-										:key="'item' + item"
 										:value="item.unreadCount"
 										:offset="[-3, 0]"
 										color="red"
@@ -157,21 +162,34 @@
 
 		<!-- 可拖拽调整宽度的分割线 -->
 		<div
-			class="w-1 cursor-col-resize hover:bg-green-300 transition-colors duration-200 flex items-center justify-center"
+			v-if="windowWidth >= 800"
+			class="w-1 cursor-col-resize hover:bg-blue-400 transition-colors duration-200 flex items-center justify-center relative z-10 shrink-0"
 			@mousedown="startDrag"
 		>
-			<div class="w-px h-6"></div>
+			<div class="w-px h-6 bg-gray-200/50"></div>
 		</div>
 
 		<!-- 主聊天区域 -->
-		<div class="flex-1 rounded-xl bg-page-bg">
+		<div
+			class="flex-1 rounded-xl bg-page-bg overflow-hidden flex flex-col min-w-[400px] shrink-0"
+		>
 			<ChatContext />
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted, h, nextTick, onMounted } from 'vue'
+import {
+	ref,
+	computed,
+	onUnmounted,
+	h,
+	nextTick,
+	onMounted,
+	inject,
+	Ref,
+	watch,
+} from 'vue'
 import { useTitleStore } from '@renderer/stores/title'
 import { useChatStore } from '@renderer/stores/chat'
 import {
@@ -179,83 +197,119 @@ import {
 	Pin16Filled,
 	MailRead16Filled,
 	Delete16Filled,
+	WindowNew20Filled,
 } from '@vicons/fluent'
-import { NDropdown, NIcon, NAvatar, NVirtualList } from 'naive-ui'
-
+import { NDropdown, NIcon, NAvatar, NVirtualList, NBadge } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import ChatContext from './ChatContext.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 
-const listWidth = ref(200)
+// 定义 ChatItem 接口确保类型安全
+interface ChatItem {
+	id: number
+	name: string
+	avatar: string
+	lastMessage: string
+	timestamp: string
+	unreadCount?: number
+}
+
+const listWidth = ref(240)
+const windowWidth = inject<Ref<number>>('windowWidth', ref(window.innerWidth))
+const sidebarWidthState = inject<Ref<number>>('sideBarWidth', ref(200))
+const isSidebarExpanded = inject<Ref<boolean>>('isExpanded', ref(true))
+
 const titleStore = useTitleStore()
 const chatStore = useChatStore()
 const userInfoStore = useUserInfoStore()
-
 const userName = userInfoStore.userName
 
 const { chatlist, pinnedChats, activeChatId } = storeToRefs(chatStore)
 
-titleStore.setTitle('聊天')
+const RIGHT_PANEL_MIN_WIDTH = 400
+const SESSION_LIST_MIN_WIDTH = 200
+
+// 监听布局变化，防止右侧被挤压
+watch(
+	[windowWidth, sidebarWidthState, isSidebarExpanded],
+	([winWidth, sideWidth, isExp]) => {
+		const currentSidebarWidth = isExp && winWidth >= 700 ? sideWidth : 76
+		const availableForList =
+			winWidth - currentSidebarWidth - RIGHT_PANEL_MIN_WIDTH - 12
+
+		if (listWidth.value > availableForList) {
+			listWidth.value = Math.max(SESSION_LIST_MIN_WIDTH, availableForList)
+		}
+	},
+	{ immediate: true },
+)
 
 // 菜单选项
 const options = [
-	{
-		label: '全部聊天',
-		key: 'all',
-	},
-	{
-		label: '未读消息',
-		key: 'unread',
-	},
-	{
-		type: 'divider',
-	},
-	{
-		label: '创建群聊',
-		key: 'createGroup',
-	},
-	{
-		label: '添加好友',
-		key: 'addFriend',
-	},
+	{ label: '全部聊天', key: 'all' },
+	{ label: '未读消息', key: 'unread' },
+	{ type: 'divider' },
+	{ label: '创建群聊', key: 'createGroup' },
+	{ label: '添加好友', key: 'addFriend' },
 ]
 
-// 聊天列表
-
 // 选择聊天
-const selectChat = (chat): void => {
+const selectChat = (chat: ChatItem): void => {
 	activeChatId.value = chat.id
 	chatStore.setActiveChat(chat.id)
 	chatStore.markAsRead(chat.id)
-	console.log('选择聊天:', chat.name)
 }
 
-// 格式化时间显示
+// 格式化时间
 const formatTime = (time: string): string => {
-	if (time.includes(':')) {
-		return time
-	}
 	return time
 }
 
-// 拖拽调整宽度
-let startX = 0
-let startWidth = 0
+// 拖拽逻辑
 let isDragging = false
-
 const startDrag = (e: MouseEvent): void => {
 	isDragging = true
-	startX = e.clientX
-	startWidth = listWidth.value
+	const startX = e.clientX
+	const startWidth = listWidth.value
+	let animationFrameId: number | null = null
+
+	document.body.style.cursor = 'col-resize'
+	document.body.style.userSelect = 'none'
 
 	const onMove = (moveEvent: MouseEvent): void => {
 		if (!isDragging) return
-		const delta = moveEvent.clientX - startX
-		listWidth.value = Math.min(400, Math.max(200, startWidth + delta))
+		if (animationFrameId) cancelAnimationFrame(animationFrameId)
+
+		animationFrameId = requestAnimationFrame(() => {
+			const delta = moveEvent.clientX - startX
+			const newWidth = startWidth + delta
+
+			// 计算当前侧边栏占据的宽度
+			const currentSidebarWidth = isSidebarExpanded.value
+				? sidebarWidthState.value
+				: 76
+
+			// 计算会话列表允许的最大宽度，确保右侧聊天区域至少保留 400px
+			const maxAllowedWidth =
+				windowWidth.value -
+				currentSidebarWidth -
+				RIGHT_PANEL_MIN_WIDTH -
+				12 // 预留一些边距
+
+			// 限制宽度范围：[200px, maxAllowedWidth]
+			// 这样既保证了左侧不被拖拽关闭，也保证了右侧有最小空间
+			listWidth.value = Math.min(
+				Math.max(SESSION_LIST_MIN_WIDTH, newWidth),
+				Math.max(SESSION_LIST_MIN_WIDTH, maxAllowedWidth),
+			)
+		})
 	}
 
 	const stopDrag = (): void => {
 		isDragging = false
+		if (animationFrameId) cancelAnimationFrame(animationFrameId)
+		document.body.style.cursor = ''
+		document.body.style.userSelect = ''
 		document.removeEventListener('mousemove', onMove)
 		document.removeEventListener('mouseup', stopDrag)
 	}
@@ -265,26 +319,13 @@ const startDrag = (e: MouseEvent): void => {
 	e.preventDefault()
 }
 
-// 右键菜单相关状态
+// 右键菜单
 const showContextMenu = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const selectedChat = ref<ChatItem | null>(null)
 
-interface ChatItem {
-	id: number
-	name: string
-	avatar: string
-	lastMessage: string
-	timestamp: string
-	online: boolean
-	unreadCount?: number
-	isPinned?: boolean
-}
-
-// 打开右键菜单
-const openContextMenu = (e: MouseEvent, chat: any): void => {
-	// selectChat(chat)
+const openContextMenu = (e: MouseEvent, chat: ChatItem): void => {
 	selectedChat.value = chat
 	showContextMenu.value = false
 	nextTick().then(() => {
@@ -294,47 +335,31 @@ const openContextMenu = (e: MouseEvent, chat: any): void => {
 	})
 }
 
-// 右键菜单选项
 const contextMenuOptions = computed(() => {
 	const chat = selectedChat.value
 	if (!chat) return []
 
-	const isPinned = pinnedChats.value.some(
-		(c) => c.id === (chat as { id: number }).id,
-	)
-	const isRead = (chat as { unreadCount: number }).unreadCount === 0
+	const isPinned = pinnedChats.value.some((c) => c.id === chat.id)
+	const isRead = chat.unreadCount === 0
 
 	return [
-		isPinned
-			? {
-					label: '取消置顶',
-					key: 'unpin',
-					icon: () =>
-						h(NIcon, null, { default: () => h(Pin16Filled) }),
-				}
-			: {
-					label: '置顶聊天',
-					key: 'pin',
-					icon: () =>
-						h(NIcon, null, { default: () => h(Pin16Filled) }),
-				},
 		{
-			type: 'divider',
+			label: isPinned ? '取消置顶' : '置顶聊天',
+			key: isPinned ? 'unpin' : 'pin',
+			icon: () => h(NIcon, null, { default: () => h(Pin16Filled) }),
 		},
-		isRead
-			? {
-					label: '标记为已读',
-					key: 'markAsRead',
-					disabled: true,
-					icon: () =>
-						h(NIcon, null, { default: () => h(MailRead16Filled) }),
-				}
-			: {
-					label: '标记为已读',
-					key: 'markAsRead',
-					icon: () =>
-						h(NIcon, null, { default: () => h(MailRead16Filled) }),
-				},
+		{
+			label: '在新窗口打开',
+			key: 'openInNewWindow',
+			icon: () => h(NIcon, null, { default: () => h(WindowNew20Filled) }),
+		},
+		{ type: 'divider' },
+		{
+			label: '标记为已读',
+			key: 'markAsRead',
+			disabled: isRead,
+			icon: () => h(NIcon, null, { default: () => h(MailRead16Filled) }),
+		},
 		{
 			label: '删除聊天',
 			key: 'delete',
@@ -343,22 +368,16 @@ const contextMenuOptions = computed(() => {
 	]
 })
 
-// 关闭右键菜单
 const closeContextMenu = (): void => {
 	showContextMenu.value = false
 }
 
-onMounted(() => {
-	titleStore.setTitle('欢迎你！' + userName)
-})
-
-// 处理菜单项选择
 const handleContextMenuSelect = (key: string): void => {
 	if (!selectedChat.value) return
 
 	switch (key) {
 		case 'pin':
-			chatStore.pinChat(selectedChat.value!.id)
+			chatStore.pinChat(selectedChat.value.id)
 			break
 		case 'unpin':
 			chatStore.unpinChat(selectedChat.value.id)
@@ -369,44 +388,38 @@ const handleContextMenuSelect = (key: string): void => {
 		case 'delete':
 			chatStore.deleteChat(selectedChat.value.id)
 			break
+		case 'openInNewWindow':
+			openInNewWindow(selectedChat.value)
+			break
 	}
-
 	closeContextMenu()
 }
 
-// 清理事件监听
+const openInNewWindow = (chat: ChatItem): void => {
+	window.electron.ipcRenderer.send('open-chat-window', chat.id, chat.name)
+}
+
+onMounted(() => {
+	titleStore.setTitle('欢迎你！' + userName)
+})
+
 onUnmounted(() => {
-	document.removeEventListener('mousemove', () => {})
-	document.removeEventListener('mouseup', () => {})
+	// 拖拽监听已自动清理
 })
 </script>
 
 <style scoped>
-/* 自定义滚动条样式 */
 :deep(.n-virtual-list) {
 	scrollbar-width: thin;
 	scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
 }
-
 :deep(.n-virtual-list)::-webkit-scrollbar {
 	width: 6px;
 }
-
-:deep(.n-virtual-list)::-webkit-scrollbar-track {
-	background: transparent;
-	border-radius: 3px;
-}
-
 :deep(.n-virtual-list)::-webkit-scrollbar-thumb {
 	background-color: rgba(156, 163, 175, 0.4);
 	border-radius: 3px;
 }
-
-:deep(.n-virtual-list)::-webkit-scrollbar-thumb:hover {
-	background-color: rgba(156, 163, 175, 0.6);
-}
-
-/* 拖拽条样式 */
 .w-1:hover {
 	background: linear-gradient(
 		90deg,
@@ -414,10 +427,5 @@ onUnmounted(() => {
 		rgba(59, 130, 246, 0.3) 50%,
 		rgba(59, 130, 246, 0.1) 100%
 	);
-}
-
-/* 搜索框聚焦效果 */
-input:focus {
-	box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
 </style>

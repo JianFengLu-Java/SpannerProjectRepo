@@ -1,20 +1,316 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+interface DbChatItem {
+	id: number
+	name: string
+	avatar: string
+	lastMessage: string
+	timestamp: string
+	online: number
+	unreadCount: number
+	isPinned: number
+}
+
+interface DbMessage {
+	id: number
+	chatId: number
+	senderId: 'me' | 'other'
+	text: string
+	timestamp: string
+	type: string
+	hasResult: number
+	result?: string
+}
+
 export const useChatStore = defineStore('chat', () => {
-	//当前选中的聊天ID
+	// --- 状态定义 ---
 	const activeChatId = ref<number | null>(null)
+	const drafts = ref<Record<number, Record<string, unknown> | null>>({})
+	const chatlist = ref<ChatItem[]>([])
+	const pinnedChats = ref<ChatItem[]>([])
+	const messages = ref<Record<number, Message[]>>({})
+	const isDbInitialized = ref(false)
 
-	//草稿内容
-	const drafts = ref<Record<number, any>>({})
+	// --- 计算属性 ---
+	const activeChat = computed(() => {
+		return (
+			chatlist.value.find((chat) => chat.id === activeChatId.value) ||
+			null
+		)
+	})
 
-	// 保存草稿
-	function saveDraft(id: number, content: any): void {
+	const activeChatMessages = computed(() => {
+		if (!activeChatId.value) return []
+		return messages.value[activeChatId.value] || []
+	})
+
+	// --- 数据库操作 (封装 IPC 调用) ---
+	const db = {
+		async getAllChats(): Promise<ChatItem[]> {
+			const rawChats =
+				await window.electron.ipcRenderer.invoke('db-get-all-chats')
+			return (rawChats as DbChatItem[]).map((c) => ({
+				...c,
+				online: !!c.online,
+				isPinned: !!c.isPinned,
+			}))
+		},
+		async getMessages(chatId: number): Promise<Message[]> {
+			const rawMsgs = await window.electron.ipcRenderer.invoke(
+				'db-get-messages',
+				chatId,
+			)
+			return (rawMsgs as DbMessage[]).map(
+				(m) =>
+					({
+						...m,
+						hasResult: !!m.hasResult,
+					}) as Message,
+			)
+		},
+		saveChat(chat: ChatItem): void {
+			window.electron.ipcRenderer.invoke('db-save-chat', {
+				...chat,
+				online: chat.online ? 1 : 0,
+				isPinned: chat.isPinned ? 1 : 0,
+			})
+		},
+		saveMessage(message: Message): void {
+			window.electron.ipcRenderer.invoke('db-save-message', {
+				...message,
+				hasResult: message.hasResult ? 1 : 0,
+			})
+		},
+		updateLastMessage(id: number, text: string, time: string): void {
+			window.electron.ipcRenderer.invoke(
+				'db-update-last-message',
+				id,
+				text,
+				time,
+			)
+		},
+		setPinned(id: number, isPinned: boolean): void {
+			window.electron.ipcRenderer.invoke('db-set-pinned', id, isPinned)
+		},
+		deleteChat(id: number): void {
+			window.electron.ipcRenderer.invoke('db-delete-chat', id)
+		},
+	}
+
+	// --- 初始化逻辑 ---
+	const init = async (): Promise<void> => {
+		if (isDbInitialized.value) return
+
+		const chats = await db.getAllChats()
+		if (chats.length > 0) {
+			chatlist.value = chats
+			pinnedChats.value = chats.filter((c) => c.isPinned)
+		} else {
+			// 如果数据库为空，可以插入一些初始演示数据
+			const initialChats: ChatItem[] = [
+				{
+					id: 1,
+					name: '张三',
+					avatar: 'https://randomuser.me/api/portraits/men/1.jpg',
+					lastMessage: '设计稿已上传',
+					timestamp: '10:30',
+					online: true,
+					unreadCount: 2,
+					isPinned: true,
+				},
+				{
+					id: 2,
+					name: '李四',
+					avatar: 'https://randomuser.me/api/portraits/women/1.jpg',
+					lastMessage: '服务时间？',
+					timestamp: '9:15',
+					online: true,
+					unreadCount: 0,
+					isPinned: true,
+				},
+				{
+					id: 3,
+					name: '王五',
+					avatar: 'https://randomuser.me/api/portraits/men/2.jpg',
+					lastMessage: '谢谢！',
+					timestamp: '昨天',
+					online: false,
+					unreadCount: 5,
+					isPinned: false,
+				},
+			]
+			initialChats.forEach((c) => db.saveChat(c))
+			chatlist.value = initialChats
+			pinnedChats.value = initialChats.filter((c) => c.isPinned)
+		}
+		isDbInitialized.value = true
+	}
+
+	// --- 跨窗口同步逻辑 ---
+	const syncAction = (
+		action: string,
+		data: Record<string, unknown>,
+	): void => {
+		if (window.electron && window.electron.ipcRenderer) {
+			window.electron.ipcRenderer.send('sync-store', { action, data })
+		}
+	}
+
+	const requestFullState = (): void => {
+		if (window.electron && window.electron.ipcRenderer) {
+			window.electron.ipcRenderer.send('request-store-data')
+		}
+	}
+
+	if (window.electron && window.electron.ipcRenderer) {
+		window.electron.ipcRenderer.on(
+			'store-update',
+			(
+				_event: unknown,
+				payload: { action: string; data: Record<string, unknown> },
+			) => {
+				const { action } = payload
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const data = payload.data as any
+				switch (action) {
+					case 'sendMessage':
+						if (!messages.value[data.chatId])
+							messages.value[data.chatId] = []
+						if (
+							!messages.value[data.chatId].some(
+								(m) => m.id === data.message.id,
+							)
+						) {
+							messages.value[data.chatId].push(data.message)
+							updateLastMessageLocal(
+								data.chatId,
+								data.textPreview,
+							)
+						}
+						break
+					case 'pinChat':
+						pinChatLocal(data.chatId)
+						break
+					case 'unpinChat':
+						unpinChatLocal(data.chatId)
+						break
+					case 'deleteChat':
+						deleteChatLocal(data.chatId)
+						break
+					case 'markAsRead':
+						markAsReadLocal(data.chatId)
+						break
+				}
+			},
+		)
+
+		window.electron.ipcRenderer.on(
+			'provide-store-data',
+			(_event: unknown, targetId: number) => {
+				window.electron.ipcRenderer.send(
+					'report-store-data',
+					targetId,
+					{
+						messages: messages.value,
+						chatlist: chatlist.value,
+						pinnedChats: pinnedChats.value,
+					},
+				)
+			},
+		)
+
+		window.electron.ipcRenderer.on(
+			'hydrate-store-data',
+			(_event: unknown, payload: Record<string, any>) => {
+				if (payload.messages) messages.value = payload.messages
+				if (payload.chatlist) chatlist.value = payload.chatlist
+				if (payload.pinnedChats) pinnedChats.value = payload.pinnedChats
+			},
+		)
+
+		// 4. 自动初始化
+		setTimeout(() => {
+			const isStandalone =
+				window.location.href.includes('chat-standalone') ||
+				window.location.hash.includes('chat-standalone')
+			if (isStandalone) {
+				requestFullState()
+				// 独立窗口也尝试从 DB 读取基础列表，防止同步延迟
+				init()
+			} else {
+				init()
+			}
+		}, 100)
+	}
+
+	// --- 核心操作逻辑 (本地 + 数据库) ---
+	const updateLastMessageLocal = (id: number, message: string): void => {
+		const chat = chatlist.value.find((c) => c.id === id)
+		if (chat) {
+			const time = new Date().toLocaleTimeString([], {
+				hour: '2-digit',
+				minute: '2-digit',
+			})
+			chat.lastMessage = message
+			chat.timestamp = time
+			db.updateLastMessage(id, message, time)
+		}
+	}
+
+	const markAsReadLocal = (id: number): void => {
+		const chat = chatlist.value.find((c) => c.id === id)
+		if (chat) {
+			chat.unreadCount = 0
+			db.saveChat(chat) // 存入 DB
+		}
+	}
+
+	const pinChatLocal = (chatId: number): void => {
+		const chat = chatlist.value.find((c) => c.id === chatId)
+		if (chat && !pinnedChats.value.some((c) => c.id === chatId)) {
+			chat.isPinned = true
+			pinnedChats.value.unshift(chat)
+			db.setPinned(chatId, true)
+		}
+	}
+
+	const unpinChatLocal = (chatId: number): void => {
+		pinnedChats.value = pinnedChats.value.filter((c) => c.id !== chatId)
+		const chat = chatlist.value.find((c) => c.id === chatId)
+		if (chat) {
+			chat.isPinned = false
+			db.setPinned(chatId, false)
+		}
+	}
+
+	const deleteChatLocal = (chatId: number): void => {
+		chatlist.value = chatlist.value.filter((c) => c.id !== chatId)
+		pinnedChats.value = pinnedChats.value.filter((c) => c.id !== chatId)
+		db.deleteChat(chatId)
+		if (activeChatId.value === chatId) activeChatId.value = null
+	}
+
+	// --- 暴露给 UI 的方法 ---
+	const setActiveChat = async (id: number): Promise<void> => {
+		if (!isDbInitialized.value) {
+			await init()
+		}
+		activeChatId.value = id
+		if (!messages.value[id]) {
+			const msgs = await db.getMessages(id)
+			messages.value[id] = msgs
+		}
+	}
+
+	const saveDraft = (
+		id: number,
+		content: Record<string, unknown> | null,
+	): void => {
 		drafts.value[id] = content
 	}
 
-	// 获取草稿
-	function getDraft(id: number): Record<string, any> {
+	const getDraft = (id: number): Record<string, unknown> | null => {
 		return (
 			drafts.value[id] || {
 				type: 'doc',
@@ -23,273 +319,10 @@ export const useChatStore = defineStore('chat', () => {
 		)
 	}
 
-	//聊天列表
-	const chatlist = ref<ChatItem[]>([
-		{
-			id: 1,
-			name: '张三',
-			avatar: 'https://randomuser.me/api/portraits/men/1.jpg',
-			lastMessage: '设计稿已上传，请查收',
-			timestamp: '10:30',
-			online: true,
-			unreadCount: 2,
-			isPinned: true,
-		},
-		{
-			id: 2,
-			name: '李四',
-			avatar: 'https://randomuser.me/api/portraits/women/1.jpg',
-			lastMessage: '请问你们的服务时间是？',
-			timestamp: '9:15',
-			online: true,
-			unreadCount: 0,
-			isPinned: true,
-		},
-		{
-			id: 3,
-			name: '王五',
-			avatar: 'https://randomuser.me/api/portraits/men/2.jpg',
-			lastMessage: '谢谢你的帮助！',
-			timestamp: '昨天',
-			online: false,
-			unreadCount: 5,
-			isPinned: false,
-		},
-		{
-			id: 4,
-			name: '赵六',
-			avatar: 'https://randomuser.me/api/portraits/women/2.jpg',
-			lastMessage: '我有一个问题想咨询一下',
-			timestamp: '周一',
-			online: true,
-			unreadCount: 0,
-			isPinned: false,
-		},
-		{
-			id: 5,
-			name: '钱七',
-			avatar: 'https://randomuser.me/api/portraits/men/3.jpg',
-			lastMessage: '我想了解一下你们的最新产品',
-			timestamp: '周日',
-			online: false,
-			unreadCount: 0,
-			isPinned: false,
-		},
-		{
-			id: 6,
-			name: '孙八',
-			avatar: 'https://randomuser.me/api/portraits/women/3.jpg',
-			lastMessage: '请问你们的服务时间是？',
-			timestamp: '周六',
-			online: true,
-			unreadCount: 3,
-			isPinned: false,
-		},
-		{
-			id: 7,
-			name: '周九',
-			avatar: 'https://randomuser.me/api/portraits/men/4.jpg',
-			lastMessage: '谢谢你的帮助！',
-			timestamp: '周五',
-			online: false,
-			unreadCount: 0,
-			isPinned: false,
-		},
-		{
-			id: 8,
-			name: '吴十',
-			avatar: 'https://randomuser.me/api/portraits/women/4.jpg',
-			lastMessage: '我有一个问题想咨询一下',
-			timestamp: '周四',
-			online: true,
-			unreadCount: 0,
-			isPinned: false,
-		},
-		{
-			id: 9,
-			name: '李娜',
-			avatar: 'http://spanner.top:9000/login-bg.jpg',
-			lastMessage: '你好',
-			timestamp: '周四',
-			online: true,
-			unreadCount: 1,
-			isPinned: false,
-		},
-	])
-
-	const pinnedChats = ref<ChatItem[]>([
-		{
-			id: 1,
-			name: '张三',
-			avatar: 'https://randomuser.me/api/portraits/men/1.jpg',
-			lastMessage: '项目文档已更新',
-			timestamp: '10:30',
-			online: true,
-			isPinned: true,
-		},
-		{
-			id: 2,
-			name: '李四',
-			avatar: 'https://randomuser.me/api/portraits/women/1.jpg',
-			lastMessage: '会议纪要已同步',
-			timestamp: '昨天',
-			online: false,
-			isPinned: true,
-		},
-	])
-
-	const activeChat = computed(() => {
-		return (
-			chatlist.value.find((chat) => chat.id === activeChatId.value) ||
-			null
-		)
-	})
-
-	//
-	const setActiveChat = (id: number): void => {
-		activeChatId.value = id
-	}
-
-	// 方法：添加新聊天
-	const addChat = (chat: Omit<ChatItem, 'id'>): number => {
-		// 计算新聊天的id：取当前最大id加1
-		const newId = Math.max(...chatlist.value.map((c) => c.id), 0) + 1
-		// 将新聊天对象推入chatList数组
-		chatlist.value.push({
-			id: newId, // 添加自动生成的id
-			...chat, // 展开传入的聊天对象
-		})
-		// 返回新聊天的id
-		return newId
-	}
-
-	// 方法：更新聊天最后消息
-	const updateLastMessage = (id: number, message: string): void => {
-		// 在chatList中查找指定id的聊天
-		const chat = chatlist.value.find((c) => c.id === id)
-		if (chat) {
-			// 如果找到
-			chat.lastMessage = message // 更新最后消息内容
-			chat.timestamp = new Date().toLocaleTimeString([], {
-				hour: '2-digit',
-				minute: '2-digit',
-			}) // 更新时间戳为当前时间
-		}
-	}
-
-	// 方法：标记消息为已读
-	const markAsRead = (id: number): void => {
-		// 在chatList中查找指定id的聊天
-		const chat = chatlist.value.find((c) => c.id === id)
-		if (chat) {
-			// 如果找到
-			chat.unreadCount = 0 // 将未读数重置为0
-		}
-	}
-	// 新增方法
-	const pinChat = (chatId: number): void => {
-		const chat = chatlist.value.find((c) => c.id === chatId)
-		if (chat && !pinnedChats.value.some((c) => c.id === chatId)) {
-			chat.isPinned = true
-			pinnedChats.value.unshift(chat)
-		}
-	}
-
-	const unpinChat = (chatId: number): void => {
-		pinnedChats.value = pinnedChats.value.filter((c) => c.id !== chatId)
-		const chat = chatlist.value.find((c) => c.id === chatId)
-		if (chat) {
-			chat.isPinned = false
-		}
-	}
-
-	const deleteChat = (chatId: number): void => {
-		chatlist.value = chatlist.value.filter((c) => c.id !== chatId)
-		pinnedChats.value = pinnedChats.value.filter((c) => c.id !== chatId)
-		if (activeChatId.value === chatId) {
-			activeChatId.value = null
-		}
-	}
-
-	//
-	const messages = ref<Record<number, Message[]>>({
-		1: [
-			{
-				id: 101,
-				chatId: 1,
-				senderId: 'other',
-				text: '你好，张三ccccc在这里asdasdasdasdasdasdadasdasdasdasdasdasdasdasdasdasasdasdasdsasdasdasds。',
-				timestamp: '10:000',
-				type: 'text',
-				hasResult: true,
-				result: '6666',
-			},
-			{
-				id: 102,
-				chatId: 1,
-				senderId: 'me',
-				text: '你好，关于那个项目进度？',
-				timestamp: '10:05',
-				type: 'text',
-			},
-			{
-				id: 103,
-				chatId: 1,
-				senderId: 'other',
-				text: '设计稿已上传，请查收',
-				timestamp: '10:30',
-				type: 'text',
-			},
-		],
-		2: [
-			{
-				id: 201,
-				chatId: 2,
-				senderId: 'other',
-				text: '请问你们的服务时间是？',
-				timestamp: '09:00',
-				type: 'text',
-			},
-			{
-				id: 202,
-				chatId: 2,
-				senderId: 'me',
-				text: '我们周一到周五 9:00 - 18:00 在线。<img src="https://http.cat/200">',
-				timestamp: '09:15',
-				type: 'text',
-			},
-		],
-		3: [
-			{
-				id: 301,
-				chatId: 3,
-				senderId: 'me',
-				text: '你的问题解决了吗？',
-				timestamp: '昨天',
-				type: 'text',
-			},
-			{
-				id: 302,
-				chatId: 3,
-				senderId: 'other',
-				text: '谢谢你的帮助！已经搞定了。',
-				timestamp: '昨天',
-				type: 'text',
-			},
-		],
-	})
-
-	// 3. 计算属性：获取当前选中的所有消息
-	const activeChatMessages = computed(() => {
-		if (!activeChatId.value) return []
-		return messages.value[activeChatId.value] || []
-	})
-
-	// 4. 方法：发送新消息
 	const sendMessage = (
 		content: string,
 		type: 'text' | 'image' | 'rich-text' = 'text',
-	) => {
+	): void => {
 		if (!activeChatId.value || !content) return
 
 		const newMessage: Message = {
@@ -301,42 +334,68 @@ export const useChatStore = defineStore('chat', () => {
 				hour: '2-digit',
 				minute: '2-digit',
 			}),
-			type: type as any,
+			type: type as 'text' | 'image' | 'file',
 		}
 
-		// 如果该会话还没有消息数组，先初始化
 		if (!messages.value[activeChatId.value]) {
 			messages.value[activeChatId.value] = []
 		}
-
 		messages.value[activeChatId.value].push(newMessage)
+		db.saveMessage(newMessage) // 保存到 DB
 
 		const plainText = content.replace(/<[^>]*>?/gm, '').slice(0, 30)
-		updateLastMessage(activeChatId.value, plainText || '[图片]') // 同步更新侧边栏预览
+		const textPreview = plainText || '[图片]'
+		updateLastMessageLocal(activeChatId.value, textPreview)
+
+		syncAction('sendMessage', {
+			chatId: activeChatId.value,
+			message: newMessage,
+			textPreview,
+		})
 	}
 
-	// 返回store的所有状态和方法
+	const pinChat = (chatId: number): void => {
+		pinChatLocal(chatId)
+		syncAction('pinChat', { chatId })
+	}
+
+	const unpinChat = (chatId: number): void => {
+		unpinChatLocal(chatId)
+		syncAction('unpinChat', { chatId })
+	}
+
+	const deleteChat = (chatId: number): void => {
+		deleteChatLocal(chatId)
+		syncAction('deleteChat', { chatId })
+	}
+
+	const markAsRead = (id: number): void => {
+		markAsReadLocal(id)
+		syncAction('markAsRead', { chatId: id })
+	}
+
 	return {
-		getDraft,
+		activeChatId,
+		activeChat,
+		chatlist,
+		pinnedChats,
+		messages,
+		activeChatMessages,
+		setActiveChat,
 		saveDraft,
-		activeChatId, // 当前聊天ID
-		activeChat, // 当前聊天对象计算属性
-		chatlist, // 所有聊天列表
-		pinnedChats, // 置顶聊天列表
-		setActiveChat, // 设置当前聊天方法
-		addChat, // 添加新聊天方法
-		updateLastMessage, // 更新最后消息方法
-		markAsRead, // 标记已读方法
+		getDraft,
+		sendMessage,
 		pinChat,
 		unpinChat,
 		deleteChat,
-		messages,
-		activeChatMessages,
-		sendMessage,
+		markAsRead,
+		requestFullState,
+		init,
 	}
 })
 
-interface ChatItem {
+// --- 类型定义 ---
+export interface ChatItem {
 	id: number
 	name: string
 	avatar: string
@@ -346,8 +405,8 @@ interface ChatItem {
 	unreadCount?: number
 	isPinned?: boolean
 }
-// 1. 定义消息接口
-interface Message {
+
+export interface Message {
 	id: number
 	chatId: number
 	senderId: 'me' | 'other'

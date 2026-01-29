@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
-import { ImageOutline, At } from '@vicons/ionicons5'
-import { useMessage } from 'naive-ui'
+import { ImageOutline, At, HappyOutline } from '@vicons/ionicons5'
+import { useMessage, NPopover } from 'naive-ui'
 import { useChatStore } from '@renderer/stores/chat'
-import { storeToRefs } from 'pinia'
 import StarterKit from '@tiptap/starter-kit'
-import { EmojiAdd16Regular, FontDecrease20Regular } from '@vicons/fluent'
+import { FontDecrease20Regular } from '@vicons/fluent'
 import type { Editor } from '@tiptap/core'
+import EmojiPicker from 'vue3-emoji-picker'
+import 'vue3-emoji-picker/css'
 
 // 接收 currentId 确保闭环
 const props = defineProps<{
@@ -31,6 +32,7 @@ const linkUrl = ref('')
 const showLinkInput = ref(false)
 let resizeObserver: ResizeObserver | null = null
 const canSend = ref(false)
+const showEmoji = ref(false)
 
 // 添加边界元素引用
 const boundaryElement = ref<HTMLElement | null>(null)
@@ -38,7 +40,7 @@ const boundaryElement = ref<HTMLElement | null>(null)
 // 计算属性：规范化 ID
 const normalizedId = computed(() => {
 	if (typeof props.currentId === 'string') {
-		return parseInt(props.currentId) || props.currentId
+		return parseInt(props.currentId) || Number(props.currentId)
 	}
 	return props.currentId
 })
@@ -47,7 +49,7 @@ const normalizedId = computed(() => {
 // 修复后的 bubbleMenuTippyOptions
 const bubbleMenuTippyOptions = computed(() => {
 	// 获取边界元素的函数
-	const getBoundary = () => {
+	const getBoundary = (): HTMLElement | null => {
 		// 如果已经通过ref获取到，直接使用
 		if (boundaryElement.value) {
 			return boundaryElement.value
@@ -70,6 +72,7 @@ const bubbleMenuTippyOptions = computed(() => {
 	const boundary = getBoundary()
 
 	// 基础配置
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const options: any = {
 		appendTo: () => boundary || document.body,
 		placement: 'top',
@@ -86,7 +89,7 @@ const bubbleMenuTippyOptions = computed(() => {
 					options: {
 						// 关键修改：[水平偏移, 垂直偏移]
 						// 第一个值控制水平位置，第二个值控制垂直距离
-						offset: ({ placement, reference, popper }) => {
+						offset: ({ reference, popper }) => {
 							// 计算水平偏移，让菜单居中显示
 							const referenceWidth = reference.width
 							const popperWidth = popper.width
@@ -182,7 +185,8 @@ const bubbleMenuTippyOptions = computed(() => {
 	}
 
 	// 添加自定义的show和hide事件处理
-	options.onShow = (instance: any) => {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	options.onShow = (instance: any): void => {
 		// 显示时添加微小的动画延迟
 		setTimeout(() => {
 			if (instance.popper) {
@@ -192,7 +196,8 @@ const bubbleMenuTippyOptions = computed(() => {
 		}, 0)
 	}
 
-	options.onMount = (instance: any) => {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	options.onMount = (instance: any): void => {
 		// 确保菜单不会太靠近边缘
 		nextTick(() => {
 			if (instance.popper) {
@@ -216,19 +221,19 @@ const bubbleMenuTippyOptions = computed(() => {
 	return options
 })
 // 同步草稿函数
-const syncDraft = () => {
+const syncDraft = (): void => {
 	if (normalizedId.value && editor.value) {
 		const content = editor.value.getJSON()
 		if (!editor.value.isEmpty) {
-			chatStore.saveDraft(normalizedId.value, content)
+			chatStore.saveDraft(normalizedId.value as number, content)
 		} else {
-			chatStore.saveDraft(normalizedId.value, null)
+			chatStore.saveDraft(normalizedId.value as number, null)
 		}
 	}
 }
 
 // 链接功能
-const setLink = () => {
+const setLink = (): void => {
 	if (!editor.value) return
 
 	const previousUrl = editor.value.getAttributes('link').href
@@ -244,7 +249,7 @@ const setLink = () => {
 	})
 }
 
-const confirmLink = () => {
+const confirmLink = (): void => {
 	if (!editor.value) return
 
 	if (linkUrl.value) {
@@ -262,7 +267,7 @@ const confirmLink = () => {
 	linkUrl.value = ''
 }
 
-const cancelLink = () => {
+const cancelLink = (): void => {
 	showLinkInput.value = false
 	linkUrl.value = ''
 	editor.value?.chain().focus().run()
@@ -270,14 +275,16 @@ const cancelLink = () => {
 
 // 初始化编辑器
 const editor = useEditor({
-	content: normalizedId.value ? chatStore.getDraft(normalizedId.value) : '',
+	content: normalizedId.value
+		? chatStore.getDraft(normalizedId.value as number)
+		: '',
 	extensions: [
 		StarterKit.configure({
-			history: true,
+			// history: true,
 		}).extend({
 			addKeyboardShortcuts() {
 				return {
-					Enter: ({ editor }) => {
+					Enter: () => {
 						if (showLinkInput.value) {
 							confirmLink()
 							return true
@@ -327,7 +334,7 @@ const editor = useEditor({
 		attributes: {
 			class: 'focus:outline-none py-1 leading-6 text-text-main break-all w-full min-h-[36px] flex items-center',
 		},
-		handlePaste: (view, event) => {
+		handlePaste: (_view, event) => {
 			const items = event.clipboardData?.items
 			if (!items) return false
 			let hasImage = false
@@ -342,7 +349,7 @@ const editor = useEditor({
 			}
 			return hasImage
 		},
-		handleDrop: (view, event, slice, moved) => {
+		handleDrop: (_view, event, _slice, moved) => {
 			if (!moved && event.dataTransfer?.files?.length) {
 				const file = event.dataTransfer.files[0]
 				if (file.type.startsWith('image')) {
@@ -371,7 +378,7 @@ const editor = useEditor({
 })
 
 // BubbleMenu 显示条件
-const shouldShowBubbleMenu = ({ editor }: { editor: Editor }) => {
+const shouldShowBubbleMenu = ({ editor }: { editor: Editor }): boolean => {
 	if (!editor) return false
 	const { selection } = editor.state
 
@@ -409,8 +416,17 @@ const shouldShowBubbleMenu = ({ editor }: { editor: Editor }) => {
 	return true
 }
 
+// Emoji Handler
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const onSelectEmoji = (emoji: any): void => {
+	if (editor.value) {
+		editor.value.chain().focus().insertContent(emoji.i).run()
+	}
+	showEmoji.value = false
+}
+
 // 业务逻辑函数
-const handleSendMessage = () => {
+const handleSendMessage = (): void => {
 	if (!editor.value || editor.value.isEmpty) return
 
 	const plainText = editor.value.getText().trim()
@@ -433,7 +449,7 @@ const handleSendMessage = () => {
 	}
 }
 
-const insertImageFile = (file: File) => {
+const insertImageFile = (file: File): void => {
 	const reader = new FileReader()
 	reader.onload = (e) => {
 		const src = e.target?.result as string
@@ -444,14 +460,14 @@ const insertImageFile = (file: File) => {
 	reader.readAsDataURL(file)
 }
 
-const scrollToBottom = () => {
+const scrollToBottom = (): void => {
 	nextTick(() => {
 		const element = containerRef.value?.querySelector('.tiptap-editor')
 		if (element) element.scrollTop = element.scrollHeight
 	})
 }
 
-const checkLayoutWithImages = () => {
+const checkLayoutWithImages = (): void => {
 	nextTick(() => {
 		checkLayout()
 		const imgs = containerRef.value?.querySelectorAll('img')
@@ -461,7 +477,7 @@ const checkLayoutWithImages = () => {
 	})
 }
 
-const checkLayout = () => {
+const checkLayout = (): void => {
 	if (!containerRef.value || !actionsRef.value) return
 
 	actionsRef.value.style.width = 'auto'
@@ -566,10 +582,10 @@ onUnmounted(() => {
 									'text-blue-600 bg-sidebar-select-bg/50':
 										editor.isActive('bold'),
 								}"
+								title="加粗 (Ctrl+B)"
 								@click="
 									editor.chain().focus().toggleBold().run()
 								"
-								title="加粗 (Ctrl+B)"
 							>
 								B
 							</button>
@@ -581,10 +597,10 @@ onUnmounted(() => {
 									'text-blue-600 bg-sidebar-select-bg/50':
 										editor.isActive('italic'),
 								}"
+								title="斜体 (Ctrl+I)"
 								@click="
 									editor.chain().focus().toggleItalic().run()
 								"
-								title="斜体 (Ctrl+I)"
 							>
 								I
 							</button>
@@ -596,6 +612,7 @@ onUnmounted(() => {
 									'text-blue-600 bg-sidebar-select-bg/50':
 										editor.isActive('underline'),
 								}"
+								title="下划线 (Ctrl+U)"
 								@click="
 									editor
 										.chain()
@@ -603,7 +620,6 @@ onUnmounted(() => {
 										.toggleUnderline()
 										.run()
 								"
-								title="下划线 (Ctrl+U)"
 							>
 								U
 							</button>
@@ -615,10 +631,10 @@ onUnmounted(() => {
 									'text-blue-600 bg-sidebar-select-bg/50':
 										editor.isActive('strike'),
 								}"
+								title="删除线"
 								@click="
 									editor.chain().focus().toggleStrike().run()
 								"
-								title="删除线"
 							>
 								S
 							</button>
@@ -632,10 +648,10 @@ onUnmounted(() => {
 									'text-blue-600 bg-sidebar-select-bg/50':
 										editor.isActive('code'),
 								}"
+								title="代码"
 								@click="
 									editor.chain().focus().toggleCode().run()
 								"
-								title="代码"
 							>
 								&lt;/&gt;
 							</button>
@@ -647,8 +663,8 @@ onUnmounted(() => {
 									'text-blue-600 bg-sidebar-select-bg/50':
 										editor.isActive('link'),
 								}"
-								@click="setLink"
 								title="链接 (Ctrl+K)"
+								@click="setLink"
 							>
 								🔗
 							</button>
@@ -656,10 +672,10 @@ onUnmounted(() => {
 							<button
 								type="button"
 								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-150 text-gray-700 hover:bg-sidebar-select-bg"
+								title="清除格式"
 								@click="
 									editor.chain().focus().unsetAllMarks().run()
 								"
-								title="清除格式"
 							>
 								✕
 							</button>
@@ -713,9 +729,24 @@ onUnmounted(() => {
 						</div>
 						<div
 							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
-							title="表情"
 						>
-							<n-icon size="20"><EmojiAdd16Regular /></n-icon>
+							<n-popover
+								v-model:show="showEmoji"
+								trigger="click"
+								placement="top"
+								:show-arrow="false"
+								style="padding: 0"
+							>
+								<template #trigger>
+									<n-icon size="20" title="表情"
+										><HappyOutline
+									/></n-icon>
+								</template>
+								<EmojiPicker
+									:native="true"
+									@select="onSelectEmoji"
+								/>
+							</n-popover>
 						</div>
 						<div
 							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
@@ -729,8 +760,8 @@ onUnmounted(() => {
 							size="small"
 							:disabled="!canSend"
 							color="#10b981"
-							@click="handleSendMessage"
 							class="transition-all duration-200 hover:shadow-md"
+							@click="handleSendMessage"
 						>
 							<template #icon>
 								<n-icon size="16" color="#fff">

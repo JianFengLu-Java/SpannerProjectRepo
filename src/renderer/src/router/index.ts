@@ -33,9 +33,8 @@ const routes = [
 		component: () => import('../views/homeViews/Home.vue'),
 		children: [
 			{
-				path: '', // 默认子路由
-				name: 'default',
-				component: () => import('../views/homeViews/chat/ChatView.vue'),
+				path: '',
+				redirect: { name: 'chat' },
 			},
 			{
 				path: 'chat', // 对应 /home/chat
@@ -55,6 +54,12 @@ const routes = [
 					import('../views/homeViews/setting/SettingView.vue'),
 			},
 		],
+	},
+	{
+		path: '/chat-standalone',
+		name: 'ChatStandalone',
+		component: () =>
+			import('../views/homeViews/chat/ChatStandaloneView.vue'),
 	},
 ]
 

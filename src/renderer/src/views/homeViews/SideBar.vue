@@ -177,23 +177,6 @@
 			</div>
 		</div>
 
-		<div
-			:class="[
-				'mb-4 no-drag w-full flex  border-gray-200/50 pt-4',
-				isExpanded ? 'justify-end px-4' : 'justify-center',
-			]"
-		>
-			<div
-				class="text-zinc-400 w-8 h-8 flex justify-center items-center rounded-full hover:bg-zinc-200 cursor-pointer transition-all"
-				@click="$emit('toggle')"
-			>
-				<n-icon size="20">
-					<component
-						:is="isExpanded ? ChevronBack : ChevronForward"
-					/>
-				</n-icon>
-			</div>
-		</div>
 		<n-modal
 			v-model:show="showSearchModal"
 			preset="dialog"
@@ -336,8 +319,6 @@ import {
 	Settings,
 	SearchOutline as Search,
 	Add,
-	ChevronBackOutline as ChevronBack,
-	ChevronForwardOutline as ChevronForward,
 } from '@vicons/ionicons5'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { Add16Filled } from '@vicons/fluent'

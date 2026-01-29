@@ -84,10 +84,14 @@ import ChatContainer from './ChatContainer.vue'
 
 const chatStore = useChatStore()
 
-const { activeChat, activeChatId } = storeToRefs(chatStore)
+const { activeChat, activeChatId, activeChatMessages } = storeToRefs(chatStore)
 
 const currentChat = computed(() => {
 	return activeChat.value
+})
+
+const currentChatMessages = computed(() => {
+	return activeChatMessages.value
 })
 
 interface menusItem {
@@ -95,10 +99,6 @@ interface menusItem {
 	label: string
 	icon: string
 }
-
-const currentChatMessages = computed(() => {
-	return chatStore.messages[activeChatId.value] || []
-})
 
 // 图标映射
 const iconMap: Record<string, Component> = {
