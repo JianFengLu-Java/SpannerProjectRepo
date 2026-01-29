@@ -143,25 +143,44 @@
 		</div>
 
 		<!-- 右侧：详情展示区 -->
-		<div class="flex-1 overflow-hidden relative flex flex-col bg-white">
+		<div
+			class="flex-1 overflow-hidden relative flex flex-col bg-gray-50/30"
+		>
 			<Transition name="fade-scale" mode="out-in">
 				<div
 					v-if="friendStore.selectedFriend"
 					:key="friendStore.selectedFriend.id"
-					class="h-full flex flex-col items-center justify-center p-8 overflow-y-auto"
+					class="h-full flex flex-col overflow-y-auto custom-scrollbar"
 				>
+					<!-- 联系人背景 Cover -->
+					<div class="relative w-full h-48 shrink-0 overflow-hidden">
+						<img
+							:src="
+								friendStore.selectedFriend.cover ||
+								'https://api.dicebear.com/7.x/shapes/svg?seed=' +
+									friendStore.selectedFriend.id
+							"
+							class="w-full h-full object-cover"
+						/>
+						<div
+							class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"
+						></div>
+					</div>
+
+					<!-- 详情内容头部 (QQ 样式：头像与信息左右布局) -->
 					<div
-						class="max-w-md w-full bg-white/60 backdrop-blur-md rounded-[32px] p-8 border border-white/40 flex flex-col items-center text-center"
+						class="w-full max-w-2xl px-8 flex items-end gap-6 mt-2 relative z-10 mx-auto"
 					>
-						<div class="relative mb-6">
+						<!-- 头像 -->
+						<div class="relative group shrink-0">
 							<n-avatar
 								round
-								:size="100"
+								:size="60"
 								:src="friendStore.selectedFriend.avatar"
-								class="border-4 border-white"
+								class="border-[4px] border-white bg-white"
 							/>
 							<div
-								class="absolute bottom-1 right-1 w-6 h-6 rounded-full border-4 border-white"
+								class="absolute bottom-1 right-1 w-5 h-5 rounded-full border-[3px] border-white"
 								:class="[
 									friendStore.selectedFriend.status ===
 									'online'
@@ -171,46 +190,75 @@
 							></div>
 						</div>
 
-						<h3 class="text-2xl font-bold text-text-main mb-1">
-							{{ friendStore.selectedFriend.name }}
-						</h3>
-						<p class="text-sm text-gray-500 mb-6">
-							UID: {{ friendStore.selectedFriend.uid }}
-						</p>
-
-						<div class="w-full space-y-4 text-left mb-8">
-							<div class="flex flex-col gap-1">
-								<span
-									class="text-[11px] font-bold text-gray-400 uppercase tracking-wider"
-									>备注</span
+						<!-- 基本信息 -->
+						<div class="flex-1 pb-2">
+							<div class="flex items-center gap-2 mb-1">
+								<h3
+									class="text-2xl font-bold text-text-main truncate max-w-[300px]"
 								>
-								<div
-									class="text-sm text-gray-700 bg-black/5 px-3 py-2 rounded-xl"
+									{{ friendStore.selectedFriend.name }}
+								</h3>
+								<n-icon
+									v-if="
+										friendStore.selectedFriend.gender ===
+										'male'
+									"
+									size="18"
+									color="#0ea5e9"
 								>
-									{{
-										friendStore.selectedFriend.remark ||
-										'无'
-									}}
-								</div>
+									<Male />
+								</n-icon>
+								<n-icon
+									v-else-if="
+										friendStore.selectedFriend.gender ===
+										'female'
+									"
+									size="18"
+									color="#f472b6"
+								>
+									<Female />
+								</n-icon>
 							</div>
-							<div class="flex flex-col gap-1">
+							<div
+								class="flex items-center gap-3 text-sm text-gray-500"
+							>
+								<span class="flex items-center gap-1">
+									<span
+										class="opacity-60 text-[10px] font-bold"
+										>UID:</span
+									>
+									<span class="font-mono">{{
+										friendStore.selectedFriend.uid
+									}}</span>
+								</span>
 								<span
-									class="text-[11px] font-bold text-gray-400 uppercase tracking-wider"
-									>个性签名</span
-								>
-								<div class="text-sm text-gray-600 italic">
-									"{{
-										friendStore.selectedFriend.signature ||
-										'这个人很懒，什么都没有留下'
-									}}"
-								</div>
+									class="w-1 h-1 bg-gray-300 rounded-full"
+								></span>
+								<span>{{
+									friendStore.selectedFriend.region ||
+									'未知地区'
+								}}</span>
 							</div>
 						</div>
+					</div>
 
-						<div class="flex gap-4 w-full">
+					<div class="px-8 w-full max-w-2xl mx-auto flex-1 pb-12">
+						<!-- 个性签名 (放在头部下方) -->
+						<div class="mb-6 px-1">
+							<p
+								class="text-sm text-gray-500 line-clamp-2 italic"
+							>
+								"{{
+									friendStore.selectedFriend.signature ||
+									'这个人太神秘了，还没有个性签名。'
+								}}"
+							</p>
+						</div>
+						<!-- 操作栏 -->
+						<div class="flex gap-3 w-full mb-10">
 							<n-button
 								type="primary"
-								class="flex-1 rounded-2xl h-12"
+								class="flex-1 rounded-2xl h-12 text-base font-semibold"
 								@click="startChat(friendStore.selectedFriend!)"
 							>
 								<template #icon>
@@ -224,7 +272,7 @@
 								@select="handleFriendAction"
 							>
 								<n-button
-									quaternary
+									secondary
 									class="rounded-2xl h-12 w-12 px-0"
 								>
 									<n-icon size="20"
@@ -233,12 +281,182 @@
 								</n-button>
 							</n-dropdown>
 						</div>
+
+						<!-- 个人空间入口 (QQ 样式) -->
+						<div
+							class="mb-10 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 transition-all cursor-pointer group"
+							@click="message.info('正在进入个人空间...')"
+						>
+							<div class="flex items-center gap-3">
+								<div
+									class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-blue-500 transition-transform"
+								>
+									<n-icon size="24"
+										><ApertureOutline
+									/></n-icon>
+								</div>
+								<div>
+									<h4 class="text-sm font-bold text-blue-900">
+										个人空间
+									</h4>
+									<p class="text-[11px] text-blue-600/70">
+										查看相册、日志与动态
+									</p>
+								</div>
+							</div>
+							<n-icon
+								class="text-blue-300 group-hover:translate-x-1 transition-transform"
+							>
+								<ChevronRight12Filled />
+							</n-icon>
+						</div>
+
+						<!-- 属性列表 -->
+						<div class="grid grid-cols-2 gap-4 mb-10">
+							<div
+								class="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-white/50 flex items-center gap-3"
+							>
+								<div
+									class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500"
+								>
+									<n-icon size="20"><Mail24Regular /></n-icon>
+								</div>
+								<div class="flex-1 min-w-0">
+									<p
+										class="text-[10px] text-gray-400 font-medium"
+									>
+										电子邮箱
+									</p>
+									<p
+										class="text-sm text-gray-700 truncate font-medium"
+									>
+										{{
+											friendStore.selectedFriend.email ||
+											'未填'
+										}}
+									</p>
+								</div>
+							</div>
+
+							<div
+								class="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-white/50 flex items-center gap-3"
+							>
+								<div
+									class="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500"
+								>
+									<n-icon size="20"
+										><CalendarLtr24Regular
+									/></n-icon>
+								</div>
+								<div class="flex-1 min-w-0">
+									<p
+										class="text-[10px] text-gray-400 font-medium"
+									>
+										年龄 / 生日
+									</p>
+									<p
+										class="text-sm text-gray-700 truncate font-medium"
+									>
+										{{
+											friendStore.selectedFriend.age
+												? friendStore.selectedFriend
+														.age + ' 岁'
+												: '未知'
+										}}
+									</p>
+								</div>
+							</div>
+
+							<div
+								class="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-white/50 flex items-center gap-3"
+							>
+								<div
+									class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500"
+								>
+									<n-icon size="20"><Edit24Regular /></n-icon>
+								</div>
+								<div class="flex-1 min-w-0">
+									<p
+										class="text-[10px] text-gray-400 font-medium"
+									>
+										备注姓名
+									</p>
+									<p
+										class="text-sm text-gray-700 truncate font-medium"
+									>
+										{{
+											friendStore.selectedFriend.remark ||
+											'无备注'
+										}}
+									</p>
+								</div>
+							</div>
+
+							<div
+								class="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-white/50 flex items-center gap-3"
+							>
+								<div
+									class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"
+								>
+									<n-icon
+										name="Tag24Regular"
+										size="20"
+										class="flex items-center justify-center"
+									>
+										<Tag24Regular />
+									</n-icon>
+								</div>
+								<div class="flex-1 min-w-0">
+									<p
+										class="text-[10px] text-gray-400 font-medium"
+									>
+										所属分组
+									</p>
+									<p
+										class="text-sm text-gray-700 truncate font-medium"
+									>
+										{{
+											friendStore.groups.find(
+												(g) =>
+													g.id ===
+													friendStore.selectedFriend
+														?.groupId,
+											)?.name || '未知分组'
+										}}
+									</p>
+								</div>
+							</div>
+						</div>
+
+						<!-- 标签页 -->
+						<div
+							v-if="
+								friendStore.selectedFriend.tags &&
+								friendStore.selectedFriend.tags.length
+							"
+							class="bg-white/60 backdrop-blur-sm p-5 rounded-3xl border border-white/50 mb-12"
+						>
+							<span
+								class="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-3"
+								>个人标签</span
+							>
+							<div class="flex flex-wrap gap-2">
+								<span
+									v-for="tag in friendStore.selectedFriend
+										.tags"
+									:key="tag"
+									class="px-3 py-1 bg-black/5 text-gray-600 text-[11px] font-medium rounded-full"
+								>
+									# {{ tag }}
+								</span>
+							</div>
+						</div>
 					</div>
 				</div>
 
 				<div
 					v-else
-					class="h-full flex flex-col items-center justify-center opacity-30 select-none"
+					class="h-full flex flex-col items-center justify-center opacity-30 select-none bg-white"
 				>
 					<n-icon size="120" class="mb-4 text-gray-300">
 						<PeopleCommunity24Regular />
@@ -308,7 +526,11 @@ import {
 	PeopleCommunity24Regular,
 	Edit24Regular,
 	Delete24Regular,
+	Mail24Regular,
+	Tag24Regular,
+	CalendarLtr24Regular,
 } from '@vicons/fluent'
+import { Male, Female, ApertureOutline } from '@vicons/ionicons5'
 import {
 	NIcon,
 	NInput,
@@ -460,7 +682,7 @@ const handleFriendAction = (key: string): void => {
 
 <style scoped>
 .custom-scrollbar::-webkit-scrollbar {
-	width: 4px;
+	width: 0px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
 	background: rgba(0, 0, 0, 0.05);

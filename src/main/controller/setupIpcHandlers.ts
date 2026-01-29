@@ -170,4 +170,26 @@ export function setupIpcHandlers(): void {
 			win.setAlwaysOnTop(isPinned)
 		}
 	})
+
+	// 窗口控制
+	ipcMain.on('minimize-window', (event) => {
+		const win = BrowserWindow.fromWebContents(event.sender)
+		if (win) win.minimize()
+	})
+
+	ipcMain.on('maximize-window', (event) => {
+		const win = BrowserWindow.fromWebContents(event.sender)
+		if (win) {
+			if (win.isMaximized()) {
+				win.unmaximize()
+			} else {
+				win.maximize()
+			}
+		}
+	})
+
+	ipcMain.on('close-window', (event) => {
+		const win = BrowserWindow.fromWebContents(event.sender)
+		if (win) win.close()
+	})
 }

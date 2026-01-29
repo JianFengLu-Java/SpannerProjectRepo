@@ -62,14 +62,18 @@ function createBaseWindow(
 	const win = new BrowserWindow({
 		show: false,
 		frame: false,
-		titleBarStyle: 'hiddenInset',
+		transparent: false,
+		resizable: true,
+		thickFrame: true,
+		backgroundColor: '#ffffff',
+		titleBarStyle: 'hidden',
 		webPreferences: {
 			preload: join(__dirname, '../preload/index.js'),
 			sandbox: false,
 			contextIsolation: true,
 			webSecurity: false,
 		},
-		autoHideMenuBar: true,
+		autoHideMenuBar: true, // 默认开启缩放
 		...options,
 	})
 
@@ -82,6 +86,14 @@ function createBaseWindow(
 		}
 		// 其他情况下，或者不允许最小化到托盘时，正常关闭
 		windowRegistry.delete(type)
+	})
+
+	win.on('maximize', () => {
+		win.webContents.send('window-maximized', true)
+	})
+
+	win.on('unmaximize', () => {
+		win.webContents.send('window-maximized', false)
 	})
 
 	return win
@@ -158,6 +170,7 @@ export function openHomeWindow(): void {
 		height: 750,
 		minWidth: 550,
 		minHeight: 600,
+		resizable: true,
 	})
 	loadPage(homeWin, 'home')
 

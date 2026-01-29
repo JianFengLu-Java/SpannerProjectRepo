@@ -7,6 +7,12 @@ declare global {
 			hello: () => void
 			setWindowPin: (isPinned: boolean) => void
 			platform: string
+			minimizeWindow: () => void
+			maximizeWindow: () => void
+			closeWindow: () => void
+			onWindowMaximizeChange: (
+				callback: (isMaximized: boolean) => void,
+			) => void
 		}
 	}
 }

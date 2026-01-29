@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, watchEffect } from 'vue' // 引入 watchEffect
+import { computed, watchEffect, ref, onMounted } from 'vue' // 引入 watchEffect
 import {
 	darkTheme,
 	NConfigProvider,
 	NMessageProvider,
-	NGlobalStyle,
 } from 'naive-ui'
 import Dragable from './components/Dragable.vue'
 import { useThemeStore } from '@renderer/stores/theme'
@@ -13,6 +12,7 @@ import WinTitleBar from './components/WinTitleBar.vue'
 
 const themeStore = useThemeStore()
 const isWin: boolean = window.api.platform === 'win32'
+const isMaximized = ref(false)
 
 // --- 新增：同步 Tailwind v4 的黑夜模式类名 ---
 watchEffect(() => {
@@ -25,6 +25,14 @@ watchEffect(() => {
 
 const currentTheme = computed(() => (themeStore.isDark ? darkTheme : null))
 const currentOverrides = computed(() => getThemeOverrides(themeStore.isDark))
+
+onMounted(() => {
+	if (isWin) {
+		window.api.onWindowMaximizeChange((val) => {
+			isMaximized.value = val
+		})
+	}
+})
 </script>
 
 <template>
@@ -32,14 +40,19 @@ const currentOverrides = computed(() => getThemeOverrides(themeStore.isDark))
 		:theme="currentTheme"
 		:theme-overrides="currentOverrides"
 	>
-		<n-global-style />
 		<dragable v-if="!isWin" />
-		<div class="h-screen w-screen overflow-hidden flex flex-col relative">
+		<div
+			class="h-screen w-screen overflow-hidden flex flex-col relative"
+			:class="[
+				isWin && !isMaximized ? 'rounded-[12px] shadow-xl' : '',
+				themeStore.isDark ? 'bg-[#18181c]' : 'bg-white',
+			]"
+		>
 			<win-title-bar
 				v-if="isWin"
 				class="shrink-0 absolute top-0 z-1000!"
 			/>
-			<div class="h-full w-full overflow-hidden">
+			<div class="h-full w-full overflow-hidden flex flex-row">
 				<n-message-provider
 					:container-style="{ marginTop: '22px' }"
 					:max="5"

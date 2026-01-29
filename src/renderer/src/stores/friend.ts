@@ -10,6 +10,13 @@ export interface Friend {
 	status: 'online' | 'offline'
 	signature: string
 	groupId: string
+	// 新增字段
+	gender?: 'male' | 'female' | 'unknown'
+	age?: number
+	region?: string
+	email?: string
+	tags?: string[]
+	cover?: string
 }
 
 export interface Group {
@@ -29,6 +36,12 @@ export const useFriendStore = defineStore('friend', () => {
 			status: 'online',
 			signature: '忙碌中，有事留言',
 			groupId: 'default',
+			gender: 'male',
+			age: 28,
+			region: '广东 深圳',
+			email: 'zhangsan@spanner.com',
+			tags: ['球友', '同事', '老乡'],
+			cover: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80',
 		},
 		{
 			id: '2',
@@ -39,6 +52,11 @@ export const useFriendStore = defineStore('friend', () => {
 			status: 'offline',
 			signature: '代码如诗',
 			groupId: 'work',
+			gender: 'female',
+			age: 24,
+			region: '浙江 杭州',
+			tags: ['前端', '爱猫者'],
+			cover: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80',
 		},
 		{
 			id: '3',
@@ -49,6 +67,12 @@ export const useFriendStore = defineStore('friend', () => {
 			status: 'online',
 			signature: '不忘初心，方得始终',
 			groupId: 'work',
+			gender: 'male',
+			age: 32,
+			region: '北京 朝阳',
+			email: 'wangwu@tech.com',
+			tags: ['架构师', '钓鱼'],
+			cover: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80',
 		},
 		{
 			id: '4',
@@ -59,6 +83,11 @@ export const useFriendStore = defineStore('friend', () => {
 			status: 'offline',
 			signature: '正在闭关修炼',
 			groupId: 'default',
+			gender: 'male',
+			age: 19,
+			region: '上海 徐汇',
+			tags: ['学生', '游戏大神'],
+			cover: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&q=80',
 		},
 	])
 

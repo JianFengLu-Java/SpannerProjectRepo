@@ -10,6 +10,20 @@ const api = {
 		ipcRenderer.send('set-window-pin', isPinned)
 	},
 	platform: process.platform,
+	minimizeWindow: () => {
+		ipcRenderer.send('minimize-window')
+	},
+	maximizeWindow: () => {
+		ipcRenderer.send('maximize-window')
+	},
+	closeWindow: () => {
+		ipcRenderer.send('close-window')
+	},
+	onWindowMaximizeChange: (callback: (isMaximized: boolean) => void) => {
+		ipcRenderer.on('window-maximized', (_, isMaximized) =>
+			callback(isMaximized),
+		)
+	},
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

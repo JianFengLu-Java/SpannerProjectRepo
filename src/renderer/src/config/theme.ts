@@ -20,14 +20,14 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 			primaryColor,
 			primaryColorHover: primaryHover,
 			primaryColorPressed: '#059669',
-			borderRadius: '12px',
+			borderRadius: '16px',
 		},
 		Form: {
 			feedbackFontSizeMedium: '11px',
 			feedbackHeightMedium: '20px',
 		},
 		Message: {
-			borderRadius: '8px',
+			borderRadius: '10px',
 			// 深色模式下 Message 通常需要稍微亮一点的背景或直接跟随系统
 			color: isDark ? '#333' : '#fff',
 			textColor: isDark ? '#eee' : '#333',
@@ -39,7 +39,7 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 			checkMarkColor: '#fff',
 		},
 		Card: {
-			borderRadius: '18px',
+			borderRadius: '24px',
 			color: cardBg,
 			borderColor: borderColor,
 			titleTextColor: textColor,
@@ -48,7 +48,7 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 			borderRadius: '100%',
 		},
 		Input: {
-			borderRadius: '12px',
+			borderRadius: '14px',
 			heightMedium: '42px',
 			fontSizeMedium: '14px',
 			color: inputBg,
@@ -66,7 +66,7 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 		Select: {
 			peers: {
 				InternalSelection: {
-					borderRadius: '12px',
+					borderRadius: '14px',
 					heightMedium: '42px',
 					color: inputBg,
 					border: `1px solid ${borderColor}`,
@@ -77,9 +77,8 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 					placeholderColor: placeholderColor,
 				},
 				InternalSelectMenu: {
-					borderRadius: '12px',
+					borderRadius: '10px',
 					color: modalBg,
-					optionBorderRadius: '8px',
 					optionColorActive: isDark
 						? 'rgba(16, 185, 129, 0.2)'
 						: 'rgba(16, 185, 129, 0.1)',
@@ -92,7 +91,7 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 		Cascader: {
 			peers: {
 				InternalSelection: {
-					borderRadius: '12px',
+					borderRadius: '14px',
 					heightMedium: '42px',
 					color: inputBg,
 					border: `1px solid ${borderColor}`,
@@ -100,28 +99,24 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 					boxShadowFocus: `0 0 0 4px ${isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)'}`,
 				},
 				InternalSelectMenu: {
-					borderRadius: '12px',
+					borderRadius: '10px',
 					color: modalBg,
-					optionBorderRadius: '8px',
 					optionColorActive: isDark
 						? 'rgba(16, 185, 129, 0.2)'
 						: 'rgba(16, 185, 129, 0.1)',
 					optionTextColorActive: primaryColor,
-					boxShadow: isDark
-						? '0 10px 15px -3px rgba(0, 0, 0, 0.5)'
-						: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
 				},
 			},
 		},
 		Button: {
-			borderRadiusTiny: '10px',
-			borderRadiusSmall: '10px',
-			borderRadiusMedium: '12px',
-			borderRadiusLarge: '14px',
+			borderRadiusTiny: '12px',
+			borderRadiusSmall: '12px',
+			borderRadiusMedium: '14px',
+			borderRadiusLarge: '16px',
 			fontWeight: '600',
 		},
 		Dropdown: {
-			borderRadius: '12px',
+			borderRadius: '14px',
 			color: modalBg,
 			optionColorHover: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f3f4f6',
 			fontSizeSmall: '13px',
@@ -131,13 +126,13 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 			color: '#FF0004FF',
 		},
 		Tabs: {
-			tabBorderRadius: '8px',
+			tabBorderRadius: '12px',
 			tabTextColorActiveLine: primaryColor,
 			tabTextColorHoverLine: primaryHover,
 			barColor: primaryColor,
 		},
 		Modal: {
-			borderRadius: '20px',
+			borderRadius: '24px',
 			color: modalBg,
 			textColor: textColor,
 		},

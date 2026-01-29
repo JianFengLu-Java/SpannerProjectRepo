@@ -1,29 +1,28 @@
 <template>
 	<div
-		class="flex h-screen w-screen items-center justify-center bg-linear-to-br from-grad-start to-grad-end"
+		class="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#f0f9ff] to-[#e0f2fe]"
 	>
 		<div
-			class="w-[360px] border rounded-3xl shadow-xl overflow-hidden border-border-default"
+			class="w-[380px] bg-white rounded-[32px] overflow-hidden border border-slate-100"
 		>
 			<div
-				class="relative w-full flex justify-center flex-col items-center h-40 overflow-hidden"
+				class="relative w-full flex justify-center flex-col items-center h-48 bg-gradient-to-br from-emerald-400 to-teal-500 select-none"
 			>
 				<p class="text-white font-bold text-5xl z-10 tracking-tight">
 					LinkR
 				</p>
 				<p
-					class="text-white/80 font-medium text-sm z-10 tracking-widest mt-1"
+					class="text-white/90 font-medium text-sm z-10 tracking-[0.2em] mt-2 opacity-90"
 				>
 					连接思维 · 提高效率
 				</p>
-
-				<div class="absolute inset-0">
-					<img
-						src="http://47.108.39.129:9000/pic/bg_login.jpg"
-						class="w-full h-full object-cover select-none blur-lg scale-110"
-					/>
-					<div class="absolute inset-0 bg-black/30"></div>
-				</div>
+				<!-- 装饰性圆圈，增加年轻感 -->
+				<div
+					class="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white/10 rounded-full blur-2xl"
+				></div>
+				<div
+					class="absolute bottom-[-10%] left-[-10%] w-24 h-24 bg-white/10 rounded-full blur-xl"
+				></div>
 			</div>
 			<!-- Logo -->
 
@@ -61,8 +60,8 @@
 								size="large"
 								block
 								:loading="isLoading"
-								color="#333"
 								@click="handleLogin"
+								class="mt-2 font-bold"
 							>
 								登录
 							</n-button>

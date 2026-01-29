@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="h-full w-full flex bg-gradient-to-br from-grad-start to-grad-end gap-0 relative overflow-hidden transition-all duration-300 ease-in-out"
+		class="h-full w-full flex bg-gradient-to-br from-grad-start to-grad-end gap-0 relative overflow-hidden"
 		:class="{ 'is-dragging': isDragging, 'is-compact': windowWidth < 700 }"
 	>
 		<SideBar
@@ -73,7 +73,6 @@ const initDrag = (e: MouseEvent): void => {
 	const startX = e.clientX
 	const initialWidth = isExpanded.value ? sideBarWidth.value : 76
 	let animationFrameId: number | null = null
-	let currentWidth = initialWidth
 
 	const doDrag = (moveEvent: MouseEvent): void => {
 		if (animationFrameId) cancelAnimationFrame(animationFrameId)
@@ -82,32 +81,21 @@ const initDrag = (e: MouseEvent): void => {
 			const delta = moveEvent.clientX - startX
 			const rawWidth = initialWidth + delta
 
-			if (!isExpanded.value) {
-				// 起始是收起状态：往右拖动超过 10px 立即展开到至少 160px
-				if (delta > 10) {
-					currentWidth = Math.min(400, Math.max(160, rawWidth))
+			// 引入滞后（Hysteresis）逻辑，避免临界点抖动
+			if (isExpanded.value) {
+				// 展开状态下：只有当宽度小于 120px 时才收起
+				if (rawWidth < 120) {
+					isExpanded.value = false
 				} else {
-					currentWidth = 76
+					// 限制展开宽度的合理区间
+					sideBarWidth.value = Math.min(280, Math.max(160, rawWidth))
 				}
 			} else {
-				// 起始是展开状态：宽度小于 150px 立即收起
-				if (rawWidth < 150) {
-					currentWidth = 76
-				} else {
-					currentWidth = Math.min(280, Math.max(160, rawWidth))
+				// 收起状态下：只有当拖拽出的虚拟宽度超过 160px 时才展开
+				if (rawWidth > 160) {
+					isExpanded.value = true
+					sideBarWidth.value = Math.min(280, Math.max(160, rawWidth))
 				}
-			}
-
-			visualWidth.value = currentWidth + 'px'
-
-			if (!isExpanded.value) {
-				willCollapse.value = delta <= 10
-			} else {
-				willCollapse.value = rawWidth < 150
-			}
-
-			if (!willCollapse.value && currentWidth >= 160) {
-				sideBarWidth.value = currentWidth
 			}
 		})
 	}
@@ -115,16 +103,6 @@ const initDrag = (e: MouseEvent): void => {
 	const stopDrag = (): void => {
 		isDragging.value = false
 		if (animationFrameId) cancelAnimationFrame(animationFrameId)
-
-		// 飞书/Lark 风格的吸附逻辑：根据最终状态决定
-		if (willCollapse.value) {
-			isExpanded.value = false
-			visualWidth.value = '76px'
-		} else {
-			isExpanded.value = true
-			sideBarWidth.value = Math.max(160, currentWidth)
-			visualWidth.value = sideBarWidth.value + 'px'
-		}
 
 		document.removeEventListener('mousemove', doDrag)
 		document.removeEventListener('mouseup', stopDrag)
@@ -149,31 +127,16 @@ onUnmounted(() => {
 
 <style scoped>
 .resizer {
-	width: 2px;
+	width: 4px;
 	height: 100%;
 	cursor: col-resize;
 	position: absolute;
-	left: v-bind('visualWidth');
+	left: v-bind("isExpanded ? sideBarWidth + 'px' : '76px'");
 	z-index: 50;
-	transition:
-		left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-		background 0.2s;
+	transition: background 0.2s;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-}
-
-/* 拖拽中的提示状态 */
-.is-dragging .resizer {
-	transition: none !important;
-	background: #10b981; /* 展开态颜色：绿色提示 */
-	box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
-}
-
-/* 即将收起时的提示色 */
-.is-dragging .resizer.will-collapse {
-	background: #94a3b8; /* 收起态颜色：灰色提示 */
-	box-shadow: none;
 }
 
 /* 装饰性的手柄 */
