@@ -2,12 +2,30 @@
 	<div class="h-screen w-screen bg-page-bg overflow-hidden flex flex-col p-2">
 		<!-- 独立窗口的顶部拖拽区域（如果是 macOS，可以留出位置） -->
 		<div
-			class="drag h-8 w-full flex items-center shrink-0"
-			:class="[isWin ? 'px-16' : 'px-20']"
+			class="drag h-8 w-full flex items-center justify-between shrink-0"
+			:class="[isWin ? 'px-4' : 'pl-20 pr-4']"
 		>
 			<span class="text-xs text-gray-400 no-drag pointer-events-none">
 				与 {{ chatName }} 的对话
 			</span>
+
+			<div class="flex items-center no-drag">
+				<n-tooltip trigger="hover">
+					<template #trigger>
+						<div
+							class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-gray-200/50 cursor-pointer transition-colors"
+							:class="{ 'text-primary': isPinned }"
+							@click="togglePin"
+						>
+							<n-icon size="16">
+								<Pin16Filled v-if="isPinned" />
+								<Pin16Regular v-else />
+							</n-icon>
+						</div>
+					</template>
+					{{ isPinned ? '取消置顶' : '固定置顶' }}
+				</n-tooltip>
+			</div>
 		</div>
 
 		<div
@@ -23,6 +41,8 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useChatStore } from '@renderer/stores/chat'
 import ChatContext from './ChatContext.vue'
+import { NIcon, NTooltip } from 'naive-ui'
+import { Pin16Filled, Pin16Regular } from '@vicons/fluent'
 
 const route = useRoute()
 const chatStore = useChatStore()
@@ -32,6 +52,12 @@ const chatId = parseInt(route.query.id as string)
 const chatName = route.query.name as string
 
 const chatContextRef = ref(null)
+const isPinned = ref(false)
+
+const togglePin = (): void => {
+	isPinned.value = !isPinned.value
+	window.api.setWindowPin(isPinned.value)
+}
 
 onMounted(() => {
 	if (!isNaN(chatId)) {

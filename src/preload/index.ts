@@ -6,6 +6,9 @@ const api = {
 	hello: () => {
 		ipcRenderer.send('hello')
 	},
+	setWindowPin: (isPinned: boolean) => {
+		ipcRenderer.send('set-window-pin', isPinned)
+	},
 	platform: process.platform,
 }
 

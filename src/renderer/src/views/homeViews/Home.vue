@@ -17,12 +17,12 @@
 		></div>
 
 		<div
-			class="h-full flex-1 overflow-hidden pl-0 p-1.5"
+			class="h-full flex-1 overflow-hidden pl-0 p-2 shrink-0 min-w-[400px]"
 			:class="[isWin ? 'pt-[32px]' : '']"
 		>
 			<router-view v-slot="{ Component, route }">
 				<keep-alive>
-					<div class="h-full w-full">
+					<div class="h-full w-full rounded-[24px] overflow-hidden">
 						<component :is="Component" :key="route.name" />
 					</div>
 				</keep-alive>
@@ -94,7 +94,7 @@ const initDrag = (e: MouseEvent): void => {
 				if (rawWidth < 150) {
 					currentWidth = 76
 				} else {
-					currentWidth = Math.min(400, Math.max(160, rawWidth))
+					currentWidth = Math.min(280, Math.max(160, rawWidth))
 				}
 			}
 

@@ -1,6 +1,6 @@
 <template>
-	<div class="h-full w-full flex overflow-hidden">
-		<!-- 左侧聊天列表 -->
+	<div ref="containerRef" class="h-full w-full flex overflow-hidden">
+		<!-- 左侧聊天列表 (上下文菜单) -->
 		<n-dropdown
 			placement="bottom-start"
 			trigger="manual"
@@ -13,145 +13,196 @@
 		/>
 
 		<!-- 会话列表容器 -->
-		<!-- 会话列表容器 -->
 		<div
-			v-if="windowWidth >= 800"
-			class="h-full flex flex-col bg-page-bg rounded-xl overflow-hidden transition-all duration-300 ease-in-out shrink-0 relative"
-			:style="{
-				width: `${listWidth}px`,
-			}"
+			v-if="containerWidth >= 600"
+			class="h-full flex flex-col bg-page-bg border-r border-border-default/50 shrink-0 overflow-hidden relative transition-all duration-300 ease-in-out"
+			:style="{ width: `${listWidth}px` }"
 		>
-			<!-- 搜索和功能栏 -->
-			<div class="p-3 pb-1">
-				<div class="flex items-center gap-2">
-					<n-dropdown
-						:options="options"
-						trigger="hover"
-						placement="bottom-start"
-					>
-						<div
-							class="no-drag z-60! items-center justify-center flex rounded-md w-8 h-8 hover:bg-sidebar-select-bg/50 transition-colors duration-200 cursor-pointer"
+			<!-- 顶部标题与搜索 (参考 FriendList 风格) -->
+			<div class="p-4 pb-2">
+				<div class="flex items-center justify-between mb-3">
+					<h2 class="text-lg font-bold text-text-main">消息</h2>
+					<div class="flex items-center gap-1">
+						<n-dropdown
+							:options="filterOptions"
+							trigger="hover"
+							placement="bottom-start"
 						>
-							<n-icon size="20" class="text-gray-600">
-								<List28Filled />
-							</n-icon>
-						</div>
-					</n-dropdown>
-					<span class="text-sm font-medium text-text-main flex-1"
-						>聊天</span
-					>
+							<div
+								class="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+							>
+								<n-icon size="18" class="text-gray-500">
+									<Filter24Regular />
+								</n-icon>
+							</div>
+						</n-dropdown>
+						<n-tooltip trigger="hover">
+							<template #trigger>
+								<div
+									class="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+									@click="handleNewChat"
+								>
+									<n-icon size="20" class="text-gray-500">
+										<Chat24Regular />
+									</n-icon>
+								</div>
+							</template>
+							发起聊天
+						</n-tooltip>
+					</div>
 				</div>
+
+				<!-- 搜索栏 -->
+				<n-input
+					v-model:value="searchQuery"
+					placeholder="搜索聊天或记录..."
+					size="small"
+					class="rounded-xl bg-gray-100/50 border-none mb-1"
+				>
+					<template #prefix>
+						<n-icon class="text-gray-400">
+							<Search24Regular />
+						</n-icon>
+					</template>
+				</n-input>
 			</div>
 
-			<!-- 置顶会话 -->
+			<!-- 置顶会话 (水平滑动风格或紧凑风格) -->
 			<div
-				v-if="pinnedChats.length > 0"
-				class="px-3 pb-1 border-b border-border-default"
+				v-if="pinnedChats.length > 0 && !searchQuery"
+				class="px-2 pb-2 mb-1"
 			>
-				<div class="flex items-center gap-2 mb-2">
+				<div class="flex items-center gap-2 px-2 mb-2">
 					<span
-						class="text-xs font-medium text-gray-500 uppercase tracking-wider"
-						>置顶</span
+						class="text-[10px] font-bold text-gray-400 uppercase tracking-widest"
+						>置顶消息</span
 					>
 				</div>
-				<div class="flex overflow-x-auto no-scrollbar gap-1">
+				<div
+					class="flex overflow-x-auto no-scrollbar gap-1.5 px-1 py-1"
+				>
 					<div
 						v-for="chat in pinnedChats"
 						:key="chat.id"
-						class="flex items-center p-2 rounded-lg cursor-pointer flex-col hover:bg-sidebar-select-bg/40 transition-colors duration-200"
-						:class="{
-							' bg-sidebar-select-bg/80 hover:bg-sidebar-select-bg/80':
-								activeChatId === chat.id,
-						}"
+						class="flex flex-col items-center gap-1.5 p-2 rounded-2xl cursor-copy transition-all duration-200 relative shrink-0 w-[68px]"
+						:class="[
+							activeChatId === chat.id
+								? 'bg-primary/10'
+								: 'hover:bg-black/5',
+						]"
 						@click="selectChat(chat)"
 						@contextmenu.prevent="openContextMenu($event, chat)"
 					>
 						<n-badge
 							:value="chat.unreadCount"
-							color="red"
+							color="#10b981"
+							:offset="[-2, 2]"
 							size="small"
 						>
-							<n-avatar
-								:size="36"
-								round
-								:src="chat.avatar"
-								class="border border-gray-200 shrink-0"
-							/>
+							<div class="relative">
+								<n-avatar
+									:size="42"
+									round
+									:src="chat.avatar"
+									class="border-2 border-white"
+								/>
+								<div
+									v-if="chat.online"
+									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white bg-green-500"
+								></div>
+							</div>
 						</n-badge>
-						<div>
-							<span
-								class="text-[10px] font-normal text-gray-500 truncate w-12 text-center"
-								>{{ chat.name }}</span
-							>
-						</div>
+						<span
+							class="text-[10px] font-medium text-gray-500 truncate w-full text-center"
+						>
+							{{ chat.name }}
+						</span>
 					</div>
 				</div>
 			</div>
 
-			<!-- 所有聊天 -->
+			<!-- 所有聊天 (虚拟列表) -->
 			<div class="flex-1 overflow-hidden">
-				<n-virtual-list
-					:items="chatlist"
-					:item-size="60"
-					class="h-full"
+				<div
+					v-if="!searchQuery"
+					class="flex items-center gap-2 px-4 mb-1"
 				>
-					<template #default="{ item, index }">
+					<span
+						class="text-[10px] font-bold text-gray-400 uppercase tracking-widest"
+						>所有消息</span
+					>
+				</div>
+
+				<n-virtual-list
+					:items="filteredChatList"
+					:item-size="68"
+					class="h-full px-2 pb-4"
+				>
+					<template #default="{ item: chat }">
 						<div
-							:key="item.id"
-							class="px-2 py-2 m-2 mr-3 hover:bg-chatItem-select-bg/80 rounded-lg cursor-pointer transition-colors duration-100"
-							:class="{
-								'bg-chatItem-select-bg hover:bg-chatItem-select-bg/80':
-									activeChatId === item.id,
-								'border-t':
-									index === 0 && pinnedChats.length === 0,
-							}"
-							@click="selectChat(item)"
-							@contextmenu.prevent="openContextMenu($event, item)"
+							:key="chat.id"
+							class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-2xl cursor-copy transition-all duration-200 group relative"
+							:class="[
+								activeChatId === chat.id
+									? 'bg-primary/10'
+									: 'hover:bg-black/5',
+							]"
+							@click="selectChat(chat)"
+							@contextmenu.prevent="openContextMenu($event, chat)"
 						>
-							<div class="flex items-center gap-3">
-								<!-- 头像和状态 -->
-								<div>
-									<n-badge
-										:value="item.unreadCount"
-										:offset="[-3, 0]"
-										color="red"
-										size="small"
-									>
-										<n-avatar
-											:size="32"
-											round
-											:src="item.avatar"
-											class="border border-gray-200"
-										/>
-									</n-badge>
-								</div>
-
-								<!-- 聊天信息 -->
-								<div
-									class="flex-1 flex justify-between min-w-0"
+							<!-- 头像与状态 -->
+							<div class="relative shrink-0">
+								<n-badge
+									:value="chat.unreadCount"
+									color="#10b981"
+									:offset="[-2, 2]"
+									size="small"
 								>
-									<div
-										class="flex flex-col justify-between min-w-0 flex-1"
-									>
-										<div
-											class="text-sm text-text-main truncate"
-										>
-											{{ item.name }}
-										</div>
-										<div
-											class="text-[11px] text-gray-400 truncate"
-										>
-											{{ item.lastMessage }}
-										</div>
-									</div>
+									<n-avatar
+										:size="40"
+										round
+										:src="chat.avatar"
+										class="border border-white/50"
+									/>
+								</n-badge>
+								<div
+									v-if="chat.online"
+									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white bg-green-500"
+								></div>
+							</div>
 
-									<div
-										class="flex items-center gap-2 ml-4 shrink-0"
+							<!-- 聊天简述 -->
+							<div
+								class="flex-1 min-w-0 flex flex-col justify-center"
+							>
+								<div
+									class="flex items-center justify-between mb-0.5"
+								>
+									<span
+										class="text-sm font-semibold text-text-main truncate"
 									>
-										<div class="text-[11px] text-gray-500">
-											{{ formatTime(item.timestamp) }}
-										</div>
+										{{ chat.name }}
+									</span>
+									<span
+										class="text-[10px] text-gray-400 shrink-0"
+									>
+										{{ chat.timestamp }}
+									</span>
+								</div>
+								<div class="flex items-center justify-between">
+									<div
+										class="text-[11px] text-gray-400 truncate pr-2"
+									>
+										{{ chat.lastMessage }}
 									</div>
+									<!-- 置顶小图标 -->
+									<n-icon
+										v-if="chat.isPinned"
+										size="12"
+										class="text-primary/60 shrink-0 rotate-45"
+									>
+										<Pin12Filled />
+									</n-icon>
 								</div>
 							</div>
 						</div>
@@ -160,18 +211,20 @@
 			</div>
 		</div>
 
-		<!-- 可拖拽调整宽度的分割线 -->
+		<!-- 可拖拽调整宽度的分割线 (更精致的视觉效果) -->
 		<div
-			v-if="windowWidth >= 800"
-			class="w-1 cursor-col-resize hover:bg-blue-400 transition-colors duration-200 flex items-center justify-center relative z-10 shrink-0"
+			v-if="containerWidth >= 600"
+			class="w-1 cursor-col-resize hover:bg-primary/30 transition-colors duration-200 flex items-center justify-center relative z-10 shrink-0"
 			@mousedown="startDrag"
 		>
-			<div class="w-px h-6 bg-gray-200/50"></div>
+			<div
+				class="w-px h-8 bg-border-default/50 group-hover:bg-primary/50"
+			></div>
 		</div>
 
 		<!-- 主聊天区域 -->
 		<div
-			class="flex-1 rounded-xl bg-page-bg overflow-hidden flex flex-col min-w-[400px] shrink-0"
+			class="flex-1 overflow-hidden flex flex-col min-w-[400px] shrink-0 bg-white"
 		>
 			<ChatContext />
 		</div>
@@ -191,31 +244,39 @@ import {
 	watch,
 } from 'vue'
 import { useTitleStore } from '@renderer/stores/title'
-import { useChatStore } from '@renderer/stores/chat'
+import { useChatStore, ChatItem } from '@renderer/stores/chat'
 import {
-	List28Filled,
+	Search24Regular,
+	Filter24Regular,
+	Chat24Regular,
 	Pin16Filled,
 	MailRead16Filled,
 	Delete16Filled,
 	WindowNew20Filled,
+	Pin12Filled,
 } from '@vicons/fluent'
-import { NDropdown, NIcon, NAvatar, NVirtualList, NBadge } from 'naive-ui'
+import {
+	NDropdown,
+	NIcon,
+	NAvatar,
+	NVirtualList,
+	NBadge,
+	NInput,
+	NTooltip,
+	useMessage,
+} from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import ChatContext from './ChatContext.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
+import { useElementSize } from '@vueuse/core'
 
-// 定义 ChatItem 接口确保类型安全
-interface ChatItem {
-	id: number
-	name: string
-	avatar: string
-	lastMessage: string
-	timestamp: string
-	unreadCount?: number
-}
+const containerRef = ref<HTMLElement | null>(null)
+const { width: containerWidth } = useElementSize(containerRef)
+const listWidth = ref(280) // 默认宽度稍微增加，显得更大气
 
-const listWidth = ref(240)
-const windowWidth = inject<Ref<number>>('windowWidth', ref(window.innerWidth))
+const searchQuery = ref('')
+const message = useMessage()
+
 const sidebarWidthState = inject<Ref<number>>('sideBarWidth', ref(200))
 const isSidebarExpanded = inject<Ref<boolean>>('isExpanded', ref(true))
 
@@ -226,17 +287,24 @@ const userName = userInfoStore.userName
 
 const { chatlist, pinnedChats, activeChatId } = storeToRefs(chatStore)
 
-const RIGHT_PANEL_MIN_WIDTH = 400
-const SESSION_LIST_MIN_WIDTH = 200
+const RIGHT_PANEL_MIN_WIDTH = 450
+const SESSION_LIST_MIN_WIDTH = 220
+
+const filteredChatList = computed(() => {
+	if (!searchQuery.value) return chatlist.value
+	const query = searchQuery.value.toLowerCase()
+	return chatlist.value.filter(
+		(c) =>
+			c.name.toLowerCase().includes(query) ||
+			c.lastMessage.toLowerCase().includes(query),
+	)
+})
 
 // 监听布局变化，防止右侧被挤压
 watch(
-	[windowWidth, sidebarWidthState, isSidebarExpanded],
-	([winWidth, sideWidth, isExp]) => {
-		const currentSidebarWidth = isExp && winWidth >= 700 ? sideWidth : 76
-		const availableForList =
-			winWidth - currentSidebarWidth - RIGHT_PANEL_MIN_WIDTH - 12
-
+	[containerWidth, sidebarWidthState, isSidebarExpanded],
+	([contWidth]) => {
+		const availableForList = contWidth - RIGHT_PANEL_MIN_WIDTH - 1
 		if (listWidth.value > availableForList) {
 			listWidth.value = Math.max(SESSION_LIST_MIN_WIDTH, availableForList)
 		}
@@ -244,25 +312,20 @@ watch(
 	{ immediate: true },
 )
 
-// 菜单选项
-const options = [
-	{ label: '全部聊天', key: 'all' },
-	{ label: '未读消息', key: 'unread' },
-	{ type: 'divider' },
-	{ label: '创建群聊', key: 'createGroup' },
-	{ label: '添加好友', key: 'addFriend' },
+const filterOptions = [
+	{ label: '全部消息', key: 'all' },
+	{ label: '未读', key: 'unread' },
+	{ label: '提及我的', key: 'mentions' },
 ]
 
-// 选择聊天
+const handleNewChat = (): void => {
+	message.info('功能开发中...')
+}
+
 const selectChat = (chat: ChatItem): void => {
 	activeChatId.value = chat.id
 	chatStore.setActiveChat(chat.id)
 	chatStore.markAsRead(chat.id)
-}
-
-// 格式化时间
-const formatTime = (time: string): string => {
-	return time
 }
 
 // 拖拽逻辑
@@ -283,21 +346,9 @@ const startDrag = (e: MouseEvent): void => {
 		animationFrameId = requestAnimationFrame(() => {
 			const delta = moveEvent.clientX - startX
 			const newWidth = startWidth + delta
-
-			// 计算当前侧边栏占据的宽度
-			const currentSidebarWidth = isSidebarExpanded.value
-				? sidebarWidthState.value
-				: 76
-
-			// 计算会话列表允许的最大宽度，确保右侧聊天区域至少保留 400px
 			const maxAllowedWidth =
-				windowWidth.value -
-				currentSidebarWidth -
-				RIGHT_PANEL_MIN_WIDTH -
-				12 // 预留一些边距
+				containerWidth.value - RIGHT_PANEL_MIN_WIDTH - 1
 
-			// 限制宽度范围：[200px, maxAllowedWidth]
-			// 这样既保证了左侧不被拖拽关闭，也保证了右侧有最小空间
 			listWidth.value = Math.min(
 				Math.max(SESSION_LIST_MIN_WIDTH, newWidth),
 				Math.max(SESSION_LIST_MIN_WIDTH, maxAllowedWidth),
@@ -323,10 +374,10 @@ const startDrag = (e: MouseEvent): void => {
 const showContextMenu = ref(false)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
-const selectedChat = ref<ChatItem | null>(null)
+const selectedChatItem = ref<ChatItem | null>(null)
 
 const openContextMenu = (e: MouseEvent, chat: ChatItem): void => {
-	selectedChat.value = chat
+	selectedChatItem.value = chat
 	showContextMenu.value = false
 	nextTick().then(() => {
 		showContextMenu.value = true
@@ -336,10 +387,10 @@ const openContextMenu = (e: MouseEvent, chat: ChatItem): void => {
 }
 
 const contextMenuOptions = computed(() => {
-	const chat = selectedChat.value
+	const chat = selectedChatItem.value
 	if (!chat) return []
 
-	const isPinned = pinnedChats.value.some((c) => c.id === chat.id)
+	const isPinned = chat.isPinned
 	const isRead = chat.unreadCount === 0
 
 	return [
@@ -373,23 +424,23 @@ const closeContextMenu = (): void => {
 }
 
 const handleContextMenuSelect = (key: string): void => {
-	if (!selectedChat.value) return
+	if (!selectedChatItem.value) return
 
 	switch (key) {
 		case 'pin':
-			chatStore.pinChat(selectedChat.value.id)
+			chatStore.pinChat(selectedChatItem.value.id)
 			break
 		case 'unpin':
-			chatStore.unpinChat(selectedChat.value.id)
+			chatStore.unpinChat(selectedChatItem.value.id)
 			break
 		case 'markAsRead':
-			chatStore.markAsRead(selectedChat.value.id)
+			chatStore.markAsRead(selectedChatItem.value.id)
 			break
 		case 'delete':
-			chatStore.deleteChat(selectedChat.value.id)
+			chatStore.deleteChat(selectedChatItem.value.id)
 			break
 		case 'openInNewWindow':
-			openInNewWindow(selectedChat.value)
+			openInNewWindow(selectedChatItem.value)
 			break
 	}
 	closeContextMenu()
@@ -403,29 +454,30 @@ onMounted(() => {
 	titleStore.setTitle('欢迎你！' + userName)
 })
 
-onUnmounted(() => {
-	// 拖拽监听已自动清理
-})
+onUnmounted(() => {})
 </script>
 
 <style scoped>
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+.no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
 :deep(.n-virtual-list) {
 	scrollbar-width: thin;
-	scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+	scrollbar-color: rgba(0, 0, 0, 0.05) transparent;
 }
 :deep(.n-virtual-list)::-webkit-scrollbar {
-	width: 6px;
+	width: 4px;
 }
 :deep(.n-virtual-list)::-webkit-scrollbar-thumb {
-	background-color: rgba(156, 163, 175, 0.4);
-	border-radius: 3px;
+	background-color: rgba(0, 0, 0, 0.05);
+	border-radius: 2px;
 }
-.w-1:hover {
-	background: linear-gradient(
-		90deg,
-		rgba(59, 130, 246, 0.1) 0%,
-		rgba(59, 130, 246, 0.3) 50%,
-		rgba(59, 130, 246, 0.1) 100%
-	);
+:deep(.n-virtual-list):hover::-webkit-scrollbar-thumb {
+	background-color: rgba(0, 0, 0, 0.1);
 }
 </style>

@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="main-sidebar gap-3 h-full flex flex-col items-center justify-between rounded-[14px] transition-all duration-300 ease-in-out relative"
+		class="main-sidebar gap-3 h-full flex flex-col items-center justify-between rounded-[24px] transition-all duration-300 ease-in-out relative"
 		:style="{ width: isExpanded ? width + 'px' : '76px' }"
 	>
 		<div
@@ -18,7 +18,7 @@
 					<n-dropdown
 						trigger="click"
 						placement="right-start"
-						style="border: 1px solid #ccc; border-radius: 10px"
+						style="border: 1px solid #ccc; border-radius: 12px"
 						:options="userMenuOptions"
 					>
 						<n-avatar
@@ -55,7 +55,7 @@
 							style="
 								width: 140px;
 								border: 1px solid #ccc;
-								border-radius: 10px;
+								border-radius: 12px;
 							"
 							:options="addMenuOptions"
 						>
@@ -106,7 +106,7 @@
 				style="
 					width: 140px;
 					border: 1px solid #ccc;
-					border-radius: 10px;
+					border-radius: 12px;
 				"
 				:options="addMenuOptions"
 			>
@@ -121,7 +121,7 @@
 		</div>
 
 		<div
-			class="flex-1 w-full flex flex-col items-center gap-1 rounded-md pt-0 p-2 overflow-y-auto"
+			class="flex-1 w-full flex flex-col items-center gap-1 rounded-xl pt-0 p-2 overflow-y-auto"
 		>
 			<div
 				v-for="item in menus"
@@ -129,8 +129,8 @@
 				:class="[
 					'flex items-center cursor-pointer transition-all no-drag',
 					isExpanded
-						? 'w-full px-3 h-9 gap-3 rounded-lg'
-						: 'w-12 h-12 flex-col justify-center gap-1 rounded-xl',
+						? 'w-full px-3 h-9 gap-3 rounded-xl'
+						: 'w-12 h-12 flex-col justify-center gap-1 rounded-2xl',
 					route.name === item.name
 						? ' bg-sidebar-select-bg text-primary-600'
 						: ' hover:bg-sidebar-select-bg/35 ',
@@ -183,7 +183,7 @@
 			title="全局搜索"
 			:show-icon="false"
 			transform-origin="center"
-			style="width: 600px; border-radius: 20px; padding: 12px"
+			style="width: 600px; border-radius: 24px; padding: 12px"
 		>
 			<div class="flex flex-col gap-4 mt-4">
 				<n-input
@@ -191,6 +191,7 @@
 					placeholder="搜索联系人、群组、聊天记录..."
 					size="large"
 					clearable
+					class="rounded-xl"
 				>
 					<template #prefix>
 						<n-icon><SearchOutline /></n-icon>
@@ -202,7 +203,7 @@
 						<div
 							v-for="item in ['联系人', '群组', '文件']"
 							:key="item"
-							class="flex flex-col items-center p-4 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+							class="flex flex-col items-center p-4 rounded-2xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
 						>
 							<div
 								class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 mb-2"
@@ -223,7 +224,7 @@
 			transform-origin="center"
 			:segmented="{ content: true, footer: true }"
 			:bordered="false"
-			style="max-width: 420px; width: 95%; border-radius: 20px"
+			style="max-width: 420px; width: 95%; border-radius: 24px"
 		>
 			<div class="flex flex-col gap-5">
 				<n-input-group>
@@ -231,8 +232,14 @@
 						placeholder="输入 UID / 账号"
 						size="large"
 						:style="{ flex: 1 }"
+						class="rounded-l-xl"
 					/>
-					<n-button type="primary" size="large" ghost>
+					<n-button
+						type="primary"
+						size="large"
+						ghost
+						class="rounded-r-xl"
+					>
 						查找
 					</n-button>
 				</n-input-group>
@@ -269,8 +276,7 @@
 							type="textarea"
 							placeholder="我是..."
 							:autosize="{ minRows: 2, maxRows: 2 }"
-							class="bg-white border-none shadow-sm"
-							style="border-radius: 10px"
+							class="bg-white border-none shadow-sm rounded-xl"
 						/>
 					</div>
 				</div>
@@ -281,15 +287,11 @@
 						secondary
 						size="large"
 						@click="showAddFriendModal = false"
-						style="border-radius: 12px"
+						class="rounded-xl"
 					>
 						取消
 					</n-button>
-					<n-button
-						type="primary"
-						size="large"
-						style="border-radius: 12px"
-					>
+					<n-button type="primary" size="large" class="rounded-xl">
 						发送申请
 					</n-button>
 				</div>
@@ -516,7 +518,7 @@ function go(item: MenuItem): void {
 	width: 100%;
 	height: 32px;
 	padding: 0 12px;
-	border-radius: 8px;
+	border-radius: 12px;
 	border: 1px solid rgba(156, 163, 175, 0.2);
 }
 

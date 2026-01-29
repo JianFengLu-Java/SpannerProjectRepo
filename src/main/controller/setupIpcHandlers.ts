@@ -64,7 +64,7 @@ export function setupIpcHandlers(): void {
 	})
 
 	//打开图片预览【测试】
-	ipcMain.on('view-img', (e, imgUrl) => {
+	ipcMain.on('view-img', (_, imgUrl) => {
 		viewIMGWindow(imgUrl)
 	})
 
@@ -162,4 +162,12 @@ export function setupIpcHandlers(): void {
 			}
 		},
 	)
+
+	// 设置窗口置顶
+	ipcMain.on('set-window-pin', (event, isPinned: boolean) => {
+		const win = BrowserWindow.fromWebContents(event.sender)
+		if (win) {
+			win.setAlwaysOnTop(isPinned)
+		}
+	})
 }

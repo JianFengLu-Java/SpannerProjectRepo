@@ -5,6 +5,7 @@ declare global {
 		electron: ElectronAPI
 		api: {
 			hello: () => void
+			setWindowPin: (isPinned: boolean) => void
 			platform: string
 		}
 	}
