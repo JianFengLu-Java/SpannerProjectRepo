@@ -6,13 +6,21 @@ import { BubbleMenu } from '@tiptap/vue-3/menus'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import { ImageOutline, At, HappyOutline } from '@vicons/ionicons5'
-import { useMessage, NPopover } from 'naive-ui'
+import { useMessage, NPopover, NIcon } from 'naive-ui'
 import { useChatStore } from '@renderer/stores/chat'
 import StarterKit from '@tiptap/starter-kit'
-import { FontDecrease20Regular } from '@vicons/fluent'
+import {
+	FontDecrease24Regular,
+	TextBold24Filled,
+	TextItalic24Filled,
+	TextUnderline24Filled,
+	TextStrikethrough24Filled,
+	Code24Filled,
+	Link24Filled,
+	TextClearFormatting24Filled,
+} from '@vicons/fluent'
 import type { Editor } from '@tiptap/core'
-import EmojiPicker from 'vue3-emoji-picker'
-import 'vue3-emoji-picker/css'
+import EmojiPicker from '@renderer/components/EmojiPicker.vue'
 
 // 接收 currentId 确保闭环
 const props = defineProps<{
@@ -45,17 +53,9 @@ const normalizedId = computed(() => {
 	return props.currentId
 })
 
-// 修复后的 bubbleMenuTippyOptions
-// 修复后的 bubbleMenuTippyOptions
 const bubbleMenuTippyOptions = computed(() => {
-	// 获取边界元素的函数
 	const getBoundary = (): HTMLElement | null => {
-		// 如果已经通过ref获取到，直接使用
-		if (boundaryElement.value) {
-			return boundaryElement.value
-		}
-
-		// 否则尝试从DOM中查找
+		if (boundaryElement.value) return boundaryElement.value
 		if (typeof document !== 'undefined') {
 			const element = document.querySelector(
 				'.chat-context-root',
@@ -65,160 +65,44 @@ const bubbleMenuTippyOptions = computed(() => {
 				return element
 			}
 		}
-
 		return null
 	}
 
 	const boundary = getBoundary()
 
-	// 基础配置
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const options: any = {
+	return {
 		appendTo: () => boundary || document.body,
 		placement: 'top',
 		interactive: true,
-	}
-
-	// 如果有边界元素，添加popper选项
-	if (boundary) {
-		options.popperOptions = {
-			strategy: 'absolute',
+		animation: 'shift-away',
+		duration: [200, 150],
+		popperOptions: {
+			strategy: 'fixed',
 			modifiers: [
 				{
 					name: 'offset',
 					options: {
-						// 关键修改：[水平偏移, 垂直偏移]
-						// 第一个值控制水平位置，第二个值控制垂直距离
-						offset: ({ reference, popper }) => {
-							// 计算水平偏移，让菜单居中显示
-							const referenceWidth = reference.width
-							const popperWidth = popper.width
-							const horizontalOffset =
-								(referenceWidth - popperWidth) / 2
-
-							// 确保偏移量不会太大
-							const safeHorizontalOffset = Math.max(
-								-20,
-								Math.min(20, horizontalOffset),
-							)
-
-							// 返回偏移量：[水平偏移, 垂直偏移]
-							// 负值向上偏移，正值向下偏移
-							return [safeHorizontalOffset, -8] // 向上偏移8px
-						},
+						offset: [0, 10],
 					},
 				},
 				{
 					name: 'preventOverflow',
 					options: {
-						boundary: boundary,
-						padding: {
-							top: 10, // 顶部padding
-							bottom: 10, // 底部padding
-							left: 10, // 左侧padding
-							right: 10, // 右侧padding
-						},
-						// tether: true, // 改为true，让菜单更智能地跟随选区
-						tetherOffset: 8, // 系留偏移量
-						rootBoundary: 'document',
-						altBoundary: false,
+						boundary: boundary || 'viewport',
+						padding: 12,
 					},
 				},
 				{
 					name: 'flip',
 					options: {
-						boundary: boundary,
-						fallbackPlacements: [
-							'bottom',
-							'top-start',
-							'bottom-start',
-							'top-end',
-							'bottom-end',
-						],
-						padding: 10,
-						flipVariations: true, // 启用变体翻转
-						allowedAutoPlacements: ['top', 'bottom'], // 只允许上下翻转
-					},
-				},
-				{
-					name: 'arrow',
-					enabled: false, // 禁用箭头
-				},
-			],
-		}
-	} else {
-		// 如果没有找到边界元素，使用viewport作为边界
-		options.popperOptions = {
-			strategy: 'absolute',
-			modifiers: [
-				{
-					name: 'offset',
-					options: {
-						offset: [0, -8], // 向上偏移8px
-					},
-				},
-				{
-					name: 'preventOverflow',
-					options: {
-						boundary: 'viewport',
-						padding: 10,
-						tether: true,
-						tetherOffset: 8,
-						rootBoundary: 'viewport',
-					},
-				},
-				{
-					name: 'flip',
-					options: {
-						fallbackPlacements: [
-							'bottom',
-							'top-start',
-							'bottom-start',
-							'top-end',
-							'bottom-end',
-						],
-						padding: 10,
+						boundary: boundary || 'viewport',
+						padding: 12,
+						fallbackPlacements: ['bottom', 'top'],
 					},
 				},
 			],
-		}
+		},
 	}
-
-	// 添加自定义的show和hide事件处理
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	options.onShow = (instance: any): void => {
-		// 显示时添加微小的动画延迟
-		setTimeout(() => {
-			if (instance.popper) {
-				instance.popper.style.transition =
-					'opacity 0.15s ease, transform 0.15s ease'
-			}
-		}, 0)
-	}
-
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	options.onMount = (instance: any): void => {
-		// 确保菜单不会太靠近边缘
-		nextTick(() => {
-			if (instance.popper) {
-				const rect = instance.popper.getBoundingClientRect()
-				const viewportWidth = window.innerWidth
-
-				// 检查是否太靠近左侧
-				if (rect.left < 10) {
-					instance.popper.style.left = '10px'
-				}
-
-				// 检查是否太靠近右侧
-				if (rect.right > viewportWidth - 10) {
-					instance.popper.style.right = '10px'
-					instance.popper.style.left = 'auto'
-				}
-			}
-		})
-	}
-
-	return options
 })
 // 同步草稿函数
 const syncDraft = (): void => {
@@ -416,13 +300,35 @@ const shouldShowBubbleMenu = ({ editor }: { editor: Editor }): boolean => {
 	return true
 }
 
-// Emoji Handler
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const onSelectEmoji = (emoji: any): void => {
+const onSelectEmoji = (emoji: { i: string }): void => {
 	if (editor.value) {
 		editor.value.chain().focus().insertContent(emoji.i).run()
 	}
 	showEmoji.value = false
+}
+
+// 处理自定义表情/贴纸选择
+const onSelectCustomEmoji = (item: {
+	url: string
+	name: string
+	type: string
+}): void => {
+	if (!editor.value) return
+
+	if (item.type === 'sticker') {
+		// 贴纸直接作为大图插入并发送 (或者你可以选择只插入到编辑器)
+		insertImageSrc(item.url)
+	} else {
+		// 普通自定义表情图插入到编辑器
+		editor.value.chain().focus().setImage({ src: item.url }).run()
+	}
+	showEmoji.value = false
+}
+
+const insertImageSrc = (src: string): void => {
+	if (!editor.value) return
+	editor.value.chain().focus().setImage({ src }).insertContent(' ').run()
+	scrollToBottom()
 }
 
 // 业务逻辑函数
@@ -573,46 +479,48 @@ onUnmounted(() => {
 						:tippy-options="bubbleMenuTippyOptions"
 					>
 						<div
-							class="flex items-center bg-page-bg shadow-lg border border-border-main rounded-lg p-1 gap-1 backdrop-blur-sm"
+							class="flex items-center bg-white/80 backdrop-blur-md shadow-xl border border-gray-200/80 rounded-xl p-1.5 gap-1 animate-bubble-in"
 						>
 							<button
 								type="button"
-								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-150 text-gray-700 hover:bg-sidebar-select-bg font-bold"
+								title="加粗 (Ctrl+B)"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
 								:class="{
-									'text-blue-600 bg-sidebar-select-bg/50':
+									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('bold'),
 								}"
-								title="加粗 (Ctrl+B)"
 								@click="
 									editor.chain().focus().toggleBold().run()
 								"
 							>
-								B
+								<n-icon size="18"><TextBold24Filled /></n-icon>
 							</button>
 
 							<button
 								type="button"
-								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-150 text-gray-700 hover:bg-sidebar-select-bg italic font-serif"
+								title="斜体 (Ctrl+I)"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
 								:class="{
-									'text-blue-600 bg-sidebar-select-bg/50':
+									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('italic'),
 								}"
-								title="斜体 (Ctrl+I)"
 								@click="
 									editor.chain().focus().toggleItalic().run()
 								"
 							>
-								I
+								<n-icon size="18"
+									><TextItalic24Filled
+								/></n-icon>
 							</button>
 
 							<button
 								type="button"
-								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-150 text-gray-700 hover:bg-sidebar-select-bg underline"
+								title="下划线 (Ctrl+U)"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
 								:class="{
-									'text-blue-600 bg-sidebar-select-bg/50':
+									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('underline'),
 								}"
-								title="下划线 (Ctrl+U)"
 								@click="
 									editor
 										.chain()
@@ -621,63 +529,71 @@ onUnmounted(() => {
 										.run()
 								"
 							>
-								U
+								<n-icon size="18"
+									><TextUnderline24Filled
+								/></n-icon>
 							</button>
 
 							<button
 								type="button"
-								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-150 text-gray-700 hover:bg-sidebar-select-bg line-through"
+								title="删除线"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
 								:class="{
-									'text-blue-600 bg-sidebar-select-bg/50':
+									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('strike'),
 								}"
-								title="删除线"
 								@click="
 									editor.chain().focus().toggleStrike().run()
 								"
 							>
-								S
+								<n-icon size="18"
+									><TextStrikethrough24Filled
+								/></n-icon>
 							</button>
 
-							<div class="w-[1px] h-4 bg-border-main mx-1"></div>
+							<div
+								class="w-[1.5px] h-4 bg-gray-200/60 mx-1"
+							></div>
 
 							<button
 								type="button"
-								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-150 text-gray-700 hover:bg-sidebar-select-bg font-mono text-xs"
+								title="代码"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
 								:class="{
-									'text-blue-600 bg-sidebar-select-bg/50':
+									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('code'),
 								}"
-								title="代码"
 								@click="
 									editor.chain().focus().toggleCode().run()
 								"
 							>
-								&lt;/&gt;
+								<n-icon size="18"><Code24Filled /></n-icon>
 							</button>
 
 							<button
 								type="button"
-								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-150 text-gray-700 hover:bg-sidebar-select-bg"
+								title="链接 (Ctrl+K)"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
 								:class="{
-									'text-blue-600 bg-sidebar-select-bg/50':
+									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('link'),
 								}"
-								title="链接 (Ctrl+K)"
 								@click="setLink"
 							>
-								🔗
+								<n-icon size="18"><Link24Filled /></n-icon>
 							</button>
 
 							<button
 								type="button"
-								class="flex items-center justify-center w-8 h-8 rounded transition-all duration-150 text-gray-700 hover:bg-sidebar-select-bg"
 								title="清除格式"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-500 active:scale-95"
 								@click="
 									editor.chain().focus().unsetAllMarks().run()
 								"
 							>
-								✕
+								<n-icon size="18"
+									><TextClearFormatting24Filled
+								/></n-icon>
 							</button>
 						</div>
 					</BubbleMenu>
@@ -704,9 +620,9 @@ onUnmounted(() => {
 						class="rounded-xl flex bg-gray-100/30 gap-1 p-1 items-center"
 					>
 						<div
+							title="插入图片"
 							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
 							@click="fileInput?.click()"
-							title="插入图片"
 						>
 							<n-icon size="20"><ImageOutline /></n-icon>
 							<input
@@ -738,13 +654,13 @@ onUnmounted(() => {
 								style="padding: 0"
 							>
 								<template #trigger>
-									<n-icon size="20" title="表情"
+									<n-icon title="表情" size="20"
 										><HappyOutline
 									/></n-icon>
 								</template>
 								<EmojiPicker
-									:native="true"
 									@select="onSelectEmoji"
+									@select-custom="onSelectCustomEmoji"
 								/>
 							</n-popover>
 						</div>
@@ -752,7 +668,7 @@ onUnmounted(() => {
 							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
 							title="字体大小"
 						>
-							<n-icon size="20"><FontDecrease20Regular /></n-icon>
+							<n-icon size="20"><FontDecrease24Regular /></n-icon>
 						</div>
 
 						<n-button
