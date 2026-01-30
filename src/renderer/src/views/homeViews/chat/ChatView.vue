@@ -233,13 +233,14 @@
 			<!-- 窄屏返回按钮 -->
 			<div
 				v-if="containerWidth < 600 && activeChatId"
-				class="absolute top-4 left-4 z-50 no-drag"
+				class="z-50 pl-2 pb-1 pt-1 border-b border-border-default/50 backdrop-blur-md"
 			>
 				<button
-					class="w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md rounded-full shadow-md text-gray-600 active:scale-90 transition-all border border-gray-100"
+					class="w-fit h-8 flex no-drag px-2 gap-1 items-center justify-center bg-white/80 backdrop-blur-md rounded-xl text-gray-600 active:scale-90 transition-all border border-gray-100"
 					@click="activeChatId = null"
 				>
 					<n-icon size="20"><ChevronLeft24Regular /></n-icon>
+					<span>返回聊天列表</span>
 				</button>
 			</div>
 			<ChatContext />
