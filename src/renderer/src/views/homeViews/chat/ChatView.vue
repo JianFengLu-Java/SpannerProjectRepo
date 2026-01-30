@@ -14,9 +14,12 @@
 
 		<!-- 会话列表容器 -->
 		<div
-			v-if="containerWidth >= 600"
-			class="h-full flex flex-col bg-page-bg border-r border-border-default/50 shrink-0 overflow-hidden relative transition-all duration-300 ease-in-out"
-			:style="{ width: `${listWidth}px` }"
+			v-if="containerWidth >= 600 || !activeChatId"
+			class="h-full flex flex-col bg-page-bg border-r border-border-default/50 shrink-0 overflow-hidden relative"
+			:class="[containerWidth < 600 ? 'w-full border-r-0!' : '']"
+			:style="{
+				width: containerWidth >= 600 ? `${listWidth}px` : '100%',
+			}"
 		>
 			<!-- 顶部标题与搜索 (参考 FriendList 风格) -->
 			<div class="p-4 pb-2">
@@ -29,7 +32,7 @@
 							placement="bottom-start"
 						>
 							<div
-								class="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+								class="w-7 h-7 flex items-center no-drag justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
 							>
 								<n-icon size="18" class="text-gray-500">
 									<Filter24Regular />
@@ -39,7 +42,7 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+									class="w-7 h-7 flex items-center no-drag justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
 									@click="handleNewChat"
 								>
 									<n-icon size="20" class="text-gray-500">
@@ -141,7 +144,7 @@
 					<template #default="{ item: chat }">
 						<div
 							:key="chat.id"
-							class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-2xl cursor-copy transition-all duration-200 group relative"
+							class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-2xl transition-all duration-200 group relative"
 							:class="[
 								activeChatId === chat.id
 									? 'bg-primary/10'
@@ -224,8 +227,21 @@
 
 		<!-- 主聊天区域 -->
 		<div
-			class="flex-1 overflow-hidden flex flex-col min-w-[400px] shrink-0 bg-white"
+			v-if="containerWidth >= 600 || activeChatId"
+			class="flex-1 overflow-hidden flex flex-col min-w-[320px] shrink-0 bg-white relative"
 		>
+			<!-- 窄屏返回按钮 -->
+			<div
+				v-if="containerWidth < 600 && activeChatId"
+				class="absolute top-4 left-4 z-50 no-drag"
+			>
+				<button
+					class="w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md rounded-full shadow-md text-gray-600 active:scale-90 transition-all border border-gray-100"
+					@click="activeChatId = null"
+				>
+					<n-icon size="20"><ChevronLeft24Regular /></n-icon>
+				</button>
+			</div>
 			<ChatContext />
 		</div>
 	</div>
@@ -254,6 +270,7 @@ import {
 	Delete16Filled,
 	WindowNew20Filled,
 	Pin12Filled,
+	ChevronLeft24Regular,
 } from '@vicons/fluent'
 import {
 	NDropdown,
@@ -272,7 +289,11 @@ import { useElementSize } from '@vueuse/core'
 
 const containerRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(containerRef)
-const listWidth = ref(280) // 默认宽度稍微增加，显得更大气
+
+// 从 localStorage 恢复宽度，如果没有则使用默认值
+const STORAGE_KEY = 'chat-list-width'
+const savedWidth = localStorage.getItem(STORAGE_KEY)
+const listWidth = ref(savedWidth ? parseInt(savedWidth) : 280)
 
 const searchQuery = ref('')
 const message = useMessage()
@@ -291,9 +312,16 @@ const RIGHT_PANEL_MIN_WIDTH = 450
 const SESSION_LIST_MIN_WIDTH = 220
 
 const filteredChatList = computed(() => {
-	if (!searchQuery.value) return chatlist.value
+	// 基础列表：置顶项排在最前，其余按 store 中的顺序（最近更新的在最前）
+	const list = [...chatlist.value].sort((a, b) => {
+		if (a.isPinned && !b.isPinned) return -1
+		if (!a.isPinned && b.isPinned) return 1
+		return 0 // 维持原有的（store 更新后的）先后顺序
+	})
+
+	if (!searchQuery.value) return list
 	const query = searchQuery.value.toLowerCase()
-	return chatlist.value.filter(
+	return list.filter(
 		(c) =>
 			c.name.toLowerCase().includes(query) ||
 			c.lastMessage.toLowerCase().includes(query),
@@ -301,16 +329,16 @@ const filteredChatList = computed(() => {
 })
 
 // 监听布局变化，防止右侧被挤压
-watch(
-	[containerWidth, sidebarWidthState, isSidebarExpanded],
-	([contWidth]) => {
-		const availableForList = contWidth - RIGHT_PANEL_MIN_WIDTH - 1
-		if (listWidth.value > availableForList) {
-			listWidth.value = Math.max(SESSION_LIST_MIN_WIDTH, availableForList)
-		}
-	},
-	{ immediate: true },
-)
+watch([containerWidth, sidebarWidthState, isSidebarExpanded], ([contWidth]) => {
+	// 只在容器宽度有效时才进行调整（避免初始化时的 0 值）
+	if (contWidth < 100) return
+
+	const availableForList = contWidth - RIGHT_PANEL_MIN_WIDTH - 1
+	// 只在列表宽度超出可用空间时才调整，否则保持用户设置的宽度
+	if (listWidth.value > availableForList) {
+		listWidth.value = Math.max(SESSION_LIST_MIN_WIDTH, availableForList)
+	}
+})
 
 const filterOptions = [
 	{ label: '全部消息', key: 'all' },
@@ -359,6 +387,8 @@ const startDrag = (e: MouseEvent): void => {
 	const stopDrag = (): void => {
 		isDragging = false
 		if (animationFrameId) cancelAnimationFrame(animationFrameId)
+		// 保存宽度到 localStorage
+		localStorage.setItem(STORAGE_KEY, listWidth.value.toString())
 		document.body.style.cursor = ''
 		document.body.style.userSelect = ''
 		document.removeEventListener('mousemove', onMove)

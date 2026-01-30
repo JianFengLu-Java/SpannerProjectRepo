@@ -5,9 +5,12 @@
 	>
 		<!-- 左侧：分组联系人列表 (依赖容器宽度实现响应式) -->
 		<div
-			v-if="containerWidth >= 500"
+			v-if="containerWidth >= 500 || !friendStore.selectedFriendId"
 			class="h-full flex flex-col border-r border-border-default shrink-0 overflow-hidden"
-			:style="{ width: `${listWidth}px` }"
+			:class="[containerWidth < 500 ? 'w-full border-r-0!' : '']"
+			:style="{
+				width: containerWidth >= 500 ? `${listWidth}px` : '100%',
+			}"
 		>
 			<!-- 顶部标题与功能 -->
 			<div class="p-4 pb-2">
@@ -17,7 +20,7 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
 									@click="showAddFriendModal = true"
 								>
 									<n-icon size="20" class="text-gray-500">
@@ -30,7 +33,7 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
 									@click="showAddGroupModal = true"
 								>
 									<n-icon size="20" class="text-gray-500">
@@ -144,8 +147,21 @@
 
 		<!-- 右侧：详情展示区 -->
 		<div
+			v-if="containerWidth >= 500 || friendStore.selectedFriendId"
 			class="flex-1 overflow-hidden relative flex flex-col bg-gray-50/30"
 		>
+			<!-- 窄屏返回按钮 -->
+			<div
+				v-if="containerWidth < 500 && friendStore.selectedFriendId"
+				class="absolute top-4 left-4 z-50"
+			>
+				<button
+					class="w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md rounded-full shadow-md text-gray-600 active:scale-90 transition-all"
+					@click="friendStore.selectedFriendId = null"
+				>
+					<n-icon size="20"><ChevronLeft24Regular /></n-icon>
+				</button>
+			</div>
 			<Transition name="fade-scale" mode="out-in">
 				<div
 					v-if="friendStore.selectedFriend"
@@ -255,7 +271,7 @@
 							</p>
 						</div>
 						<!-- 操作栏 -->
-						<div class="flex gap-3 w-full mb-10">
+						<div class="flex gap-3 w-full">
 							<n-button
 								type="primary"
 								class="flex-1 rounded-2xl h-12 text-base font-semibold"
@@ -281,7 +297,29 @@
 								</n-button>
 							</n-dropdown>
 						</div>
-
+						<!-- 标签页 -->
+						<div
+							v-if="
+								friendStore.selectedFriend.tags &&
+								friendStore.selectedFriend.tags.length
+							"
+							class="bg-white/60 backdrop-blur-sm p-5 rounded-3xl border border-white/50"
+						>
+							<span
+								class="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-3"
+								>个人标签</span
+							>
+							<div class="flex flex-wrap gap-2">
+								<span
+									v-for="tag in friendStore.selectedFriend
+										.tags"
+									:key="tag"
+									class="px-3 py-1 bg-black/5 text-gray-600 text-[11px] font-medium rounded-full"
+								>
+									# {{ tag }}
+								</span>
+							</div>
+						</div>
 						<!-- 个人空间入口 (QQ 样式) -->
 						<div
 							class="mb-10 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 transition-all cursor-pointer group"
@@ -427,30 +465,6 @@
 								</div>
 							</div>
 						</div>
-
-						<!-- 标签页 -->
-						<div
-							v-if="
-								friendStore.selectedFriend.tags &&
-								friendStore.selectedFriend.tags.length
-							"
-							class="bg-white/60 backdrop-blur-sm p-5 rounded-3xl border border-white/50 mb-12"
-						>
-							<span
-								class="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-3"
-								>个人标签</span
-							>
-							<div class="flex flex-wrap gap-2">
-								<span
-									v-for="tag in friendStore.selectedFriend
-										.tags"
-									:key="tag"
-									class="px-3 py-1 bg-black/5 text-gray-600 text-[11px] font-medium rounded-full"
-								>
-									# {{ tag }}
-								</span>
-							</div>
-						</div>
 					</div>
 				</div>
 
@@ -516,11 +530,13 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, h } from 'vue'
+import { useRouter } from 'vue-router'
 import {
 	Search24Regular,
 	PersonAdd24Regular,
 	FolderAdd24Regular,
 	ChevronRight12Filled,
+	ChevronLeft24Regular,
 	Chat24Regular,
 	MoreHorizontal24Regular,
 	PeopleCommunity24Regular,
@@ -542,10 +558,13 @@ import {
 	useMessage,
 } from 'naive-ui'
 import { useFriendStore, Friend, Group } from '@renderer/stores/friend'
+import { useChatStore } from '@renderer/stores/chat'
 import { useElementSize } from '@vueuse/core'
 
 const friendStore = useFriendStore()
+const chatStore = useChatStore()
 const message = useMessage()
+const router = useRouter()
 
 const containerRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(containerRef)
@@ -590,12 +609,10 @@ const selectFriend = (id: string): void => {
 	friendStore.selectedFriendId = id
 }
 
-const startChat = (friend: Friend): void => {
-	window.electron.ipcRenderer.send(
-		'open-chat-window',
-		parseInt(friend.id),
-		friend.name,
-	)
+const startChat = async (friend: Friend): Promise<void> => {
+	const chatId = await chatStore.getOrCreateChat(friend)
+	await chatStore.setActiveChat(chatId)
+	router.push({ name: 'chat' })
 }
 
 // 分组右键菜单

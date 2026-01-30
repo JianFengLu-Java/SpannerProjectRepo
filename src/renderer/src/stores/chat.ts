@@ -246,14 +246,30 @@ export const useChatStore = defineStore('chat', () => {
 
 	// --- 核心操作逻辑 (本地 + 数据库) ---
 	const updateLastMessageLocal = (id: number, message: string): void => {
-		const chat = chatlist.value.find((c) => c.id === id)
-		if (chat) {
+		const index = chatlist.value.findIndex((c) => c.id === id)
+		if (index !== -1) {
+			const chat = chatlist.value[index]
 			const time = new Date().toLocaleTimeString([], {
 				hour: '2-digit',
 				minute: '2-digit',
 			})
 			chat.lastMessage = message
 			chat.timestamp = time
+
+			// 移动到顶部 (所有聊天列表)
+			chatlist.value.splice(index, 1)
+			chatlist.value.unshift(chat)
+
+			// 如果是置顶会话，也要更新 pinnedChats 的顺序 (横向置顶区域)
+			if (chat.isPinned) {
+				const pIndex = pinnedChats.value.findIndex((c) => c.id === id)
+				if (pIndex !== -1) {
+					const pChat = pinnedChats.value[pIndex]
+					pinnedChats.value.splice(pIndex, 1)
+					pinnedChats.value.unshift(pChat)
+				}
+			}
+
 			db.updateLastMessage(id, message, time)
 		}
 	}
@@ -374,6 +390,35 @@ export const useChatStore = defineStore('chat', () => {
 		syncAction('markAsRead', { chatId: id })
 	}
 
+	const getOrCreateChat = async (friend: {
+		id: string
+		name: string
+		avatar: string
+	}): Promise<number> => {
+		const id = parseInt(friend.id)
+		const existing = chatlist.value.find((c) => c.id === id)
+		if (existing) {
+			return id
+		}
+		// 创建新会话
+		const newChat: ChatItem = {
+			id,
+			name: friend.name,
+			avatar: friend.avatar,
+			lastMessage: '',
+			timestamp: new Date().toLocaleTimeString([], {
+				hour: '2-digit',
+				minute: '2-digit',
+			}),
+			online: true,
+			unreadCount: 0,
+			isPinned: false,
+		}
+		chatlist.value.unshift(newChat)
+		db.saveChat(newChat)
+		return id
+	}
+
 	return {
 		activeChatId,
 		activeChat,
@@ -391,6 +436,7 @@ export const useChatStore = defineStore('chat', () => {
 		markAsRead,
 		requestFullState,
 		init,
+		getOrCreateChat,
 	}
 })
 

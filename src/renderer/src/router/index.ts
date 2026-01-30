@@ -48,6 +48,12 @@ const routes = [
 					import('../views/homeViews/friend/FriendList.vue'),
 			},
 			{
+				path: 'moments', // 对应 /home/moments
+				name: 'moments',
+				component: () =>
+					import('../views/homeViews/moments/DynamicsView.vue'),
+			},
+			{
 				path: 'setting', // 对应 /home/setting
 				name: 'setting',
 				component: () =>

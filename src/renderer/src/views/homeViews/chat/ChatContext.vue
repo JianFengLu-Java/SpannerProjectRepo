@@ -60,9 +60,39 @@
 	</div>
 	<div
 		v-if="!currentChat"
-		class="h-full w-full flex justify-center items-center bg-page-bg rounded-xl"
+		class="h-full w-full flex flex-col justify-center items-center bg-linear-to-br from-gray-50 to-white rounded-xl p-8"
 	>
-		点击开始聊天
+		<div class="flex flex-col items-center gap-4 max-w-md text-center">
+			<!-- 图标 -->
+			<div
+				class="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mb-2"
+			>
+				<n-icon size="48" class="text-primary">
+					<Chat24Regular />
+				</n-icon>
+			</div>
+
+			<!-- 标题 -->
+			<h3 class="text-2xl font-black text-gray-800">开始对话</h3>
+
+			<!-- 描述 -->
+			<p class="text-sm text-gray-500 leading-relaxed">
+				从左侧选择一个联系人开始聊天<br />
+				或点击右上角创建新的对话
+			</p>
+
+			<!-- 装饰性提示 -->
+			<div
+				class="flex items-center gap-2 mt-4 px-4 py-2 bg-primary/5 rounded-full"
+			>
+				<n-icon size="16" class="text-primary/60">
+					<ArrowLeft24Regular />
+				</n-icon>
+				<span class="text-xs font-medium text-primary/80"
+					>选择一个聊天</span
+				>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -77,10 +107,12 @@ import {
 	PersonAddSharp,
 	Search,
 } from '@vicons/ionicons5'
+import { Chat24Regular, ArrowLeft24Regular } from '@vicons/fluent'
 import { storeToRefs } from 'pinia'
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, ref } from 'vue'
 import type { Component } from 'vue'
 import ChatContainer from './ChatContainer.vue'
+import { NIcon } from 'naive-ui'
 
 const chatStore = useChatStore()
 

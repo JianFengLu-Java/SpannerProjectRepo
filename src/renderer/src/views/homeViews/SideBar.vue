@@ -6,7 +6,7 @@
 		<div
 			class="h-full fixed top-0 drag -z-10"
 			:style="{ width: isExpanded ? width + 'px' : '76px' }"
-			@mousedown="handleDragMouseDown"
+			@mousedown="closeAllDropdowns"
 		></div>
 
 		<div
@@ -16,16 +16,19 @@
 			<div class="flex items-center w-full relative h-12">
 				<div class="flex items-center shrink-0 pl-[21px]">
 					<n-dropdown
-						trigger="click"
+						trigger="manual"
 						placement="right-start"
 						style="border: 1px solid #ccc; border-radius: 12px"
 						:options="userMenuOptions"
+						:show="showUserDropdown"
+						@clickoutside="showUserDropdown = false"
 					>
 						<n-avatar
 							round
 							:size="34"
 							:src="user.avatarUrl"
 							class="cursor-pointer shrink-0 avatar-layer"
+							@click="toggleUserDropdown"
 						/>
 					</n-dropdown>
 				</div>
@@ -50,7 +53,7 @@
 				<Transition name="fade-scale">
 					<div v-if="isExpanded" class="shrink-0 pr-4">
 						<n-dropdown
-							trigger="click"
+							trigger="manual"
 							placement="right-start"
 							style="
 								width: 140px;
@@ -58,10 +61,13 @@
 								border-radius: 12px;
 							"
 							:options="addMenuOptions"
+							:show="showAddDropdown"
+							@clickoutside="showAddDropdown = false"
 						>
 							<n-icon
 								size="20"
 								class="text-gray-400 cursor-pointer hover:text-gray-600 transition-colors"
+								@click="toggleAddDropdown"
 							>
 								<Add16Filled />
 							</n-icon>
@@ -101,7 +107,7 @@
 			class="no-drag w-full px-4 flex justify-center transition-all"
 		>
 			<n-dropdown
-				trigger="click"
+				trigger="manual"
 				placement="right-start"
 				style="
 					width: 140px;
@@ -109,9 +115,12 @@
 					border-radius: 12px;
 				"
 				:options="addMenuOptions"
+				:show="showAddDropdown"
+				@clickoutside="showAddDropdown = false"
 			>
 				<div
 					class="w-9 h-9 bg-card-bg rounded-full flex items-center justify-center hover:bg-sidebar-unselect-item/30 cursor-pointer transition-all"
+					@click="toggleAddDropdown"
 				>
 					<n-icon size="20">
 						<Add />
@@ -286,8 +295,8 @@
 						strong
 						secondary
 						size="large"
-						@click="showAddFriendModal = false"
 						class="rounded-xl"
+						@click="showAddFriendModal = false"
 					>
 						取消
 					</n-button>
@@ -312,7 +321,7 @@ import {
 	NButton,
 	NBadge,
 } from 'naive-ui'
-import { ref, onMounted, h } from 'vue'
+import { ref, onMounted, onUnmounted, h } from 'vue'
 import type { Component } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
@@ -321,6 +330,7 @@ import {
 	Settings,
 	SearchOutline as Search,
 	Add,
+	ApertureOutline,
 } from '@vicons/ionicons5'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { Add16Filled } from '@vicons/fluent'
@@ -333,7 +343,39 @@ const router = useRouter()
 const route = useRoute()
 const showSearchModal = ref(false)
 const showAddFriendModal = ref(false)
+const showUserDropdown = ref(false)
+const showAddDropdown = ref(false)
 const platfrom = window.api.platform
+
+// Dropdown 控制函数
+const toggleUserDropdown = (): void => {
+	showUserDropdown.value = !showUserDropdown.value
+	if (showUserDropdown.value) {
+		showAddDropdown.value = false
+	}
+}
+
+const toggleAddDropdown = (): void => {
+	showAddDropdown.value = !showAddDropdown.value
+	if (showAddDropdown.value) {
+		showUserDropdown.value = false
+	}
+}
+
+const closeAllDropdowns = (): void => {
+	showUserDropdown.value = false
+	showAddDropdown.value = false
+}
+
+// 全局监听器：点击侧边栏外部时关闭 dropdown
+const handleGlobalClick = (e: MouseEvent): void => {
+	const target = e.target as HTMLElement
+	// 检查点击是否在侧边栏内
+	const sidebar = document.querySelector('.main-sidebar')
+	if (sidebar && !sidebar.contains(target)) {
+		closeAllDropdowns()
+	}
+}
 
 interface MenuItem {
 	key: string
@@ -430,11 +472,8 @@ const userMenuOptions = [
 const iconMap: Record<string, Component> = {
 	chat: Chatbubbles,
 	user: Person,
+	moments: ApertureOutline,
 	setting: Settings,
-}
-
-const handleDragMouseDown = () => {
-	document.body.click() // 解决 Dropdown 在拖拽区不消失的问题
 }
 
 const menus = ref<MenuItem[]>([])
@@ -448,8 +487,17 @@ onMounted(() => {
 			hasMessage: true,
 		},
 		{ key: 'user', name: 'user', icon: 'user', label: '通讯录' },
+		{ key: 'moments', name: 'moments', icon: 'moments', label: '动态' },
 		{ key: 'setting', name: 'setting', icon: 'setting', label: '设置' },
 	]
+
+	// 添加全局点击监听器
+	document.addEventListener('mousedown', handleGlobalClick)
+})
+
+onUnmounted(() => {
+	// 移除全局监听器
+	document.removeEventListener('mousedown', handleGlobalClick)
 })
 
 function go(item: MenuItem): void {
