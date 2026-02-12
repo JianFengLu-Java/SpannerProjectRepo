@@ -1,131 +1,125 @@
 <template>
 	<div
-		class="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#f0f9ff] to-[#e0f2fe]"
+		class="flex h-full w-full flex-col bg-gradient-to-br from-grad-start to-grad-end relative"
 	>
 		<div
-			class="w-[380px] bg-white rounded-[32px] overflow-hidden border border-slate-100"
+			class="relative w-full flex justify-center flex-col items-center h-48 select-none"
 		>
-			<div
-				class="relative w-full flex justify-center flex-col items-center h-48 bg-gradient-to-br from-emerald-400 to-teal-500 select-none"
+			<p class="text-text-main/60 font-bold text-5xl z-10 tracking-tight">
+				LinkR
+			</p>
+			<p
+				class="text-text-main/30 font-medium text-sm z-10 tracking-[0.2em] mt-2 opacity-90"
 			>
-				<p class="text-white font-bold text-5xl z-10 tracking-tight">
-					LinkR
-				</p>
-				<p
-					class="text-white/90 font-medium text-sm z-10 tracking-[0.2em] mt-2 opacity-90"
-				>
-					连接思维 · 提高效率
-				</p>
-				<!-- 装饰性圆圈，增加年轻感 -->
-				<div
-					class="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white/10 rounded-full blur-2xl"
-				></div>
-				<div
-					class="absolute bottom-[-10%] left-[-10%] w-24 h-24 bg-white/10 rounded-full blur-xl"
-				></div>
-			</div>
-			<!-- Logo -->
+				连接思维 · 提高效率
+			</p>
+		</div>
+		<!-- Logo -->
 
-			<!-- Tabs -->
-			<div class="p-8 gap-2 bg-page-bg">
-				<n-tabs
-					type="segment"
-					size="medium"
-					animated
-					v-model:value="loginType"
-				>
-					<!-- 账号登录 -->
-					<n-tab-pane name="account" tab="账号登录">
-						<div class="form px-2 pt-3">
-							<n-input
-								v-model:value="userName"
-								placeholder="用户名"
-								size="large"
-								clearable
-								@keyup.enter="handleLogin"
-							/>
-							<n-input
-								v-model:value="password"
-								type="password"
-								placeholder="密码"
-								size="large"
-								clearable
-								@keyup.enter="handleLogin"
-							/>
-						</div>
+		<!-- Tabs -->
+		<div
+			class="px-12 gap-2 pt-10 rounded-t-4xl bg-page-bg flex flex-col flex-1"
+		>
+			<n-tabs
+				type="segment"
+				size="medium"
+				animated
+				v-model:value="loginType"
+			>
+				<!-- 账号登录 -->
+				<n-tab-pane name="account" tab="账号登录">
+					<div class="form px-2 pt-3">
+						<n-input
+							v-model:value="userName"
+							placeholder="用户名"
+							size="large"
+							clearable
+							@keyup.enter="handleLogin"
+						/>
+						<n-input
+							v-model:value="password"
+							type="password"
+							placeholder="密码"
+							size="large"
+							clearable
+							@keyup.enter="handleLogin"
+						/>
+					</div>
 
-						<div class="actions px-2 pt-2">
-							<n-button
-								type="primary"
-								size="large"
-								block
-								:loading="isLoading"
-								@click="handleLogin"
-								class="mt-2 font-bold"
-							>
-								登录
-							</n-button>
-
-							<n-button
-								size="large"
-								block
-								quaternary
-								@click="handleRegister"
-							>
-								创建新账号
-							</n-button>
-						</div>
-					</n-tab-pane>
-
-					<!-- 扫码登录 -->
-					<n-tab-pane name="qr" tab="扫码登录">
-						<div
-							class="flex w-full h-full justify-center items-center flex-col gap-2 pt-2"
+					<div class="actions px-2 pt-2">
+						<n-button
+							type="primary"
+							size="large"
+							block
+							:loading="isLoading"
+							@click="handleLogin"
+							class="mt-2 font-bold"
 						>
-							<div
-								class="rounded-md overflow-hidden flex justify-center items-center flex-col border border-gray-200"
-							>
-								<div class="p-2 pb-0">
-									<n-qr-code
-										:value="qrValue"
-										:size="141"
-										class="p-0!"
-									/>
-								</div>
-								<div
-									class="border-b w-full border-gray-200"
-								></div>
-								<div
-									class="w-full h-6 flex justify-center items-center bg-[#444]"
-								>
-									<p class="text-xs font-bold text-white">
-										请使用手机 App 扫码登录
-									</p>
-								</div>
-							</div>
+							登录
+						</n-button>
 
-							<n-button
-								text
-								type="primary"
-								size="tiny"
-								@click="refreshQr"
+						<n-button
+							size="large"
+							block
+							quaternary
+							@click="handleRegister"
+						>
+							创建新账号
+						</n-button>
+					</div>
+				</n-tab-pane>
+
+				<!-- 扫码登录 -->
+				<n-tab-pane name="qr" tab="扫码登录">
+					<div
+						class="flex w-full h-full justify-center items-center flex-col gap-2 pt-2"
+					>
+						<div
+							class="rounded-md overflow-hidden flex justify-center items-center flex-col border border-gray-200"
+						>
+							<div class="p-2 pb-0">
+								<n-qr-code
+									:value="qrValue"
+									:size="141"
+									class="p-0!"
+								/>
+							</div>
+							<div class="border-b w-full border-gray-200"></div>
+							<div
+								class="w-full h-6 flex justify-center items-center bg-[#444]"
 							>
-								刷新二维码
-								<template #icon>
-									<n-icon>
-										<refresh-sharp />
-									</n-icon>
-								</template>
-							</n-button>
+								<p class="text-xs font-bold text-white">
+									请使用手机 App 扫码登录
+								</p>
+							</div>
 						</div>
-					</n-tab-pane>
-				</n-tabs>
-				<!-- 底部 -->
-				<div class="footer mt-2">
-					<n-checkbox size="large">记住我</n-checkbox>
-					<a class="forgot text-[15px]">忘记密码？</a>
-				</div>
+
+						<n-button
+							text
+							type="primary"
+							size="tiny"
+							@click="refreshQr"
+						>
+							刷新二维码
+							<template #icon>
+								<n-icon>
+									<refresh-sharp />
+								</n-icon>
+							</template>
+						</n-button>
+					</div>
+				</n-tab-pane>
+			</n-tabs>
+			<!-- 底部 -->
+			<div class="footer mt-2">
+				<n-checkbox size="large">记住我</n-checkbox>
+				<a class="forgot text-[15px]">忘记密码？</a>
 			</div>
+		</div>
+		<div class="absolute bottom-0 w-full pb-2">
+			<p class="text-text-main/40 text-center text-sm mb-4 select-none">
+				© 2024 LinkR. All rights reserved.
+			</p>
 		</div>
 	</div>
 </template>
@@ -140,16 +134,12 @@ import {
 	NQrCode,
 	useMessage,
 } from 'naive-ui'
-import { h, ref, nextTick, VNode, watch, onUnmounted } from 'vue'
-import {
-	LogIn as OkIcon,
-	Sparkles as RegisterIcon,
-	RefreshSharp,
-	RefreshCircleSharp,
-} from '@vicons/ionicons5'
+import { ref, nextTick, watch, onUnmounted } from 'vue'
+import { RefreshSharp } from '@vicons/ionicons5'
 import { useTitleStore } from '@renderer/stores/title'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import request from '@renderer/utils/request'
+import { tokenManager } from '@renderer/services/tokenManager'
 import axios from 'axios'
 
 const titleStore = useTitleStore()
@@ -169,6 +159,10 @@ const isLoading = ref(false)
 /* 二维码 */
 const qrValue = ref('')
 let pollTimer: number | null = null
+const QR_API = {
+	CREATE: `${import.meta.env.VITE_API_URL}/login/qr/create`,
+	STATUS: `${import.meta.env.VITE_API_URL}/login/qr/status`,
+}
 
 function handleLogin(): void {
 	if (!userName.value || !password.value) {
@@ -189,6 +183,12 @@ function handleLogin(): void {
 					response.data.data,
 					response.data.token,
 				)
+				tokenManager.setTokenBundle({
+					token: response.data.token,
+					refreshToken: response.data.refreshToken,
+					accessTokenExpiresIn:
+						response.data.accessTokenExpiresIn,
+				})
 				await nextTick()
 				window.electron.ipcRenderer.send('login-success-open-home')
 			} else {
@@ -208,7 +208,7 @@ function generateQr() {
 	const uuid = crypto.randomUUID()
 	qrValue.value = `spanner-login:${uuid}`
 
-	axios.post('http://localhost:8080/login/qr/create', {
+	axios.post(QR_API.CREATE, {
 		uuid,
 	})
 
@@ -219,7 +219,7 @@ function startPolling(uuid: string) {
 	stopPolling()
 	pollTimer = window.setInterval(async () => {
 		const { data } = await axios.get(
-			`http://localhost:8080/login/qr/status/${uuid}`,
+			`${QR_API.STATUS}/${uuid}`,
 		)
 
 		if (data.status === 'confirmed') {
@@ -256,13 +256,6 @@ function handleRegister(): void {
 	window.electron.ipcRenderer.send('open-register-window')
 }
 
-function okIcon(): VNode {
-	return h(OkIcon)
-}
-
-function registerIcon(): VNode {
-	return h(RegisterIcon)
-}
 </script>
 
 <style scoped>

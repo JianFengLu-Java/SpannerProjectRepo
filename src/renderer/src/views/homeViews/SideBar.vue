@@ -21,6 +21,7 @@
 						style="border: 1px solid #ccc; border-radius: 12px"
 						:options="userMenuOptions"
 						:show="showUserDropdown"
+						@select="handleUserMenuSelect"
 						@clickoutside="showUserDropdown = false"
 					>
 						<n-avatar
@@ -28,7 +29,7 @@
 							:size="34"
 							:src="user.avatarUrl"
 							class="cursor-pointer shrink-0 avatar-layer"
-							@click="toggleUserDropdown"
+							@click.stop="toggleUserDropdown"
 						/>
 					</n-dropdown>
 				</div>
@@ -146,7 +147,7 @@
 				]"
 				@click="go(item)"
 			>
-				<n-badge :dot="item.hasMessage">
+				<n-badge :dot="item.hasMessage" class="sidebar-menu-dot">
 					<div class="flex justify-center items-center">
 						<n-icon
 							size="18"
@@ -226,86 +227,10 @@
 			</div>
 		</n-modal>
 
-		<n-modal
+		<FriendApplyModal
 			v-model:show="showAddFriendModal"
-			preset="card"
-			title="添加好友"
-			transform-origin="center"
-			:segmented="{ content: true, footer: true }"
-			:bordered="false"
-			style="max-width: 420px; width: 95%; border-radius: 24px"
-		>
-			<div class="flex flex-col gap-5">
-				<n-input-group>
-					<n-input
-						placeholder="输入 UID / 账号"
-						size="large"
-						:style="{ flex: 1 }"
-						class="rounded-l-xl"
-					/>
-					<n-button
-						type="primary"
-						size="large"
-						ghost
-						class="rounded-r-xl"
-					>
-						查找
-					</n-button>
-				</n-input-group>
-
-				<div
-					class="bg-gray-50/80 p-5 rounded-2xl border border-dashed border-gray-200 overflow-hidden"
-				>
-					<div class="flex items-center gap-4">
-						<n-avatar
-							round
-							:size="56"
-							src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
-							class="flex-shrink-0 border-2 border-white shadow-sm"
-						/>
-						<div class="min-w-0 flex-1">
-							<h3
-								class="text-base font-bold m-0 truncate text-gray-800"
-							>
-								欲盖弥彰
-							</h3>
-							<p class="text-[11px] text-gray-400 m-0">
-								UID: 1000293
-							</p>
-						</div>
-					</div>
-
-					<div class="mt-4">
-						<p
-							class="text-[11px] font-medium text-gray-500 mb-1.5 ml-1 uppercase tracking-wider"
-						>
-							验证信息
-						</p>
-						<n-input
-							type="textarea"
-							placeholder="我是..."
-							:autosize="{ minRows: 2, maxRows: 2 }"
-							class="bg-white border-none shadow-sm rounded-xl"
-						/>
-					</div>
-				</div>
-
-				<div class="grid grid-cols-2 gap-3 mt-1">
-					<n-button
-						strong
-						secondary
-						size="large"
-						class="rounded-xl"
-						@click="showAddFriendModal = false"
-					>
-						取消
-					</n-button>
-					<n-button type="primary" size="large" class="rounded-xl">
-						发送申请
-					</n-button>
-				</div>
-			</div>
-		</n-modal>
+			@applied="handleFriendApplied"
+		/>
 	</div>
 </template>
 
@@ -316,12 +241,10 @@ import {
 	NTag,
 	NDropdown,
 	NModal,
-	NInputGroup,
 	NInput,
-	NButton,
 	NBadge,
 } from 'naive-ui'
-import { ref, onMounted, onUnmounted, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import type { Component } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
@@ -334,13 +257,19 @@ import {
 } from '@vicons/ionicons5'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { Add16Filled } from '@vicons/fluent'
+import FriendApplyModal from '@renderer/components/FriendApplyModal.vue'
+import { useFriendStore } from '@renderer/stores/friend'
+import { useChatStore } from '@renderer/stores/chat'
+import { storeToRefs } from 'pinia'
 
 defineProps<{ isExpanded: boolean; width: number }>()
-const emit = defineEmits(['toggle'])
 
 const user = useUserInfoStore()
+const friendStore = useFriendStore()
+const chatStore = useChatStore()
 const router = useRouter()
 const route = useRoute()
+const { chatlist } = storeToRefs(chatStore)
 const showSearchModal = ref(false)
 const showAddFriendModal = ref(false)
 const showUserDropdown = ref(false)
@@ -367,9 +296,21 @@ const closeAllDropdowns = (): void => {
 	showAddDropdown.value = false
 }
 
+const handleFriendApplied = async (): Promise<void> => {
+	await Promise.all([
+		friendStore.fetchFriends(),
+		friendStore.fetchPendingRequests(),
+	])
+}
+
 // 全局监听器：点击侧边栏外部时关闭 dropdown
 const handleGlobalClick = (e: MouseEvent): void => {
 	const target = e.target as HTMLElement
+	// Naive UI 的 dropdown 菜单渲染在 body 下，不属于 sidebar DOM，
+	// 点击菜单项时不应触发“外部点击关闭”。
+	if (target.closest('.n-dropdown-menu')) {
+		return
+	}
 	// 检查点击是否在侧边栏内
 	const sidebar = document.querySelector('.main-sidebar')
 	if (sidebar && !sidebar.contains(target)) {
@@ -384,6 +325,10 @@ interface MenuItem {
 	label?: string
 	hasMessage?: boolean
 }
+
+const hasUnreadChatMessage = computed(() =>
+	chatlist.value.some((chat) => (chat.unreadCount || 0) > 0),
+)
 
 const addMenuOptions = [
 	{
@@ -461,13 +406,16 @@ const userMenuOptions = [
 	{
 		label: '退出登录',
 		key: 'logout',
-		props: {
-			onClick: () => {
-				window.electron.ipcRenderer.send('logout-open-loginWindow')
-			},
-		},
 	},
 ]
+
+const handleUserMenuSelect = (key: string): void => {
+	if (key !== 'logout') return
+	showUserDropdown.value = false
+	user.logout()
+	window.localStorage.removeItem('userInfo')
+	window.electron.ipcRenderer.send('logout-open-loginWindow')
+}
 
 const iconMap: Record<string, Component> = {
 	chat: Chatbubbles,
@@ -476,20 +424,27 @@ const iconMap: Record<string, Component> = {
 	setting: Settings,
 }
 
-const menus = ref<MenuItem[]>([])
+const menus = computed<MenuItem[]>(() => [
+	{
+		key: 'home',
+		name: 'chat',
+		icon: 'chat',
+		label: '消息',
+		hasMessage: hasUnreadChatMessage.value,
+	},
+	{
+		key: 'user',
+		name: 'user',
+		icon: 'user',
+		label: '通讯录',
+		hasMessage: friendStore.pendingRequests.length > 0,
+	},
+	{ key: 'moments', name: 'moments', icon: 'moments', label: '动态' },
+	{ key: 'setting', name: 'setting', icon: 'setting', label: '设置' },
+])
+
 onMounted(() => {
-	menus.value = [
-		{
-			key: 'home',
-			name: 'chat',
-			icon: 'chat',
-			label: '消息',
-			hasMessage: true,
-		},
-		{ key: 'user', name: 'user', icon: 'user', label: '通讯录' },
-		{ key: 'moments', name: 'moments', icon: 'moments', label: '动态' },
-		{ key: 'setting', name: 'setting', icon: 'setting', label: '设置' },
-	]
+	void friendStore.fetchPendingRequests()
 
 	// 添加全局点击监听器
 	document.addEventListener('mousedown', handleGlobalClick)
@@ -590,5 +545,9 @@ function go(item: MenuItem): void {
 .fade-enter-from,
 .fade-leave-to {
 	opacity: 0;
+}
+
+:deep(.sidebar-menu-dot .n-badge-sup) {
+	background-color: #ef4444;
 }
 </style>

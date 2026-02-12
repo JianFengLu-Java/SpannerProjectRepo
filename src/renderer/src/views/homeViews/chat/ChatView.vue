@@ -98,7 +98,7 @@
 					>
 						<n-badge
 							:value="chat.unreadCount"
-							color="#10b981"
+							color="#ef4444"
 							:offset="[-2, 2]"
 							size="small"
 						>
@@ -137,6 +137,7 @@
 				</div>
 
 				<n-virtual-list
+					ref="chatListVirtualListRef"
 					:items="filteredChatList"
 					:item-size="68"
 					class="h-full px-2 pb-4"
@@ -157,7 +158,7 @@
 							<div class="relative shrink-0">
 								<n-badge
 									:value="chat.unreadCount"
-									color="#10b981"
+									color="#ef4444"
 									:offset="[-2, 2]"
 									size="small"
 								>
@@ -288,6 +289,10 @@ import ChatContext from './ChatContext.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useElementSize } from '@vueuse/core'
 
+interface VirtualListInst {
+	$el?: HTMLElement
+}
+
 const containerRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(containerRef)
 
@@ -298,6 +303,7 @@ const listWidth = ref(savedWidth ? parseInt(savedWidth) : 280)
 
 const searchQuery = ref('')
 const message = useMessage()
+const chatListVirtualListRef = ref<VirtualListInst | null>(null)
 
 const sidebarWidthState = inject<Ref<number>>('sideBarWidth', ref(200))
 const isSidebarExpanded = inject<Ref<boolean>>('isExpanded', ref(true))
@@ -351,10 +357,26 @@ const handleNewChat = (): void => {
 	message.info('功能开发中...')
 }
 
-const selectChat = (chat: ChatItem): void => {
-	activeChatId.value = chat.id
-	chatStore.setActiveChat(chat.id)
+const getChatListViewport = (): HTMLElement | null => {
+	const virtualListRoot = chatListVirtualListRef.value?.$el
+	return virtualListRoot?.querySelector('.n-virtual-list-viewport') || null
+}
+
+const selectChat = async (chat: ChatItem): Promise<void> => {
+	if (activeChatId.value === chat.id) {
+		chatStore.markAsRead(chat.id)
+		return
+	}
+	const viewport = getChatListViewport()
+	const savedTop = viewport?.scrollTop ?? 0
+	await chatStore.setActiveChat(chat.id)
 	chatStore.markAsRead(chat.id)
+	nextTick(() => {
+		const nextViewport = getChatListViewport()
+		if (nextViewport) {
+			nextViewport.scrollTop = savedTop
+		}
+	})
 }
 
 // 拖拽逻辑

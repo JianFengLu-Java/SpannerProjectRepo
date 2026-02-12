@@ -22,7 +22,7 @@
 		>
 			<router-view v-slot="{ Component, route }">
 				<keep-alive>
-					<div class="h-full w-full rounded-[24px] overflow-hidden">
+					<div class="h-full w-full rounded-[14px] overflow-hidden">
 						<component :is="Component" :key="route.name" />
 					</div>
 				</keep-alive>
@@ -32,8 +32,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, provide } from 'vue'
+import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
 import SideBar from './SideBar.vue'
+import { useUserInfoStore } from '@renderer/stores/userInfo'
 
 const isExpanded = ref(true)
 const sideBarWidth = ref(200)
@@ -41,9 +42,59 @@ const isDragging = ref(false)
 const willCollapse = ref(false)
 const windowWidth = ref(window.innerWidth)
 const isWin = window.api.platform === 'win32'
+const userInfoStore = useUserInfoStore()
 
 // 用于拖拽预览的临时宽度
 const visualWidth = ref('200px')
+
+const getLayoutStorageKey = (account: string): string =>
+	`sidebar-layout:${account || 'anonymous'}`
+
+const persistLayout = (account: string): void => {
+	const key = getLayoutStorageKey(account)
+	window.localStorage.setItem(
+		key,
+		JSON.stringify({
+			width: sideBarWidth.value,
+			expanded: isExpanded.value,
+		}),
+	)
+}
+
+const loadLayout = (account: string): void => {
+	const key = getLayoutStorageKey(account)
+	const raw = window.localStorage.getItem(key)
+	if (!raw) {
+		sideBarWidth.value = 200
+		isExpanded.value = true
+		visualWidth.value = isExpanded.value
+			? `${sideBarWidth.value}px`
+			: '76px'
+		return
+	}
+
+	try {
+		const parsed = JSON.parse(raw) as {
+			width?: number
+			expanded?: boolean
+		}
+		const width = Number(parsed.width)
+		sideBarWidth.value =
+			Number.isFinite(width) && width > 0
+				? Math.min(280, Math.max(160, width))
+				: 200
+		isExpanded.value = parsed.expanded !== false
+		visualWidth.value = isExpanded.value
+			? `${sideBarWidth.value}px`
+			: '76px'
+	} catch {
+		sideBarWidth.value = 200
+		isExpanded.value = true
+		visualWidth.value = isExpanded.value
+			? `${sideBarWidth.value}px`
+			: '76px'
+	}
+}
 
 // 提供布局相关状态给子组件
 provide('windowWidth', windowWidth)
@@ -122,6 +173,19 @@ onMounted(() => {
 
 onUnmounted(() => {
 	window.removeEventListener('resize', handleResize)
+})
+
+watch(
+	() => userInfoStore.account || '',
+	(account) => {
+		loadLayout(account)
+	},
+	{ immediate: true },
+)
+
+watch([sideBarWidth, isExpanded], () => {
+	const account = userInfoStore.account || ''
+	persistLayout(account)
 })
 </script>
 

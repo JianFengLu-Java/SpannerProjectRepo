@@ -1,7 +1,7 @@
 <template>
 	<div
 		ref="containerRef"
-		class="h-full w-full flex overflow-hidden rounded-[24px] bg-page-bg transition-all duration-300"
+		class="h-full w-full flex overflow-hidden bg-page-bg transition-all duration-300"
 	>
 		<!-- 左侧：分组联系人列表 (依赖容器宽度实现响应式) -->
 		<div
@@ -17,6 +17,26 @@
 				<div class="flex items-center justify-between mb-3">
 					<h2 class="text-lg font-bold text-text-main">联系人</h2>
 					<div class="flex items-center gap-1">
+						<n-tooltip trigger="hover">
+							<template #trigger>
+								<div
+									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+									@click="openPendingRequestsModal"
+								>
+									<n-badge
+										:dot="
+											friendStore.pendingRequests.length >
+											0
+										"
+									>
+										<n-icon size="20" class="text-gray-500">
+											<Mail24Regular />
+										</n-icon>
+									</n-badge>
+								</div>
+							</template>
+							好友申请
+						</n-tooltip>
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
@@ -63,7 +83,24 @@
 
 			<!-- 联系人列表内容 -->
 			<div class="flex-1 overflow-y-auto custom-scrollbar p-2 pt-0">
-				<div v-for="group in sortedGroups" :key="group.id" class="mb-1">
+				<div
+					v-if="friendStore.isLoading"
+					class="h-full flex items-center justify-center text-sm text-gray-400"
+				>
+					加载好友列表中...
+				</div>
+				<div
+					v-else-if="!friendStore.friends.length"
+					class="h-full flex items-center justify-center text-sm text-gray-400"
+				>
+					暂无好友，点击右上角添加
+				</div>
+				<div
+					v-for="group in sortedGroups"
+					v-else
+					:key="group.id"
+					class="mb-1"
+				>
 					<!-- 分组头部 -->
 					<div
 						class="group-header flex items-center gap-1 h-9 px-2 rounded-xl cursor-pointer hover:bg-black/5 transition-colors select-none"
@@ -153,10 +190,10 @@
 			<!-- 窄屏返回按钮 -->
 			<div
 				v-if="containerWidth < 500 && friendStore.selectedFriendId"
-				class="absolute top-4 left-4 z-50"
+				class="absolute top-3 left-3 z-50"
 			>
 				<button
-					class="w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md rounded-full shadow-md text-gray-600 active:scale-90 transition-all"
+					class="w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md rounded-full text-gray-600 active:scale-90 transition-all"
 					@click="friendStore.selectedFriendId = null"
 				>
 					<n-icon size="20"><ChevronLeft24Regular /></n-icon>
@@ -166,304 +203,277 @@
 				<div
 					v-if="friendStore.selectedFriend"
 					:key="friendStore.selectedFriend.id"
-					class="h-full flex flex-col overflow-y-auto custom-scrollbar"
+					class="h-full overflow-y-auto custom-scrollbar"
 				>
-					<!-- 联系人背景 Cover -->
-					<div class="relative w-full h-48 shrink-0 overflow-hidden">
-						<img
-							:src="
-								friendStore.selectedFriend.cover ||
-								'https://api.dicebear.com/7.x/shapes/svg?seed=' +
-									friendStore.selectedFriend.id
-							"
-							class="w-full h-full object-cover"
-						/>
-						<div
-							class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"
-						></div>
-					</div>
-
-					<!-- 详情内容头部 (QQ 样式：头像与信息左右布局) -->
 					<div
-						class="w-full max-w-2xl px-8 flex items-end gap-6 mt-2 relative z-10 mx-auto"
+						class="relative isolate px-3 pb-5 pt-4 sm:px-4 lg:px-5"
 					>
-						<!-- 头像 -->
-						<div class="relative group shrink-0">
-							<n-avatar
-								round
-								:size="60"
-								:src="friendStore.selectedFriend.avatar"
-								class="border-[4px] border-white bg-white"
-							/>
-							<div
-								class="absolute bottom-1 right-1 w-5 h-5 rounded-full border-[3px] border-white"
-								:class="[
-									friendStore.selectedFriend.status ===
-									'online'
-										? 'bg-green-500'
-										: 'bg-gray-400',
-								]"
-							></div>
-						</div>
-
-						<!-- 基本信息 -->
-						<div class="flex-1 pb-2">
-							<div class="flex items-center gap-2 mb-1">
-								<h3
-									class="text-2xl font-bold text-text-main truncate max-w-[300px]"
-								>
-									{{ friendStore.selectedFriend.name }}
-								</h3>
-								<n-icon
-									v-if="
-										friendStore.selectedFriend.gender ===
-										'male'
-									"
-									size="18"
-									color="#0ea5e9"
-								>
-									<Male />
-								</n-icon>
-								<n-icon
-									v-else-if="
-										friendStore.selectedFriend.gender ===
-										'female'
-									"
-									size="18"
-									color="#f472b6"
-								>
-									<Female />
-								</n-icon>
-							</div>
-							<div
-								class="flex items-center gap-3 text-sm text-gray-500"
-							>
-								<span class="flex items-center gap-1">
-									<span
-										class="opacity-60 text-[10px] font-bold"
-										>UID:</span
-									>
-									<span class="font-mono">{{
-										friendStore.selectedFriend.uid
-									}}</span>
-								</span>
-								<span
-									class="w-1 h-1 bg-gray-300 rounded-full"
-								></span>
-								<span>{{
-									friendStore.selectedFriend.region ||
-									'未知地区'
-								}}</span>
-							</div>
-						</div>
-					</div>
-
-					<div class="px-8 w-full max-w-2xl mx-auto flex-1 pb-12">
-						<!-- 个性签名 (放在头部下方) -->
-						<div class="mb-6 px-1">
-							<p
-								class="text-sm text-gray-500 line-clamp-2 italic"
-							>
-								"{{
-									friendStore.selectedFriend.signature ||
-									'这个人太神秘了，还没有个性签名。'
-								}}"
-							</p>
-						</div>
-						<!-- 操作栏 -->
-						<div class="flex gap-3 w-full">
-							<n-button
-								type="primary"
-								class="flex-1 rounded-2xl h-12 text-base font-semibold"
-								@click="startChat(friendStore.selectedFriend!)"
-							>
-								<template #icon>
-									<n-icon><Chat24Regular /></n-icon>
-								</template>
-								发消息
-							</n-button>
-							<n-dropdown
-								placement="bottom-end"
-								:options="friendActionOptions"
-								@select="handleFriendAction"
-							>
-								<n-button
-									secondary
-									class="rounded-2xl h-12 w-12 px-0"
-								>
-									<n-icon size="20"
-										><MoreHorizontal24Regular
-									/></n-icon>
-								</n-button>
-							</n-dropdown>
-						</div>
-						<!-- 标签页 -->
 						<div
-							v-if="
-								friendStore.selectedFriend.tags &&
-								friendStore.selectedFriend.tags.length
-							"
-							class="bg-white/60 backdrop-blur-sm p-5 rounded-3xl border border-white/50"
-						>
-							<span
-								class="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-3"
-								>个人标签</span
-							>
-							<div class="flex flex-wrap gap-2">
-								<span
-									v-for="tag in friendStore.selectedFriend
-										.tags"
-									:key="tag"
-									class="px-3 py-1 bg-black/5 text-gray-600 text-[11px] font-medium rounded-full"
-								>
-									# {{ tag }}
-								</span>
-							</div>
-						</div>
-						<!-- 个人空间入口 (QQ 样式) -->
+							class="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-emerald-100/45 via-cyan-50/30 to-transparent dark:from-emerald-900/25 dark:via-cyan-900/20"
+						></div>
 						<div
-							class="mb-10 flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 transition-all cursor-pointer group"
-							@click="message.info('正在进入个人空间...')"
+							class="relative mx-auto w-full max-w-5xl space-y-3"
 						>
-							<div class="flex items-center gap-3">
-								<div
-									class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-blue-500 transition-transform"
-								>
-									<n-icon size="24"
-										><ApertureOutline
-									/></n-icon>
-								</div>
-								<div>
-									<h4 class="text-sm font-bold text-blue-900">
-										个人空间
-									</h4>
-									<p class="text-[11px] text-blue-600/70">
-										查看相册、日志与动态
-									</p>
-								</div>
-							</div>
-							<n-icon
-								class="text-blue-300 group-hover:translate-x-1 transition-transform"
-							>
-								<ChevronRight12Filled />
-							</n-icon>
-						</div>
-
-						<!-- 属性列表 -->
-						<div class="grid grid-cols-2 gap-4 mb-10">
-							<div
-								class="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-white/50 flex items-center gap-3"
+							<section
+								class="rounded-2xl border border-border-default/70 bg-white/90 p-3.5 backdrop-blur-md dark:bg-zinc-900/80 sm:p-4"
 							>
 								<div
-									class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500"
+									class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
 								>
-									<n-icon size="20"><Mail24Regular /></n-icon>
-								</div>
-								<div class="flex-1 min-w-0">
-									<p
-										class="text-[10px] text-gray-400 font-medium"
+									<div
+										class="flex min-w-0 items-start gap-3 sm:gap-4"
 									>
-										电子邮箱
-									</p>
-									<p
-										class="text-sm text-gray-700 truncate font-medium"
-									>
-										{{
-											friendStore.selectedFriend.email ||
-											'未填'
-										}}
-									</p>
-								</div>
-							</div>
-
-							<div
-								class="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-white/50 flex items-center gap-3"
-							>
-								<div
-									class="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500"
-								>
-									<n-icon size="20"
-										><CalendarLtr24Regular
-									/></n-icon>
-								</div>
-								<div class="flex-1 min-w-0">
-									<p
-										class="text-[10px] text-gray-400 font-medium"
-									>
-										年龄 / 生日
-									</p>
-									<p
-										class="text-sm text-gray-700 truncate font-medium"
-									>
-										{{
-											friendStore.selectedFriend.age
-												? friendStore.selectedFriend
-														.age + ' 岁'
-												: '未知'
-										}}
-									</p>
-								</div>
-							</div>
-
-							<div
-								class="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-white/50 flex items-center gap-3"
-							>
-								<div
-									class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500"
-								>
-									<n-icon size="20"><Edit24Regular /></n-icon>
-								</div>
-								<div class="flex-1 min-w-0">
-									<p
-										class="text-[10px] text-gray-400 font-medium"
-									>
-										备注姓名
-									</p>
-									<p
-										class="text-sm text-gray-700 truncate font-medium"
-									>
-										{{
-											friendStore.selectedFriend.remark ||
-											'无备注'
-										}}
-									</p>
-								</div>
-							</div>
-
-							<div
-								class="bg-white/60 backdrop-blur-sm p-4 rounded-2xl border border-white/50 flex items-center gap-3"
-							>
-								<div
-									class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500"
-								>
-									<n-icon
-										name="Tag24Regular"
-										size="20"
-										class="flex items-center justify-center"
-									>
-										<Tag24Regular />
-									</n-icon>
-								</div>
-								<div class="flex-1 min-w-0">
-									<p
-										class="text-[10px] text-gray-400 font-medium"
-									>
-										所属分组
-									</p>
-									<p
-										class="text-sm text-gray-700 truncate font-medium"
-									>
-										{{
-											friendStore.groups.find(
-												(g) =>
-													g.id ===
+										<div class="relative shrink-0">
+											<n-avatar
+												round
+												:size="
+													containerWidth >= 640
+														? 64
+														: 56
+												"
+												:src="
 													friendStore.selectedFriend
-														?.groupId,
-											)?.name || '未知分组'
-										}}
-									</p>
+														.avatar
+												"
+												class="border-[3px] border-white/85 dark:border-zinc-800"
+											/>
+											<div
+												class="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white dark:border-zinc-800"
+												:class="[
+													friendStore.selectedFriend
+														.status === 'online'
+														? 'bg-emerald-500'
+														: 'bg-gray-400',
+												]"
+											></div>
+										</div>
+										<div class="min-w-0 space-y-2">
+											<div
+												class="flex flex-wrap items-center gap-x-2 gap-y-1"
+											>
+												<h3
+													class="max-w-[340px] truncate text-2xl font-semibold text-text-main"
+												>
+													{{
+														friendStore
+															.selectedFriend.name
+													}}
+												</h3>
+												<n-icon
+													v-if="
+														friendStore
+															.selectedFriend
+															.gender === 'male'
+													"
+													size="18"
+													color="#0ea5e9"
+												>
+													<Male />
+												</n-icon>
+												<n-icon
+													v-else-if="
+														friendStore
+															.selectedFriend
+															.gender === 'female'
+													"
+													size="18"
+													color="#f472b6"
+												>
+													<Female />
+												</n-icon>
+												<span
+													class="rounded-full px-2 py-0.5 text-[11px] font-medium"
+													:class="
+														friendStore
+															.selectedFriend
+															.status === 'online'
+															? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+															: 'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-gray-300'
+													"
+												>
+													{{
+														friendStore
+															.selectedFriend
+															.status === 'online'
+															? '在线'
+															: '离线'
+													}}
+												</span>
+											</div>
+											<p
+												class="line-clamp-2 text-sm leading-relaxed text-gray-500 dark:text-gray-300"
+											>
+												{{
+													friendStore.selectedFriend
+														.signature ||
+													'这个人太神秘了，还没有个性签名。'
+												}}
+											</p>
+											<div
+												class="flex flex-wrap items-center gap-1.5 text-xs text-gray-500"
+											>
+												<span
+													class="rounded-full bg-black/5 px-2 py-0.5 font-mono dark:bg-white/10"
+												>
+													UID:
+													{{
+														friendStore
+															.selectedFriend.uid
+													}}
+												</span>
+												<span
+													class="rounded-full bg-black/5 px-2 py-0.5 dark:bg-white/10"
+												>
+													{{
+														friendStore
+															.selectedFriend
+															.region ||
+														'未知地区'
+													}}
+												</span>
+											</div>
+										</div>
+									</div>
+
+									<div class="flex items-center gap-2">
+										<n-button
+											type="primary"
+											class="h-10 flex-1 rounded-xl px-4 text-sm font-semibold sm:flex-none"
+											@click="
+												startChat(
+													friendStore.selectedFriend!,
+												)
+											"
+										>
+											<template #icon>
+												<n-icon
+													><Chat24Regular
+												/></n-icon>
+											</template>
+											发消息
+										</n-button>
+										<n-dropdown
+											placement="bottom-end"
+											:options="friendActionOptions"
+											@select="handleFriendAction"
+										>
+											<n-button
+												secondary
+												class="h-10 w-10 rounded-xl px-0"
+											>
+												<n-icon size="20">
+													<MoreHorizontal24Regular />
+												</n-icon>
+											</n-button>
+										</n-dropdown>
+									</div>
 								</div>
-							</div>
+							</section>
+
+							<section
+								class="grid grid-cols-1 gap-3 lg:grid-cols-3"
+							>
+								<div
+									class="rounded-2xl border border-border-default/70 bg-card-bg/90 p-4 backdrop-blur-sm lg:col-span-2"
+								>
+									<p
+										class="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400"
+									>
+										资料信息
+									</p>
+									<div
+										class="grid grid-cols-1 gap-2.5 sm:grid-cols-2"
+									>
+										<div
+											v-for="item in selectedFriendInfoItems"
+											:key="item.label"
+											class="flex items-center gap-2.5 rounded-xl border border-border-default/60 bg-page-bg/90 p-2.5"
+										>
+											<div
+												class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+												:class="item.iconBgClass"
+											>
+												<n-icon
+													:class="item.iconTextClass"
+													size="20"
+												>
+													<component
+														:is="item.icon"
+													/>
+												</n-icon>
+											</div>
+											<div class="min-w-0">
+												<p
+													class="text-[11px] text-gray-400"
+												>
+													{{ item.label }}
+												</p>
+												<p
+													class="truncate text-sm font-medium text-text-main"
+												>
+													{{ item.value }}
+												</p>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div class="space-y-4">
+									<div
+										v-if="
+											friendStore.selectedFriend.tags &&
+											friendStore.selectedFriend.tags
+												.length
+										"
+										class="rounded-2xl border border-border-default/70 bg-card-bg/90 p-4 backdrop-blur-sm"
+									>
+										<p
+											class="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400"
+										>
+											个人标签
+										</p>
+										<div class="flex flex-wrap gap-2">
+											<span
+												v-for="tag in friendStore
+													.selectedFriend.tags"
+												:key="tag"
+												class="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300"
+											>
+												# {{ tag }}
+											</span>
+										</div>
+									</div>
+
+									<button
+										class="group w-full rounded-2xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-emerald-50 p-3 text-left transition dark:border-cyan-900/40 dark:from-cyan-900/25 dark:to-emerald-900/25"
+										@click="
+											message.info('正在进入个人空间...')
+										"
+									>
+										<div
+											class="flex items-center justify-between gap-3"
+										>
+											<div>
+												<p
+													class="text-sm font-semibold text-cyan-900 dark:text-cyan-200"
+												>
+													个人空间
+												</p>
+												<p
+													class="mt-1 text-xs text-cyan-700/80 dark:text-cyan-300/80"
+												>
+													查看相册、日志与动态
+												</p>
+											</div>
+											<n-icon
+												class="text-cyan-500 transition-transform group-hover:translate-x-0.5"
+											>
+												<ChevronRight12Filled />
+											</n-icon>
+										</div>
+									</button>
+								</div>
+							</section>
 						</div>
 					</div>
 				</div>
@@ -525,11 +535,239 @@
 				class="rounded-xl"
 			/>
 		</n-modal>
+
+		<n-modal
+			v-model:show="showPendingRequestsModal"
+			preset="card"
+			title="好友申请"
+			:bordered="false"
+			style="width: 520px; border-radius: 16px"
+		>
+			<n-tabs
+				v-model:value="requestModalTab"
+				type="line"
+				animated
+				class="min-h-[360px]"
+			>
+				<n-tab-pane name="pending" tab="待处理">
+					<div
+						v-if="friendStore.isPendingLoading"
+						class="py-8 text-center text-sm text-gray-400"
+					>
+						加载好友申请中...
+					</div>
+					<div
+						v-else-if="!friendStore.pendingRequests.length"
+						class="py-8 text-center text-sm text-gray-400"
+					>
+						暂无待处理申请
+					</div>
+					<div
+						v-else
+						class="max-h-[380px] space-y-2 overflow-y-auto pr-1"
+					>
+						<div
+							v-for="request in friendStore.pendingRequests"
+							:key="request.account"
+							class="rounded-xl border border-border-default/70 bg-card-bg/90 p-3"
+						>
+							<div class="flex items-center gap-3">
+								<n-avatar
+									round
+									:size="36"
+									:src="request.avatarUrl"
+								/>
+								<div class="min-w-0 flex-1">
+									<div
+										class="truncate text-sm font-semibold text-text-main"
+									>
+										{{ request.realName }}
+									</div>
+									<div class="truncate text-xs text-gray-400">
+										账号: {{ request.account }}
+									</div>
+								</div>
+								<n-tag size="small" round :bordered="false">
+									待处理
+								</n-tag>
+							</div>
+							<div
+								class="mt-2 line-clamp-2 text-xs text-gray-500"
+							>
+								{{
+									request.verificationMessage ||
+									'对方未填写验证信息'
+								}}
+							</div>
+							<div class="mt-1 text-[11px] text-gray-400">
+								申请时间:
+								{{ formatDateTime(request.createTime) }}
+							</div>
+							<div class="mt-3 flex justify-end gap-2">
+								<n-button
+									size="small"
+									secondary
+									:loading="
+										actionLoadingAccount ===
+											request.account &&
+										actionType === 'reject'
+									"
+									@click="
+										handlePendingRequestAction(
+											'reject',
+											request,
+										)
+									"
+								>
+									拒绝
+								</n-button>
+								<n-button
+									size="small"
+									type="primary"
+									:loading="
+										actionLoadingAccount ===
+											request.account &&
+										actionType === 'accept'
+									"
+									@click="
+										handlePendingRequestAction(
+											'accept',
+											request,
+										)
+									"
+								>
+									同意
+								</n-button>
+							</div>
+						</div>
+					</div>
+				</n-tab-pane>
+
+				<n-tab-pane name="history" tab="历史记录">
+					<div class="mb-3 flex items-center gap-2">
+						<n-select
+							v-model:value="historyDirectionFilter"
+							:options="historyDirectionOptions"
+							size="small"
+							class="w-28"
+						/>
+						<n-select
+							v-model:value="historyStatusFilter"
+							:options="historyStatusOptions"
+							size="small"
+							class="w-32"
+						/>
+						<n-input
+							v-model:value="historyKeyword"
+							size="small"
+							clearable
+							placeholder="搜索账号/昵称"
+						/>
+						<n-button
+							size="small"
+							type="primary"
+							:loading="friendStore.isRequestHistoryLoading"
+							@click="reloadHistory"
+						>
+							查询
+						</n-button>
+					</div>
+					<div
+						v-if="
+							friendStore.isRequestHistoryLoading &&
+							!requestHistoryRecords.length
+						"
+						class="py-8 text-center text-sm text-gray-400"
+					>
+						加载历史记录中...
+					</div>
+					<div
+						v-else-if="!requestHistoryRecords.length"
+						class="py-8 text-center text-sm text-gray-400"
+					>
+						暂无历史记录
+					</div>
+					<div
+						v-else
+						class="max-h-[380px] space-y-2 overflow-y-auto pr-1"
+					>
+						<div
+							v-for="record in requestHistoryRecords"
+							:key="record.requestId"
+							class="rounded-xl border border-border-default/70 bg-card-bg/90 p-3"
+						>
+							<div class="flex items-center gap-3">
+								<n-avatar
+									round
+									:size="34"
+									:src="record.avatarUrl"
+								/>
+								<div class="min-w-0 flex-1">
+									<div
+										class="truncate text-sm font-semibold text-text-main"
+									>
+										{{ record.realName }}
+									</div>
+									<div class="truncate text-xs text-gray-400">
+										{{
+											requestDirectionText(
+												record.direction,
+											)
+										}}
+										账号: {{ record.account }}
+									</div>
+								</div>
+								<n-tag
+									size="small"
+									round
+									:bordered="false"
+									:type="requestStatusTagType(record.status)"
+								>
+									{{ requestStatusText(record.status) }}
+								</n-tag>
+							</div>
+							<div
+								class="mt-2 line-clamp-2 text-xs text-gray-500"
+							>
+								{{
+									record.verificationMessage ||
+									'对方未填写验证信息'
+								}}
+							</div>
+							<div class="mt-1 text-[11px] text-gray-400">
+								申请时间:
+								{{ formatDateTime(record.createdTime) }}
+							</div>
+							<div class="mt-1 text-[11px] text-gray-400">
+								更新时间:
+								{{ formatDateTime(record.updateTime) }}
+							</div>
+						</div>
+					</div>
+					<div class="mt-3 flex justify-center">
+						<n-button
+							v-if="historyHasMore"
+							size="small"
+							quaternary
+							:loading="friendStore.isRequestHistoryLoading"
+							@click="loadMoreHistory"
+						>
+							加载更多
+						</n-button>
+					</div>
+				</n-tab-pane>
+			</n-tabs>
+		</n-modal>
+
+		<FriendApplyModal
+			v-model:show="showAddFriendModal"
+			@applied="handleFriendApplied"
+		/>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, h } from 'vue'
+import { ref, computed, nextTick, h, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
 	Search24Regular,
@@ -546,7 +784,7 @@ import {
 	Tag24Regular,
 	CalendarLtr24Regular,
 } from '@vicons/fluent'
-import { Male, Female, ApertureOutline } from '@vicons/ionicons5'
+import { Male, Female } from '@vicons/ionicons5'
 import {
 	NIcon,
 	NInput,
@@ -555,11 +793,25 @@ import {
 	NButton,
 	NDropdown,
 	NModal,
+	NBadge,
+	NTag,
+	NTabs,
+	NTabPane,
+	NSelect,
 	useMessage,
 } from 'naive-ui'
-import { useFriendStore, Friend, Group } from '@renderer/stores/friend'
+import {
+	useFriendStore,
+	Friend,
+	Group,
+	PendingFriendRequest,
+	FriendRequestStatus,
+	FriendRequestDirection,
+	FriendRequestHistoryItem,
+} from '@renderer/stores/friend'
 import { useChatStore } from '@renderer/stores/chat'
 import { useElementSize } from '@vueuse/core'
+import FriendApplyModal from '@renderer/components/FriendApplyModal.vue'
 
 const friendStore = useFriendStore()
 const chatStore = useChatStore()
@@ -573,7 +825,61 @@ const listWidth = ref(260)
 const searchQuery = ref('')
 const showAddFriendModal = ref(false)
 const showAddGroupModal = ref(false)
+const showPendingRequestsModal = ref(false)
+const requestModalTab = ref<'pending' | 'history'>('pending')
 const newGroupName = ref('')
+const actionLoadingAccount = ref('')
+const actionType = ref<'accept' | 'reject' | ''>('')
+
+type RequestStatusFilter = FriendRequestStatus | 'ALL'
+type RequestDirectionFilter = FriendRequestDirection | 'ALL'
+
+interface RequestHistoryRecord {
+	requestId: string
+	account: string
+	realName: string
+	avatarUrl: string
+	verificationMessage?: string | null
+	status: FriendRequestStatus
+	direction: FriendRequestDirection
+	createdTime: string
+	updateTime: string
+}
+
+const requestHistoryRecords = ref<RequestHistoryRecord[]>([])
+const historyStatusFilter = ref<RequestStatusFilter>('ALL')
+const historyDirectionFilter = ref<RequestDirectionFilter>('ALL')
+const historyKeyword = ref('')
+const historyDirectionOptions = [
+	{ label: '全部方向', value: 'ALL' },
+	{ label: '我收到的', value: 'INBOUND' },
+	{ label: '我发出的', value: 'OUTBOUND' },
+]
+const historyStatusOptions = [
+	{ label: '全部状态', value: 'ALL' },
+	{ label: '待处理', value: 'PENDING' },
+	{ label: '已同意', value: 'ACCEPTED' },
+	{ label: '已拒绝', value: 'REJECTED' },
+	{ label: '已取消', value: 'CANCELED' },
+	{ label: '已过期', value: 'EXPIRED' },
+]
+
+const loadFriends = async (): Promise<void> => {
+	const [friendsOk, pendingOk] = await Promise.all([
+		friendStore.fetchFriends(),
+		friendStore.fetchPendingRequests(),
+	])
+	if (!friendsOk) {
+		message.error('好友列表加载失败，请稍后重试')
+	}
+	if (!pendingOk) {
+		message.error('好友请求加载失败，请稍后重试')
+	}
+}
+
+onMounted(() => {
+	void loadFriends()
+})
 
 // 分组排序逻辑：默认分组排第一，黑名单排最后
 const sortedGroups = computed(() => {
@@ -592,6 +898,14 @@ const onlineCount = (groupId: string): number => {
 	).length
 }
 
+interface FriendInfoItem {
+	label: string
+	value: string
+	icon: unknown
+	iconBgClass: string
+	iconTextClass: string
+}
+
 const filteredFriendsByGroup = (groupId: string): Friend[] => {
 	const groupFriends = friendStore.groupedFriends[groupId] || []
 	if (!searchQuery.value) return groupFriends
@@ -608,6 +922,198 @@ const filteredFriendsByGroup = (groupId: string): Friend[] => {
 const selectFriend = (id: string): void => {
 	friendStore.selectedFriendId = id
 }
+
+const formatGender = (gender?: Friend['gender']): string => {
+	if (gender === 'male') return '男'
+	if (gender === 'female') return '女'
+	return '未知'
+}
+
+const formatDateTime = (raw?: string): string => {
+	if (!raw) return '未知'
+	const date = new Date(raw)
+	if (Number.isNaN(date.getTime())) return raw
+	return date.toLocaleString()
+}
+
+const formatRelationType = (relationType?: Friend['relationType']): string => {
+	if (relationType === 'ACCEPTED') return '好友'
+	if (relationType === 'PENDING') return '待处理'
+	if (relationType === 'BLOCKED') return '已拉黑'
+	return '无关系'
+}
+
+const requestStatusText = (status: FriendRequestStatus): string => {
+	if (status === 'ACCEPTED') return '已同意'
+	if (status === 'REJECTED') return '已拒绝'
+	if (status === 'CANCELED') return '已取消'
+	if (status === 'EXPIRED') return '已过期'
+	return '待处理'
+}
+
+const requestStatusTagType = (
+	status: FriendRequestStatus,
+): 'default' | 'success' | 'error' | 'warning' => {
+	if (status === 'ACCEPTED') return 'success'
+	if (status === 'REJECTED') return 'error'
+	if (status === 'EXPIRED') return 'warning'
+	return 'default'
+}
+
+const requestDirectionText = (direction: FriendRequestDirection): string => {
+	return direction === 'OUTBOUND' ? '我发出 ·' : '我收到 ·'
+}
+
+const mapHistoryRecord = (
+	item: FriendRequestHistoryItem,
+): RequestHistoryRecord => {
+	const isOutbound = item.direction === 'OUTBOUND'
+	return {
+		requestId: item.requestId,
+		account: isOutbound ? item.targetAccount : item.applicantAccount,
+		realName: isOutbound ? item.targetName : item.applicantName,
+		avatarUrl: isOutbound ? item.targetAvatarUrl : item.applicantAvatarUrl,
+		verificationMessage: item.verificationMessage,
+		status: item.status,
+		direction: item.direction,
+		createdTime: item.createdAt,
+		updateTime: item.updatedAt || item.createdAt,
+	}
+}
+
+const historyHasMore = computed(
+	() => friendStore.requestHistoryPagination.hasMore,
+)
+
+const loadHistory = async (page = 1): Promise<void> => {
+	const ok = await friendStore.fetchRequestHistory({
+		page,
+		size: 20,
+		direction:
+			historyDirectionFilter.value === 'ALL'
+				? undefined
+				: historyDirectionFilter.value,
+		statuses:
+			historyStatusFilter.value === 'ALL'
+				? undefined
+				: [historyStatusFilter.value],
+		keyword: historyKeyword.value || undefined,
+	})
+	if (!ok) {
+		message.error('历史记录加载失败，请稍后重试')
+		return
+	}
+
+	const pageRecords = friendStore.requestHistory.map(mapHistoryRecord)
+	if (page <= 1) {
+		requestHistoryRecords.value = pageRecords
+		return
+	}
+	const merged = new Map<string, RequestHistoryRecord>()
+	requestHistoryRecords.value.forEach((item) =>
+		merged.set(item.requestId, item),
+	)
+	pageRecords.forEach((item) => merged.set(item.requestId, item))
+	requestHistoryRecords.value = Array.from(merged.values()).sort((a, b) => {
+		const timeA = new Date(a.updateTime).getTime()
+		const timeB = new Date(b.updateTime).getTime()
+		return (
+			(Number.isNaN(timeB) ? 0 : timeB) -
+			(Number.isNaN(timeA) ? 0 : timeA)
+		)
+	})
+}
+
+const reloadHistory = async (): Promise<void> => {
+	await loadHistory(1)
+}
+
+const loadMoreHistory = async (): Promise<void> => {
+	const nextPage = friendStore.requestHistoryPagination.page + 1
+	await loadHistory(nextPage)
+}
+
+const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
+	const selectedFriend = friendStore.selectedFriend
+	if (!selectedFriend) return []
+
+	const groupName =
+		friendStore.groups.find((group) => group.id === selectedFriend.groupId)
+			?.name || '未知分组'
+
+	return [
+		{
+			label: '账号',
+			value: selectedFriend.uid || '未填',
+			icon: Tag24Regular,
+			iconBgClass: 'bg-slate-50 dark:bg-slate-900/30',
+			iconTextClass: 'text-slate-500 dark:text-slate-300',
+		},
+		{
+			label: '电子邮箱',
+			value: selectedFriend.email || '未填',
+			icon: Mail24Regular,
+			iconBgClass: 'bg-blue-50 dark:bg-blue-900/30',
+			iconTextClass: 'text-blue-500 dark:text-blue-300',
+		},
+		{
+			label: '手机号',
+			value: selectedFriend.phone || '未填',
+			icon: Chat24Regular,
+			iconBgClass: 'bg-cyan-50 dark:bg-cyan-900/30',
+			iconTextClass: 'text-cyan-500 dark:text-cyan-300',
+		},
+		{
+			label: '性别',
+			value: formatGender(selectedFriend.gender),
+			icon: Edit24Regular,
+			iconBgClass: 'bg-fuchsia-50 dark:bg-fuchsia-900/30',
+			iconTextClass: 'text-fuchsia-500 dark:text-fuchsia-300',
+		},
+		{
+			label: '年龄',
+			value: selectedFriend.age ? `${selectedFriend.age} 岁` : '未知',
+			icon: CalendarLtr24Regular,
+			iconBgClass: 'bg-violet-50 dark:bg-violet-900/30',
+			iconTextClass: 'text-violet-500 dark:text-violet-300',
+		},
+		{
+			label: '备注姓名',
+			value: selectedFriend.remark || '无备注',
+			icon: Edit24Regular,
+			iconBgClass: 'bg-amber-50 dark:bg-amber-900/30',
+			iconTextClass: 'text-amber-500 dark:text-amber-300',
+		},
+		{
+			label: '申请附言',
+			value: selectedFriend.verificationMessage || '无',
+			icon: Mail24Regular,
+			iconBgClass: 'bg-orange-50 dark:bg-orange-900/30',
+			iconTextClass: 'text-orange-500 dark:text-orange-300',
+		},
+		{
+			label: '添加时间',
+			value: formatDateTime(selectedFriend.createTime),
+			icon: CalendarLtr24Regular,
+			iconBgClass: 'bg-indigo-50 dark:bg-indigo-900/30',
+			iconTextClass: 'text-indigo-500 dark:text-indigo-300',
+		},
+		{
+			label: '所属分组',
+			value: groupName,
+			icon: Tag24Regular,
+			iconBgClass: 'bg-emerald-50 dark:bg-emerald-900/30',
+			iconTextClass: 'text-emerald-500 dark:text-emerald-300',
+		},
+		{
+			label: '关系状态',
+			value: formatRelationType(selectedFriend.relationType),
+			icon: PeopleCommunity24Regular,
+			iconBgClass: 'bg-teal-50 dark:bg-teal-900/30',
+			iconTextClass: 'text-teal-500 dark:text-teal-300',
+		},
+	]
+})
 
 const startChat = async (friend: Friend): Promise<void> => {
 	const chatId = await chatStore.getOrCreateChat(friend)
@@ -693,8 +1199,77 @@ const friendActionOptions = computed(() => {
 })
 
 const handleFriendAction = (key: string): void => {
-	message.info(`功能开发中: ${key}`)
+	if (key !== 'delete') {
+		message.info(`功能开发中: ${key}`)
+		return
+	}
+
+	const targetFriend = friendStore.selectedFriend
+	if (!targetFriend) return
+
+	if (!window.confirm(`确认删除好友 ${targetFriend.name} 吗？`)) {
+		return
+	}
+
+	void friendStore
+		.deleteFriend(targetFriend.uid)
+		.then(() => {
+			message.success('好友已删除')
+		})
+		.catch(() => {
+			message.error('删除失败，请稍后再试')
+		})
 }
+
+const handleFriendApplied = async (): Promise<void> => {
+	await Promise.all([friendStore.fetchPendingRequests(), reloadHistory()])
+}
+
+const openPendingRequestsModal = async (): Promise<void> => {
+	showPendingRequestsModal.value = true
+	requestModalTab.value = 'pending'
+	const [pendingOk] = await Promise.all([
+		friendStore.fetchPendingRequests(),
+		loadHistory(1),
+	])
+	const ok = pendingOk
+	if (!ok) {
+		message.error('好友请求加载失败，请稍后重试')
+	}
+}
+
+const handlePendingRequestAction = async (
+	action: 'accept' | 'reject',
+	request: PendingFriendRequest,
+): Promise<void> => {
+	actionLoadingAccount.value = request.account
+	actionType.value = action
+	try {
+		if (action === 'accept') {
+			await friendStore.acceptFriendRequest(request.account)
+			message.success('已同意好友申请')
+			await friendStore.fetchFriends()
+		} else {
+			await friendStore.rejectFriendRequest(request.account)
+			message.success('已拒绝好友申请')
+		}
+		await Promise.all([friendStore.fetchPendingRequests(), reloadHistory()])
+	} catch {
+		message.error('操作失败，请稍后再试')
+	} finally {
+		actionLoadingAccount.value = ''
+		actionType.value = ''
+	}
+}
+
+watch(
+	() => requestModalTab.value,
+	(tab) => {
+		if (tab === 'history') {
+			void reloadHistory()
+		}
+	},
+)
 </script>
 
 <style scoped>

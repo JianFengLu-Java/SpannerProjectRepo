@@ -8,7 +8,7 @@
 			<!-- 顶部导航与分类 -->
 			<div class="p-6 pb-4 shrink-0">
 				<div
-					class="flex justify-between mb-6"
+					class="flex justify-between mb-4"
 					:class="[
 						containerWidth < 650
 							? 'flex-col gap-4 items-start'
@@ -60,13 +60,13 @@
 
 						<n-button
 							type="primary"
-							circle
-							class="h-10 w-10 shadow-lg shadow-primary/20 shrink-0 no-drag"
+							class="h-10 px-4 shadow-lg shadow-primary/20 shrink-0 no-drag rounded-xl font-bold"
 							@click="handlePublish"
 						>
 							<template #icon>
-								<n-icon size="24"><Add24Filled /></n-icon>
+								<n-icon size="20"><Add24Filled /></n-icon>
 							</template>
+							发布
 						</n-button>
 					</div>
 				</div>
@@ -88,12 +88,16 @@
 
 			<!-- 动态内容区 (瀑布流布局) -->
 			<div class="flex-1 overflow-y-auto px-6 pb-8 custom-scrollbar">
-				<div class="gap-4" :style="{ columnCount: columnCount }">
+				<FriendMomentList
+					v-if="momentStore.activeTab === 'friends'"
+					:moments="filteredMoments"
+				/>
+				<div v-else class="grid gap-4" :style="gridStyle">
 					<MomentCard
 						v-for="moment in filteredMoments"
 						:key="moment.id"
 						:moment="moment"
-						class="inline-block w-full"
+						class="w-full"
 						@click="handleMomentClick"
 					/>
 				</div>
@@ -147,6 +151,22 @@
 				</div>
 			</Transition>
 		</div>
+
+		<n-modal
+			v-model:show="showPublishModal"
+			preset="card"
+			style="width: min(860px, calc(100vw - 48px)); height: 80vh"
+			title="发布帖子"
+			:bordered="false"
+			size="huge"
+			segmented
+		>
+			<MomentPublishEditor
+				:submitting="publishing"
+				@cancel="showPublishModal = false"
+				@submit="handleSubmitPublish"
+			/>
+		</n-modal>
 	</div>
 </template>
 
@@ -154,10 +174,12 @@
 import { ref, computed } from 'vue'
 import { Search24Regular, Add24Filled } from '@vicons/fluent'
 import { LeafOutline } from '@vicons/ionicons5'
-import { NIcon, NInput, NButton, NSpin, useMessage } from 'naive-ui'
+import { NIcon, NInput, NButton, NSpin, NModal, useMessage } from 'naive-ui'
 import { useElementSize } from '@vueuse/core'
 import MomentCard from './MomentCard.vue'
 import MomentDetail from './MomentDetail.vue'
+import MomentPublishEditor from './MomentPublishEditor.vue'
+import FriendMomentList from './FriendMomentList.vue'
 import { useMomentStore, Moment } from '@renderer/stores/moment'
 
 const momentStore = useMomentStore()
@@ -167,20 +189,38 @@ const containerRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(containerRef)
 
 const loading = ref(false)
+const showPublishModal = ref(false)
+const publishing = ref(false)
 // activeTab, searchQuery, selectedMoment 已由于需要保持状态移至 Store
 
-const columnCount = computed(() => {
-	if (containerWidth.value < 450) return 1
-	if (containerWidth.value < 700) return 2
-	if (containerWidth.value < 900) return 3
-	if (containerWidth.value < 1100) return 4
-	if (containerWidth.value < 1400) return 5
-	return 6
+const gridStyle = computed(() => {
+	if (containerWidth.value < 650) {
+		return {
+			gridTemplateColumns: 'repeat(1, minmax(0, 1fr))',
+		}
+	}
+
+	const gap = 16
+	const contentWidth = Math.max(containerWidth.value - 48, 0)
+	const targetCardWidth =
+		containerWidth.value >= 1800
+			? 160
+			: containerWidth.value >= 1400
+				? 170
+				: 180
+	const columns = Math.max(
+		2,
+		Math.floor((contentWidth + gap) / (targetCardWidth + gap)),
+	)
+
+	return {
+		gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+	}
 })
 
 const tabs = [
 	{ key: 'recommend', label: '推荐' },
-	{ key: 'follow', label: '关注' },
+	{ key: 'friends', label: '朋友' },
 	{ key: 'nearby', label: '附近' },
 	{ key: 'trending', label: '热榜' },
 ]
@@ -202,14 +242,35 @@ const filteredMoments = computed(() => {
 		list = list.filter(
 			(m) =>
 				m.title.toLowerCase().includes(query) ||
-				m.author.name.toLowerCase().includes(query),
+				m.author.name.toLowerCase().includes(query) ||
+				(m.content || '').toLowerCase().includes(query),
 		)
 	}
 	return list
 })
 
+if (momentStore.activeTab === 'follow') {
+	momentStore.activeTab = 'friends'
+}
+
 const handlePublish = (): void => {
-	message.success('发布功能即将上线！')
+	showPublishModal.value = true
+}
+
+const handleSubmitPublish = (payload: {
+	title: string
+	contentHtml: string
+	contentText: string
+	images: string[]
+}): void => {
+	try {
+		publishing.value = true
+		momentStore.addMoment(payload)
+		showPublishModal.value = false
+		message.success('发布成功')
+	} finally {
+		publishing.value = false
+	}
 }
 
 const handleMomentClick = (moment: Moment): void => {

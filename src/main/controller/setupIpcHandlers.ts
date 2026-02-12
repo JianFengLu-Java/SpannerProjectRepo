@@ -12,36 +12,59 @@ import { chatService, DbChatItem, DbMessage } from '../database/chatService'
 
 export function setupIpcHandlers(): void {
 	// --- 数据库相关 IPC ---
-	ipcMain.handle('db-get-all-chats', () => {
-		return chatService.getAllChats()
-	})
-
-	ipcMain.handle('db-save-chat', (_, chat: DbChatItem) => {
-		return chatService.saveChat(chat)
-	})
-
-	ipcMain.handle('db-delete-chat', (_, id: number) => {
-		return chatService.deleteChat(id)
-	})
-
-	ipcMain.handle('db-get-messages', (_, chatId: number) => {
-		return chatService.getMessages(chatId)
-	})
-
-	ipcMain.handle('db-save-message', (_, message: DbMessage) => {
-		return chatService.saveMessage(message)
+	ipcMain.handle('db-get-all-chats', (_, userAccount: string) => {
+		return chatService.getAllChats(userAccount)
 	})
 
 	ipcMain.handle(
-		'db-update-last-message',
-		(_, id: number, message: string, timestamp: string) => {
-			return chatService.updateLastMessage(id, message, timestamp)
+		'db-save-chat',
+		(_, userAccount: string, chat: DbChatItem) => {
+			return chatService.saveChat(userAccount, chat)
 		},
 	)
 
-	ipcMain.handle('db-set-pinned', (_, id: number, isPinned: boolean) => {
-		return chatService.setPinned(id, isPinned)
+	ipcMain.handle('db-delete-chat', (_, userAccount: string, id: number) => {
+		return chatService.deleteChat(userAccount, id)
 	})
+
+	ipcMain.handle(
+		'db-get-messages',
+		(_, userAccount: string, chatId: number) => {
+			return chatService.getMessages(userAccount, chatId)
+		},
+	)
+
+	ipcMain.handle(
+		'db-save-message',
+		(_, userAccount: string, message: DbMessage) => {
+			return chatService.saveMessage(userAccount, message)
+		},
+	)
+
+	ipcMain.handle(
+		'db-update-last-message',
+		(
+			_,
+			userAccount: string,
+			id: number,
+			message: string,
+			timestamp: string,
+		) => {
+			return chatService.updateLastMessage(
+				userAccount,
+				id,
+				message,
+				timestamp,
+			)
+		},
+	)
+
+	ipcMain.handle(
+		'db-set-pinned',
+		(_, userAccount: string, id: number, isPinned: boolean) => {
+			return chatService.setPinned(userAccount, id, isPinned)
+		},
+	)
 
 	// 登录成功
 	ipcMain.on('login-success-open-home', () => {

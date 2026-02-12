@@ -24,11 +24,12 @@ export interface DbMessage {
 
 export const chatService = {
 	// 获取所有会话
-	getAllChats(): Promise<DbChatItem[]> {
+	getAllChats(userAccount: string): Promise<DbChatItem[]> {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			db.all(
-				'SELECT * FROM chats ORDER BY isPinned DESC, timestamp DESC',
+				'SELECT id, name, avatar, lastMessage, timestamp, online, unreadCount, isPinned FROM user_chats WHERE userAccount = ? ORDER BY isPinned DESC, timestamp DESC',
+				[userAccount],
 				(err, rows) => {
 					if (err) reject(err)
 					else resolve(rows as DbChatItem[])
@@ -38,14 +39,15 @@ export const chatService = {
 	},
 
 	// 保存或更新会话
-	saveChat(chat: DbChatItem): Promise<void> {
+	saveChat(userAccount: string, chat: DbChatItem): Promise<void> {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			const stmt = db.prepare(`
-				INSERT OR REPLACE INTO chats (id, name, avatar, lastMessage, timestamp, online, unreadCount, isPinned)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT OR REPLACE INTO user_chats (userAccount, id, name, avatar, lastMessage, timestamp, online, unreadCount, isPinned)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`)
 			stmt.run(
+				userAccount,
 				chat.id,
 				chat.name,
 				chat.avatar,
@@ -64,14 +66,17 @@ export const chatService = {
 	},
 
 	// 删除会话
-	deleteChat(id: number): Promise<void> {
+	deleteChat(userAccount: string, id: number): Promise<void> {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			db.serialize(() => {
-				db.run('DELETE FROM chats WHERE id = ?', id)
 				db.run(
-					'DELETE FROM messages WHERE chatId = ?',
-					id,
+					'DELETE FROM user_chats WHERE userAccount = ? AND id = ?',
+					[userAccount, id],
+				)
+				db.run(
+					'DELETE FROM user_messages WHERE userAccount = ? AND chatId = ?',
+					[userAccount, id],
 					(err: Error | null) => {
 						if (err) reject(err)
 						else resolve()
@@ -83,6 +88,7 @@ export const chatService = {
 
 	// 更新最后一条消息
 	updateLastMessage(
+		userAccount: string,
 		id: number,
 		message: string,
 		timestamp: string,
@@ -90,8 +96,8 @@ export const chatService = {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			db.run(
-				'UPDATE chats SET lastMessage = ?, timestamp = ? WHERE id = ?',
-				[message, timestamp, id],
+				'UPDATE user_chats SET lastMessage = ?, timestamp = ? WHERE userAccount = ? AND id = ?',
+				[message, timestamp, userAccount, id],
 				(err: Error | null) => {
 					if (err) reject(err)
 					else resolve()
@@ -101,12 +107,16 @@ export const chatService = {
 	},
 
 	// 置顶控制
-	setPinned(id: number, isPinned: boolean): Promise<void> {
+	setPinned(
+		userAccount: string,
+		id: number,
+		isPinned: boolean,
+	): Promise<void> {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			db.run(
-				'UPDATE chats SET isPinned = ? WHERE id = ?',
-				[isPinned ? 1 : 0, id],
+				'UPDATE user_chats SET isPinned = ? WHERE userAccount = ? AND id = ?',
+				[isPinned ? 1 : 0, userAccount, id],
 				(err: Error | null) => {
 					if (err) reject(err)
 					else resolve()
@@ -116,12 +126,12 @@ export const chatService = {
 	},
 
 	// 获取某个会话的消息
-	getMessages(chatId: number): Promise<DbMessage[]> {
+	getMessages(userAccount: string, chatId: number): Promise<DbMessage[]> {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			db.all(
-				'SELECT * FROM messages WHERE chatId = ? ORDER BY id ASC',
-				[chatId],
+				'SELECT id, chatId, senderId, text, timestamp, type, hasResult, result FROM user_messages WHERE userAccount = ? AND chatId = ? ORDER BY id ASC',
+				[userAccount, chatId],
 				(err, rows) => {
 					if (err) reject(err)
 					else resolve(rows as DbMessage[])
@@ -131,15 +141,16 @@ export const chatService = {
 	},
 
 	// 保存消息
-	saveMessage(message: DbMessage): Promise<void> {
+	saveMessage(userAccount: string, message: DbMessage): Promise<void> {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			const stmt = db.prepare(`
-				INSERT INTO messages (id, chatId, senderId, text, timestamp, type, hasResult, result)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT OR REPLACE INTO user_messages (userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`)
 			stmt.run(
 				[
+					userAccount,
 					message.id,
 					message.chatId,
 					message.senderId,

@@ -1,31 +1,56 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
-import { useChatStore } from '@renderer/stores/chat'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useChatStore, type Message } from '@renderer/stores/chat'
 import { storeToRefs } from 'pinia'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import ChatMessage from './ChatMessage.vue'
 
-const props = defineProps<{ messages: any[] }>()
+interface VirtualListScrollOptions {
+	index?: number
+	top?: number
+	behavior?: 'auto' | 'smooth'
+}
+
+interface VirtualListInst {
+	scrollTo: (options: VirtualListScrollOptions) => void
+	$el?: HTMLElement
+}
+
+interface MenuContextExtra {
+	text?: string
+	src?: string
+}
+
+const props = defineProps<{ messages: Message[] }>()
 const chatStore = useChatStore()
 const { activeChat } = storeToRefs(chatStore)
 const userInfo = useUserInfoStore()
 
-const virtualListInst = ref<any>(null)
+const virtualListInst = ref<VirtualListInst | null>(null)
 const isSwitching = ref(false)
+const isLoadingMore = ref(false)
+const hasMoreByChat = new Map<number, boolean>()
+const shouldStickToBottom = ref(true)
+const prevFirstMessageKey = ref('')
+const prevLastMessageKey = ref('')
 
 // --- 统一的右键状态 ---
 const showDropdown = ref(false)
 const xRef = ref(0)
 const yRef = ref(0)
-const currentOptions = ref<any[]>([])
-const contextData = ref<{ type: string; extra: any; msg: any } | null>(null)
+const currentOptions = ref<Array<Record<string, unknown>>>([])
+const contextData = ref<{
+	type: 'text' | 'image'
+	extra: MenuContextExtra
+	msg: Message
+} | null>(null)
 
 const onShowMenu = (
 	e: MouseEvent,
 	type: 'text' | 'image',
-	extra: any,
-	msg: any,
-) => {
+	extra: MenuContextExtra,
+	msg: Message,
+): void => {
 	e.preventDefault()
 	showDropdown.value = false
 	contextData.value = { type, extra, msg }
@@ -58,15 +83,16 @@ const onShowMenu = (
 	})
 }
 
-const handleMenuSelect = (key: string) => {
+const handleMenuSelect = (key: string): void => {
 	showDropdown.value = false
 	const { extra, msg } = contextData.value || {}
 
 	switch (key) {
-		case 'copy':
-			const text = extra?.text || msg?.text?.replace(/<[^>]*>/g, '')
+		case 'copy': {
+			const text = extra?.text || msg?.text?.replace(/<[^>]*>/g, '') || ''
 			navigator.clipboard.writeText(text)
 			break
+		}
 		case 'copy-link':
 			navigator.clipboard.writeText(extra?.src || '')
 			break
@@ -78,7 +104,9 @@ const handleMenuSelect = (key: string) => {
 			break
 		case 'delete':
 			// TODO: 调用删除 API
-			console.log('删除 ID:', msg.id)
+			if (msg) {
+				console.log('删除 ID:', msg.id)
+			}
 			break
 	}
 }
@@ -86,27 +114,108 @@ const handleMenuSelect = (key: string) => {
 // --- 滚动与图片逻辑（保持不变） ---
 const scrollToBottom = (behavior: 'auto' | 'smooth' = 'auto'): void => {
 	if (!virtualListInst.value || props.messages.length === 0) return
-	setTimeout(() => {
+	requestAnimationFrame(() => {
 		virtualListInst.value?.scrollTo({
 			index: props.messages.length - 1,
 			behavior,
 		})
-	}, 60)
+	})
 }
 
 const handleImageLoaded = (): void => {
-	const el = virtualListInst.value?.$el.querySelector(
-		'.n-virtual-list-viewport',
-	)
+	const el = getViewport()
 	if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
 		scrollToBottom('smooth')
 	}
 }
 
+const getViewport = (): HTMLElement | null => {
+	return (
+		virtualListInst.value?.$el?.querySelector('.n-virtual-list-viewport') ||
+		null
+	)
+}
+
+const getMessageKey = (item: Message): string => {
+	return `${item.serverMessageId || item.clientMessageId || item.id}`
+}
+
+const loadMoreAtTop = async (): Promise<void> => {
+	const chatId = activeChat.value?.id
+	if (!chatId || isLoadingMore.value) return
+	if (hasMoreByChat.get(chatId) === false) return
+	const viewport = getViewport()
+	if (!viewport) return
+
+	isLoadingMore.value = true
+	const prevHeight = viewport.scrollHeight
+	const prevTop = viewport.scrollTop
+	try {
+		const hasMore = await chatStore.loadMoreChatHistory(chatId, 20)
+		hasMoreByChat.set(chatId, hasMore)
+		await nextTick()
+		const nextHeight = viewport.scrollHeight
+		viewport.scrollTop = Math.max(0, nextHeight - prevHeight + prevTop)
+	} catch (error) {
+		console.warn('加载更多聊天记录失败:', error)
+	} finally {
+		isLoadingMore.value = false
+	}
+}
+
+const onViewportScroll = (): void => {
+	if (isSwitching.value) return
+	const viewport = getViewport()
+	if (!viewport) return
+
+	const distanceToBottom =
+		viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+	shouldStickToBottom.value = distanceToBottom < 180
+
+	if (viewport.scrollTop <= 30) {
+		void loadMoreAtTop()
+	}
+}
+
+const bindViewportScroll = (): void => {
+	const viewport = getViewport()
+	if (!viewport) return
+	viewport.removeEventListener('scroll', onViewportScroll)
+	viewport.addEventListener('scroll', onViewportScroll, { passive: true })
+}
+
+const unbindViewportScroll = (): void => {
+	const viewport = getViewport()
+	viewport?.removeEventListener('scroll', onViewportScroll)
+}
+
 watch(
 	() => props.messages.length,
-	(_, oldLen) => {
-		if (!isSwitching.value) scrollToBottom(oldLen === 0 ? 'auto' : 'smooth')
+	(newLen, oldLen) => {
+		const currentFirstKey =
+			newLen > 0 ? getMessageKey(props.messages[0]) : ''
+		const currentLastKey =
+			newLen > 0 ? getMessageKey(props.messages[newLen - 1]) : ''
+		const oldFirstKey = prevFirstMessageKey.value
+		const oldLastKey = prevLastMessageKey.value
+		prevFirstMessageKey.value = currentFirstKey
+		prevLastMessageKey.value = currentLastKey
+
+		if (isSwitching.value) return
+		if (newLen <= oldLen) return
+		if (oldLen === 0) {
+			scrollToBottom('auto')
+			return
+		}
+
+		const isPrepend =
+			oldFirstKey !== currentFirstKey && oldLastKey === currentLastKey
+		const isAppend = oldLastKey !== currentLastKey
+
+		if (isPrepend) return
+		if (isAppend && shouldStickToBottom.value) {
+			scrollToBottom('smooth')
+		}
 	},
 )
 
@@ -114,31 +223,46 @@ const scrollMap = new Map<string, number>()
 watch(
 	() => activeChat.value?.id,
 	async (newId, oldId) => {
-		const el = virtualListInst.value?.$el.querySelector(
-			'.n-virtual-list-viewport',
-		)
+		const el = getViewport()
 		if (oldId && el) scrollMap.set(oldId.toString(), el.scrollTop)
 		isSwitching.value = true
+		unbindViewportScroll()
 		await nextTick()
+		bindViewportScroll()
 		if (newId) {
+			if (!hasMoreByChat.has(newId)) {
+				hasMoreByChat.set(newId, true)
+			}
+			const list = props.messages
+			prevFirstMessageKey.value =
+				list.length > 0 ? getMessageKey(list[0]) : ''
+			prevLastMessageKey.value =
+				list.length > 0 ? getMessageKey(list[list.length - 1]) : ''
 			const savedPos = scrollMap.get(newId.toString())
 			if (savedPos !== undefined) {
-				setTimeout(() => {
+				requestAnimationFrame(() => {
 					virtualListInst.value?.scrollTo({ top: savedPos })
 					isSwitching.value = false
-				}, 30)
+				})
 			} else {
 				scrollToBottom('auto')
-				setTimeout(() => {
+				requestAnimationFrame(() => {
 					isSwitching.value = false
-				}, 100)
+				})
 			}
 		}
 	},
 	{ immediate: true },
 )
 
-onMounted(() => scrollToBottom('auto'))
+onMounted(() => {
+	bindViewportScroll()
+	scrollToBottom('auto')
+})
+
+onUnmounted(() => {
+	unbindViewportScroll()
+})
 </script>
 
 <template>

@@ -25,8 +25,16 @@ export interface Moment {
 	isLiked: boolean
 	timestamp: string
 	content?: string
+	contentHtml?: string
 	images?: string[]
 	comments: Comment[]
+}
+
+interface AddMomentPayload {
+	title: string
+	contentHtml: string
+	contentText: string
+	images: string[]
 }
 
 export const useMomentStore = defineStore('moment', () => {
@@ -197,6 +205,42 @@ export const useMomentStore = defineStore('moment', () => {
 		}
 	}
 
+	const createDefaultCover = (title: string): string => {
+		const safeTitle = title.slice(0, 28)
+		const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='1200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='#34d399'/><stop offset='100%' stop-color='#60a5fa'/></linearGradient></defs><rect width='100%' height='100%' fill='url(#g)'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='rgba(255,255,255,.92)' font-size='58' font-family='Arial,sans-serif'>${safeTitle}</text></svg>`
+		return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+	}
+
+	const addMoment = (payload: AddMomentPayload): Moment => {
+		const userInfoStore = useUserInfoStore()
+		const title = payload.title.trim()
+		const contentText = payload.contentText.trim()
+		const images = payload.images || []
+		const finalTitle = title || contentText.slice(0, 26) || '新动态'
+
+		const newMoment: Moment = {
+			id: `m-${Date.now()}`,
+			title: finalTitle,
+			cover: images[0] || createDefaultCover(finalTitle),
+			author: {
+				name: userInfoStore.userName || '当前用户',
+				avatar:
+					userInfoStore.avatarUrl ||
+					'https://api.dicebear.com/7.x/avataaars/svg?seed=current',
+			},
+			likes: 0,
+			isLiked: false,
+			timestamp: '刚刚',
+			content: contentText,
+			contentHtml: payload.contentHtml,
+			images,
+			comments: [],
+		}
+
+		moments.value.unshift(newMoment)
+		return newMoment
+	}
+
 	return {
 		moments,
 		selectedMomentId,
@@ -205,5 +249,6 @@ export const useMomentStore = defineStore('moment', () => {
 		searchQuery,
 		toggleLike,
 		addComment,
+		addMoment,
 	}
 })

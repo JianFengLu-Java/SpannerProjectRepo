@@ -5,6 +5,7 @@ import router from './router'
 import naive from 'naive-ui'
 import { createPinia } from 'pinia'
 import piniaPersist from 'pinia-plugin-persistedstate'
+import { tokenManager } from '@renderer/services/tokenManager'
 
 const app = createApp(App)
 
@@ -12,6 +13,7 @@ const app = createApp(App)
 const pinia = createPinia()
 
 pinia.use(piniaPersist)
+tokenManager.init()
 
 // 挂载到 app
 app.use(router).use(naive).use(pinia).mount('#app')

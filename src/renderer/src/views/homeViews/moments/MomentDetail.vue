@@ -92,7 +92,13 @@
 					>
 						{{ moment.title }}
 					</h1>
+					<div
+						v-if="moment.contentHtml"
+						class="moment-rich-content text-gray-600 leading-relaxed"
+						v-html="moment.contentHtml"
+					></div>
 					<p
+						v-else
 						class="text-gray-600 leading-relaxed whitespace-pre-wrap"
 					>
 						{{ moment.content }}
@@ -279,5 +285,20 @@ const submitComment = (): void => {
 }
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
 	background: rgba(0, 0, 0, 0.1);
+}
+
+:deep(.moment-rich-content p) {
+	margin: 0;
+}
+
+:deep(.moment-rich-content p + p) {
+	margin-top: 0.5rem;
+}
+
+:deep(.moment-rich-content img) {
+	max-width: 100%;
+	max-height: 560px;
+	border-radius: 14px;
+	margin: 12px 0;
 }
 </style>

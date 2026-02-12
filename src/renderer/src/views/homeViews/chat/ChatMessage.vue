@@ -29,15 +29,25 @@
 			>
 				<div v-html="content" class="msg-content-selectable"></div>
 				<div v-if="hasResult">
-					<n-tag type="success" size="small" round closable>{{
-						result
-					}}</n-tag>
+					<n-tag type="error" size="small" round>
+						{{ result }}
+					</n-tag>
 				</div>
 			</div>
 
-			<span class="text-[10px] text-gray-400 px-1 avatar-no-select">{{
-				time
-			}}</span>
+			<div class="flex items-center gap-1 px-1 avatar-no-select">
+				<span class="text-[10px] text-gray-400">{{ time }}</span>
+				<n-tooltip
+					v-if="isMe && deliveryStatus === 'failed'"
+					placement="top"
+					trigger="hover"
+				>
+					<template #trigger>
+						<span class="failed-icon" aria-label="发送失败">!</span>
+					</template>
+					{{ result || '发送失败' }}
+				</n-tooltip>
+			</div>
 		</div>
 	</div>
 </template>
@@ -52,6 +62,7 @@ const props = defineProps<{
 	time: string
 	hasResult?: boolean
 	result?: string
+	deliveryStatus?: 'sending' | 'sent' | 'failed'
 }>()
 
 const emit = defineEmits<{
@@ -141,5 +152,20 @@ onUpdated(attachLoadEvents)
 .avatar-no-select {
 	user-select: none;
 	-webkit-user-select: none;
+}
+
+.failed-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	border-radius: 9999px;
+	background: #ef4444;
+	color: #fff;
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1;
+	cursor: default;
 }
 </style>

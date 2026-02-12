@@ -5,7 +5,7 @@
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self' ; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src * data: blob:; connect-src 'self' http://spanner.top:8080 ws://spanner.top:8080;" 
+      content="default-src 'self' ; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src * data: blob:; connect-src 'self' %VITE_API_ORIGIN% %VITE_WS_ORIGIN%;" 
     />
   </head>
 
