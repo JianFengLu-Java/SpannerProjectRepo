@@ -11,3 +11,7 @@ export const isDicebearAvatarUrl = (avatarUrl?: string | null): boolean => {
 	return normalized.startsWith('https://api.dicebear.com/7.x/avataaars/svg')
 }
 
+export const isDefaultAvatarUrl = (avatarUrl?: string | null): boolean => {
+	const normalized = avatarUrl?.trim() || ''
+	return normalized === DEFAULT_AVATAR_DATA_URI
+}

@@ -75,7 +75,7 @@
 						class="flex w-full h-full justify-center items-center flex-col gap-2 pt-2"
 					>
 						<div
-							class="rounded-md overflow-hidden flex justify-center items-center flex-col border border-gray-200"
+							class="rounded-md overflow-hidden flex justify-center items-center flex-col border border-gray-200 dark:border-zinc-700"
 						>
 							<div class="p-2 pb-0">
 								<n-qr-code
@@ -84,7 +84,7 @@
 									class="p-0!"
 								/>
 							</div>
-							<div class="border-b w-full border-gray-200"></div>
+							<div class="border-b w-full border-gray-200 dark:border-zinc-700"></div>
 							<div
 								class="w-full h-6 flex justify-center items-center bg-[#444]"
 							>

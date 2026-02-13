@@ -30,9 +30,10 @@
 							:options="filterOptions"
 							trigger="hover"
 							placement="bottom-start"
+							@select="handleFilterSelect"
 						>
 							<div
-								class="w-7 h-7 flex items-center no-drag justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+								class="w-7 h-7 flex items-center no-drag justify-center rounded-xl hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
 							>
 								<n-icon size="18" class="text-gray-500">
 									<Filter24Regular />
@@ -42,7 +43,7 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 flex items-center no-drag justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+									class="w-7 h-7 flex items-center no-drag justify-center rounded-xl hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
 									@click="handleNewChat"
 								>
 									<n-icon size="20" class="text-gray-500">
@@ -60,7 +61,7 @@
 					v-model:value="searchQuery"
 					placeholder="搜索聊天或记录..."
 					size="small"
-					class="rounded-xl bg-gray-100/50 border-none mb-1"
+					class="rounded-xl bg-gray-100/50 dark:bg-zinc-800/60 border-none mb-1"
 				>
 					<template #prefix>
 						<n-icon class="text-gray-400">
@@ -72,7 +73,7 @@
 
 			<!-- 置顶会话 (水平滑动风格或紧凑风格) -->
 			<div
-				v-if="pinnedChats.length > 0 && !searchQuery"
+				v-if="filteredPinnedChats.length > 0 && !searchQuery"
 				class="px-2 pb-2 mb-1"
 			>
 				<div class="flex items-center gap-2 px-2 mb-2">
@@ -85,13 +86,13 @@
 					class="flex overflow-x-auto no-scrollbar gap-1.5 px-1 py-1"
 				>
 					<div
-						v-for="chat in pinnedChats"
+						v-for="chat in filteredPinnedChats"
 						:key="chat.id"
 						class="flex flex-col items-center gap-1.5 p-2 rounded-2xl cursor-copy transition-all duration-200 relative shrink-0 w-[68px]"
 						:class="[
 							activeChatId === chat.id
 								? 'bg-primary/10'
-								: 'hover:bg-black/5',
+								: 'hover:bg-black/5 dark:hover:bg-white/6',
 						]"
 						@click="selectChat(chat)"
 						@contextmenu.prevent="openContextMenu($event, chat)"
@@ -107,16 +108,19 @@
 									:size="42"
 									round
 									:src="chat.avatar"
-									class="border-2 border-white"
+									:class="[
+										'border-2 border-white dark:border-zinc-700',
+										chat.online ? '' : 'grayscale opacity-70',
+									]"
 								/>
 								<div
 									v-if="chat.online"
-									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white bg-green-500"
+									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700 bg-green-500"
 								></div>
 							</div>
 						</n-badge>
 						<span
-							class="text-[10px] font-medium text-gray-500 truncate w-full text-center"
+							class="text-[10px] font-medium text-gray-500 dark:text-gray-300 truncate w-full text-center"
 						>
 							{{ chat.name }}
 						</span>
@@ -149,7 +153,7 @@
 							:class="[
 								activeChatId === chat.id
 									? 'bg-primary/10'
-									: 'hover:bg-black/5',
+									: 'hover:bg-black/5 dark:hover:bg-white/6',
 							]"
 							@click="selectChat(chat)"
 							@contextmenu.prevent="openContextMenu($event, chat)"
@@ -166,12 +170,15 @@
 										:size="40"
 										round
 										:src="chat.avatar"
-										class="border border-white/50"
+										:class="[
+											'border border-white/50 dark:border-zinc-700',
+											chat.online ? '' : 'grayscale opacity-70',
+										]"
 									/>
 								</n-badge>
 								<div
 									v-if="chat.online"
-									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white bg-green-500"
+									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700 bg-green-500"
 								></div>
 							</div>
 
@@ -229,7 +236,7 @@
 		<!-- 主聊天区域 -->
 		<div
 			v-if="containerWidth >= 600 || activeChatId"
-			class="flex-1 overflow-hidden flex flex-col min-w-[320px] shrink-0 bg-white relative"
+			class="flex-1 overflow-hidden flex flex-col min-w-[320px] shrink-0 bg-page-bg relative"
 		>
 			<!-- 窄屏返回按钮 -->
 			<div
@@ -237,16 +244,91 @@
 				class="z-50 pl-2 pb-1 pt-1 border-b border-border-default/50 backdrop-blur-md"
 			>
 				<button
-					class="w-fit h-8 flex no-drag px-2 gap-1 items-center justify-center bg-white/80 backdrop-blur-md rounded-xl text-gray-600 active:scale-90 transition-all border border-gray-100"
+					class="w-fit h-8 flex no-drag px-2 gap-1 items-center justify-center bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md rounded-xl text-gray-600 dark:text-gray-200 active:scale-90 transition-all border border-gray-100 dark:border-zinc-700"
 					@click="activeChatId = null"
 				>
 					<n-icon size="20"><ChevronLeft24Regular /></n-icon>
 					<span>返回聊天列表</span>
 				</button>
 			</div>
-			<ChatContext />
+			<ChatContext @toggle-friend-setting="toggleFriendSettingPanel" />
 		</div>
+
+		<ChatFriendSettingPanel
+			v-if="
+				showFriendSettingPanel &&
+				activeChatId &&
+				containerWidth >= FRIEND_SETTING_BREAKPOINT
+			"
+			@close="showFriendSettingPanel = false"
+		/>
 	</div>
+
+	<n-modal
+		v-model:show="showNewChatModal"
+		preset="card"
+		title="发起聊天"
+		:mask-closable="true"
+		class="max-w-[420px]"
+	>
+		<n-input
+			v-model:value="newChatKeyword"
+			placeholder="搜索好友名称或账号"
+			clearable
+		>
+			<template #prefix>
+				<n-icon class="text-gray-400">
+					<Search24Regular />
+				</n-icon>
+			</template>
+		</n-input>
+
+		<div class="mt-3 max-h-[360px] overflow-auto pr-1">
+			<n-spin :show="isPreparingFriends">
+				<div
+					v-if="!filteredFriendsForNewChat.length"
+					class="py-10 flex justify-center"
+				>
+					<n-empty
+						:description="
+							friends.length
+								? '未找到匹配好友'
+								: '暂无好友，先去好友页面添加联系人'
+						"
+					/>
+				</div>
+				<div v-else class="flex flex-col gap-1">
+					<button
+						v-for="friend in filteredFriendsForNewChat"
+						:key="friend.id"
+						type="button"
+						class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-black/5 dark:hover:bg-white/6 transition-colors"
+						@click="startChatWithFriend(friend)"
+					>
+						<n-avatar :size="36" round :src="friend.avatar" />
+						<div class="min-w-0 flex-1">
+							<div
+								class="text-sm font-medium text-text-main truncate"
+							>
+								{{ friend.remark || friend.name }}
+							</div>
+							<div class="text-[11px] text-gray-400 truncate">
+								{{ friend.id }}
+							</div>
+						</div>
+					</button>
+				</div>
+			</n-spin>
+		</div>
+
+		<template #footer>
+			<div class="flex justify-end">
+				<n-button tertiary @click="showNewChatModal = false">
+					关闭
+				</n-button>
+			</div>
+		</template>
+	</n-modal>
 </template>
 
 <script setup lang="ts">
@@ -263,6 +345,7 @@ import {
 } from 'vue'
 import { useTitleStore } from '@renderer/stores/title'
 import { useChatStore, ChatItem } from '@renderer/stores/chat'
+import { useFriendStore, type Friend } from '@renderer/stores/friend'
 import {
 	Search24Regular,
 	Filter24Regular,
@@ -282,10 +365,15 @@ import {
 	NBadge,
 	NInput,
 	NTooltip,
+	NModal,
+	NButton,
+	NEmpty,
+	NSpin,
 	useMessage,
 } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import ChatContext from './ChatContext.vue'
+import ChatFriendSettingPanel from './ChatFriendSettingPanel.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useElementSize } from '@vueuse/core'
 
@@ -310,13 +398,46 @@ const isSidebarExpanded = inject<Ref<boolean>>('isExpanded', ref(true))
 
 const titleStore = useTitleStore()
 const chatStore = useChatStore()
+const friendStore = useFriendStore()
 const userInfoStore = useUserInfoStore()
 const userName = userInfoStore.userName
 
 const { chatlist, pinnedChats, activeChatId } = storeToRefs(chatStore)
+const { friends } = storeToRefs(friendStore)
 
 const RIGHT_PANEL_MIN_WIDTH = 450
 const SESSION_LIST_MIN_WIDTH = 220
+const FRIEND_SETTING_PANEL_WIDTH = 300
+const FRIEND_SETTING_BREAKPOINT = 900
+
+type ChatFilterKey = 'all' | 'unread' | 'mentions'
+
+const currentFilter = ref<ChatFilterKey>('all')
+const showNewChatModal = ref(false)
+const newChatKeyword = ref('')
+const isPreparingFriends = ref(false)
+const showFriendSettingPanel = ref(false)
+
+const currentRightPanelMinWidth = computed(() => {
+	const shouldShowFriendSetting =
+		showFriendSettingPanel.value &&
+		!!activeChatId.value &&
+		containerWidth.value >= FRIEND_SETTING_BREAKPOINT
+	return shouldShowFriendSetting
+		? RIGHT_PANEL_MIN_WIDTH + FRIEND_SETTING_PANEL_WIDTH
+		: RIGHT_PANEL_MIN_WIDTH
+})
+
+const matchFilter = (chat: ChatItem): boolean => {
+	if (currentFilter.value === 'unread') {
+		return (chat.unreadCount || 0) > 0
+	}
+	if (currentFilter.value === 'mentions') {
+		const text = (chat.lastMessage || '').toLowerCase()
+		return /@我|@me|＠我/.test(text)
+	}
+	return true
+}
 
 const filteredChatList = computed(() => {
 	// 基础列表：置顶项排在最前，其余按 store 中的顺序（最近更新的在最前）
@@ -326,13 +447,29 @@ const filteredChatList = computed(() => {
 		return 0 // 维持原有的（store 更新后的）先后顺序
 	})
 
-	if (!searchQuery.value) return list
+	const filteredByType = list.filter(matchFilter)
+
+	if (!searchQuery.value) return filteredByType
 	const query = searchQuery.value.toLowerCase()
-	return list.filter(
+	return filteredByType.filter(
 		(c) =>
 			c.name.toLowerCase().includes(query) ||
 			c.lastMessage.toLowerCase().includes(query),
 	)
+})
+
+const filteredPinnedChats = computed(() =>
+	pinnedChats.value.filter(matchFilter),
+)
+
+const filteredFriendsForNewChat = computed(() => {
+	const keyword = newChatKeyword.value.trim().toLowerCase()
+	if (!keyword) return friends.value
+	return friends.value.filter((friend) => {
+		const candidate =
+			`${friend.remark || ''} ${friend.name || ''} ${friend.id || ''}`.toLowerCase()
+		return candidate.includes(keyword)
+	})
 })
 
 // 监听布局变化，防止右侧被挤压
@@ -340,10 +477,13 @@ watch([containerWidth, sidebarWidthState, isSidebarExpanded], ([contWidth]) => {
 	// 只在容器宽度有效时才进行调整（避免初始化时的 0 值）
 	if (contWidth < 100) return
 
-	const availableForList = contWidth - RIGHT_PANEL_MIN_WIDTH - 1
+	const availableForListByLayout = contWidth - currentRightPanelMinWidth.value - 1
 	// 只在列表宽度超出可用空间时才调整，否则保持用户设置的宽度
-	if (listWidth.value > availableForList) {
-		listWidth.value = Math.max(SESSION_LIST_MIN_WIDTH, availableForList)
+	if (listWidth.value > availableForListByLayout) {
+		listWidth.value = Math.max(
+			SESSION_LIST_MIN_WIDTH,
+			availableForListByLayout,
+		)
 	}
 })
 
@@ -353,8 +493,33 @@ const filterOptions = [
 	{ label: '提及我的', key: 'mentions' },
 ]
 
-const handleNewChat = (): void => {
-	message.info('功能开发中...')
+const handleFilterSelect = (key: string | number): void => {
+	if (key === 'all' || key === 'unread' || key === 'mentions') {
+		currentFilter.value = key
+	}
+}
+
+const handleNewChat = async (): Promise<void> => {
+	showNewChatModal.value = true
+	if (friends.value.length > 0) return
+
+	isPreparingFriends.value = true
+	try {
+		const ok = await friendStore.fetchFriends()
+		if (!ok) {
+			message.error('加载好友列表失败，请稍后再试')
+		}
+	} finally {
+		isPreparingFriends.value = false
+	}
+}
+
+const startChatWithFriend = async (friend: Friend): Promise<void> => {
+	const chatId = await chatStore.getOrCreateChat(friend)
+	await chatStore.setActiveChat(chatId)
+	chatStore.markAsRead(chatId)
+	showNewChatModal.value = false
+	newChatKeyword.value = ''
 }
 
 const getChatListViewport = (): HTMLElement | null => {
@@ -398,7 +563,7 @@ const startDrag = (e: MouseEvent): void => {
 			const delta = moveEvent.clientX - startX
 			const newWidth = startWidth + delta
 			const maxAllowedWidth =
-				containerWidth.value - RIGHT_PANEL_MIN_WIDTH - 1
+				containerWidth.value - currentRightPanelMinWidth.value - 1
 
 			listWidth.value = Math.min(
 				Math.max(SESSION_LIST_MIN_WIDTH, newWidth),
@@ -502,6 +667,23 @@ const handleContextMenuSelect = (key: string): void => {
 const openInNewWindow = (chat: ChatItem): void => {
 	window.electron.ipcRenderer.send('open-chat-window', chat.id, chat.name)
 }
+
+const toggleFriendSettingPanel = (): void => {
+	if (!activeChatId.value) return
+	showFriendSettingPanel.value = !showFriendSettingPanel.value
+}
+
+watch(activeChatId, (nextId) => {
+	if (!nextId) {
+		showFriendSettingPanel.value = false
+	}
+})
+
+watch(containerWidth, (nextWidth) => {
+	if (nextWidth < FRIEND_SETTING_BREAKPOINT) {
+		showFriendSettingPanel.value = false
+	}
+})
 
 onMounted(() => {
 	titleStore.setTitle('欢迎你！' + userName)

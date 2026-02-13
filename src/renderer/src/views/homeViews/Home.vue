@@ -20,7 +20,13 @@
 			class="h-full flex-1 overflow-hidden pl-0 p-2 shrink-0 min-w-[400px]"
 			:class="[isWin ? 'pt-[32px]' : '']"
 		>
-			<router-view v-slot="{ Component, route }">
+			<div
+				v-if="activeSlotComponent"
+				class="h-full w-full rounded-[14px] overflow-hidden"
+			>
+				<component :is="activeSlotComponent" />
+			</div>
+			<router-view v-else v-slot="{ Component, route }">
 				<keep-alive>
 					<div class="h-full w-full rounded-[14px] overflow-hidden">
 						<component :is="Component" :key="route.name" />
@@ -32,9 +38,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, provide, watch } from 'vue'
+import { ref, onMounted, onUnmounted, provide, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import SideBar from './SideBar.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
+import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
+import { sidebarSlotComponentMap } from './sidebarSlots/slotRegistry'
 
 const isExpanded = ref(true)
 const sideBarWidth = ref(200)
@@ -43,6 +52,13 @@ const willCollapse = ref(false)
 const windowWidth = ref(window.innerWidth)
 const isWin = window.api.platform === 'win32'
 const userInfoStore = useUserInfoStore()
+const route = useRoute()
+const sidebarSlotStore = useSidebarSlotStore()
+const activeSlotComponent = computed(() => {
+	const slot = sidebarSlotStore.activeSlot
+	if (!slot) return null
+	return sidebarSlotComponentMap[slot.componentKey] || null
+})
 
 // 用于拖拽预览的临时宽度
 const visualWidth = ref('200px')
@@ -187,6 +203,13 @@ watch([sideBarWidth, isExpanded], () => {
 	const account = userInfoStore.account || ''
 	persistLayout(account)
 })
+
+watch(
+	() => route.fullPath,
+	() => {
+		sidebarSlotStore.clearActiveSlot()
+	},
+)
 </script>
 
 <style scoped>

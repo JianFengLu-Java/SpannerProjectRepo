@@ -2,9 +2,17 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useUserInfoStore } from './userInfo'
 import { useFriendStore } from './friend'
+import {
+	useAppSettingsStore,
+	type MessageReminderDisplayType,
+} from './appSettings'
 import { tokenManager } from '@renderer/services/tokenManager'
 import request from '@renderer/utils/request'
-import { isDicebearAvatarUrl, resolveAvatarUrl } from '@renderer/utils/avatar'
+import {
+	isDefaultAvatarUrl,
+	isDicebearAvatarUrl,
+	resolveAvatarUrl,
+} from '@renderer/utils/avatar'
 import {
 	privateChatWs,
 	type PrivateChatAckFrame,
@@ -18,6 +26,7 @@ interface DbChatItem {
 	avatar: string
 	lastMessage: string
 	timestamp: string
+	lastMessageAt?: string
 	online: number
 	unreadCount: number
 	isPinned: number
@@ -32,6 +41,10 @@ interface DbMessage {
 	type: string
 	hasResult: number
 	result?: string
+	clientMessageId?: string
+	serverMessageId?: string
+	deliveryStatus?: 'sending' | 'sent' | 'failed'
+	sentAt?: string
 }
 
 interface OfflineMessagePullResponse {
@@ -48,12 +61,15 @@ interface ApiResponse<T> {
 }
 
 interface HistoryMessageDto {
-	messageId?: string
+	messageId?: string | number
 	from: string
 	to: string
 	content: string
-	clientMessageId?: string
+	clientMessageId?: string | number
 	sentAt?: string
+	timestamp?: string
+	time?: string
+	createTime?: string
 	type?: string
 }
 
@@ -101,9 +117,34 @@ interface HydrateStorePayload {
 	scope?: string
 }
 
+const CHAT_IPC_CHANNELS = [
+	'store-update',
+	'provide-store-data',
+	'hydrate-store-data',
+] as const
+
+interface IpcRendererWithRemoveAll {
+	removeAllListeners?: (channel: string) => void
+}
+
+const clearChatIpcListeners = (): void => {
+	const host = window as Window & {
+		electron?: {
+			ipcRenderer?: IpcRendererWithRemoveAll
+		}
+	}
+	const ipcRenderer = host.electron?.ipcRenderer
+	if (!ipcRenderer?.removeAllListeners) return
+	for (const channel of CHAT_IPC_CHANNELS) {
+		ipcRenderer.removeAllListeners(channel)
+	}
+}
+
 export const useChatStore = defineStore('chat', () => {
 	const userInfoStore = useUserInfoStore()
 	const friendStore = useFriendStore()
+	const appSettingsStore = useAppSettingsStore()
+	let localMessageIdCursor = Date.now()
 	// --- 状态定义 ---
 	const activeChatId = ref<number | null>(null)
 	const drafts = ref<Record<number, Record<string, unknown> | null>>({})
@@ -116,6 +157,7 @@ export const useChatStore = defineStore('chat', () => {
 	const wsBoundAccount = ref('')
 	const wsBoundToken = ref('')
 	const offlinePulledAccount = ref('')
+	const friendsLoadedAccount = ref('')
 	const pendingMessageMap = ref(
 		new Map<
 			string,
@@ -128,8 +170,21 @@ export const useChatStore = defineStore('chat', () => {
 	const historyPaginationMap = ref(
 		new Map<number, { nextPage: number; hasMore: boolean }>(),
 	)
+	const localHistoryCursorMap = ref(
+		new Map<number, { nextOffsetFromLatest: number; hasMore: boolean }>(),
+	)
 	const loadingHistoryChatIds = ref(new Set<number>())
 	const hydratedHistoryChatIds = ref(new Set<number>())
+	const LOCAL_HISTORY_INITIAL_CHUNK_SIZE = 40
+	let loadingFriendsPromise: Promise<boolean> | null = null
+	const shouldLogChatMergeDebug = (): boolean => {
+		if (!import.meta.env.DEV) return false
+		try {
+			return window.localStorage.getItem('chat-merge-debug') === '1'
+		} catch {
+			return false
+		}
+	}
 
 	const getCurrentAccount = (): string => {
 		const account = userInfoStore.account?.trim()
@@ -152,24 +207,129 @@ export const useChatStore = defineStore('chat', () => {
 		return `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 	}
 
+	const createLocalMessageId = (): number => {
+		localMessageIdCursor += 1
+		return localMessageIdCursor
+	}
+
+	const pad2 = (value: number): string => String(value).padStart(2, '0')
+
+	const formatHourMinute = (date: Date): string =>
+		`${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+
+	const getStartOfDay = (date: Date): Date =>
+		new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+	const getCalendarDayDiff = (from: Date, to: Date): number => {
+		const fromStart = getStartOfDay(from)
+		const toStart = getStartOfDay(to)
+		let diff = 0
+		if (fromStart.getTime() === toStart.getTime()) return 0
+		if (fromStart.getTime() < toStart.getTime()) {
+			const cursor = new Date(fromStart)
+			while (cursor.getTime() < toStart.getTime()) {
+				cursor.setDate(cursor.getDate() + 1)
+				diff += 1
+			}
+			return diff
+		}
+		const cursor = new Date(fromStart)
+		while (cursor.getTime() > toStart.getTime()) {
+			cursor.setDate(cursor.getDate() - 1)
+			diff -= 1
+		}
+		return diff
+	}
+
+	const getWeekdayLabel = (day: number): string => {
+		const labels = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+		return labels[day] || '周日'
+	}
+
+	const formatMonthDay = (date: Date): string =>
+		`${date.getMonth() + 1}月${date.getDate()}日`
+
+	const parseIsoLikeDate = (value?: string): Date | null => {
+		if (!value?.trim()) return null
+		const text = value.trim().replace(' ', 'T')
+		const matched = text.match(
+			/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?(Z|[+-]\d{2}:?\d{2})?$/,
+		)
+		if (matched) {
+			const year = Number(matched[1])
+			const month = Number(matched[2])
+			const day = Number(matched[3])
+			const hour = Number(matched[4])
+			const minute = Number(matched[5])
+			const second = Number(matched[6] || '0')
+			const fraction = matched[7] || ''
+			const timezone = matched[8] || ''
+			const millisecond = Number((fraction + '000').slice(0, 3))
+			if (timezone) {
+				if (timezone === 'Z') {
+					return new Date(
+						Date.UTC(
+							year,
+							month - 1,
+							day,
+							hour,
+							minute,
+							second,
+							millisecond,
+						),
+					)
+				}
+				const normalizedTz = timezone.includes(':')
+					? timezone
+					: `${timezone.slice(0, 3)}:${timezone.slice(3)}`
+				const sign = normalizedTz.startsWith('-') ? -1 : 1
+				const tzHour = Number(normalizedTz.slice(1, 3))
+				const tzMinute = Number(normalizedTz.slice(4, 6))
+				const offsetMinutes = sign * (tzHour * 60 + tzMinute)
+				const utcMillis =
+					Date.UTC(
+						year,
+						month - 1,
+						day,
+						hour,
+						minute,
+						second,
+						millisecond,
+					) -
+					offsetMinutes * 60 * 1000
+				return new Date(utcMillis)
+			}
+			return new Date(
+				year,
+				month - 1,
+				day,
+				hour,
+				minute,
+				second,
+				millisecond,
+			)
+		}
+		const fallback = new Date(text)
+		return Number.isNaN(fallback.getTime()) ? null : fallback
+	}
+
 	const formatTimeFromIso = (iso?: string): string => {
-		if (!iso) {
-			return new Date().toLocaleTimeString([], {
-				hour: '2-digit',
-				minute: '2-digit',
-			})
+		if (!iso) return formatHourMinute(new Date())
+		const date = parseIsoLikeDate(iso)
+		if (!date) {
+			return formatHourMinute(new Date())
 		}
-		const date = new Date(iso)
-		if (Number.isNaN(date.getTime())) {
-			return new Date().toLocaleTimeString([], {
-				hour: '2-digit',
-				minute: '2-digit',
-			})
+		const now = new Date()
+		const dayDiff = getCalendarDayDiff(date, now)
+		const timePart = formatHourMinute(date)
+
+		if (dayDiff === 0) return timePart
+		if (dayDiff === 1) return `昨天${timePart}`
+		if (dayDiff === 2) return `前天${timePart}`
+		if (dayDiff > 2 && dayDiff <= 6) {
+			return `${getWeekdayLabel(date.getDay())}${timePart}`
 		}
-		return date.toLocaleTimeString([], {
-			hour: '2-digit',
-			minute: '2-digit',
-		})
+		return `${formatMonthDay(date)} ${timePart}`
 	}
 
 	const getTextPreview = (content: string): string => {
@@ -202,6 +362,48 @@ export const useChatStore = defineStore('chat', () => {
 			return 'file'
 		}
 		return 'text'
+	}
+
+	const triggerSystemMessageReminder = (
+		params: {
+			chatName: string
+			messageText: string
+		},
+	): void => {
+		if (!appSettingsStore.notificationsEnabled) return
+		const isStandalone =
+			window.location.href.includes('chat-standalone') ||
+			window.location.hash.includes('chat-standalone')
+		if (isStandalone) return
+
+		const displayType: MessageReminderDisplayType =
+			appSettingsStore.messageReminderDisplayType
+		const title = '新消息提醒'
+		const body =
+			displayType === 'detail'
+				? `${params.chatName}: ${params.messageText}`
+				: displayType === 'sender'
+					? params.chatName
+					: '你收到一条新消息'
+
+		if (
+			window.electron &&
+			window.electron.ipcRenderer &&
+			typeof window.electron.ipcRenderer.send === 'function'
+		) {
+			window.electron.ipcRenderer.send('show-system-notification', {
+				title,
+				body,
+			})
+			return
+		}
+
+		if (typeof Notification !== 'undefined') {
+			const permission = Notification.permission
+			if (permission === 'granted') {
+				new Notification(title, { body })
+			}
+		}
 	}
 
 	const normalizeDateInput = (value?: string): string | undefined => {
@@ -258,30 +460,78 @@ export const useChatStore = defineStore('chat', () => {
 		chatId: number,
 		currentAccount: string,
 	): Message => {
-		const sentAt = payload.sentAt || undefined
-		const stableIdBase = payload.messageId || payload.clientMessageId
-		let stableId = 0
-		if (stableIdBase) {
-			for (let i = 0; i < stableIdBase.length; i += 1) {
-				stableId =
-					(stableId * 31 + stableIdBase.charCodeAt(i)) % 2147483647
-			}
+		const source = payload as unknown as Record<string, unknown>
+		const normalizeId = (value: unknown): string | undefined => {
+			if (value === null || value === undefined) return undefined
+			const normalized = String(value).trim()
+			return normalized || undefined
 		}
+		const timeIdentity =
+			normalizeId(payload.sentAt) ||
+			normalizeId(source.timestamp) ||
+			normalizeId(source.time) ||
+			normalizeId(source.createTime)
+		const sentAt = timeIdentity
 		return {
-			id: stableId || Date.now() + Math.floor(Math.random() * 100000),
+			id: createLocalMessageId(),
 			chatId,
 			senderId: payload.from === currentAccount ? 'me' : 'other',
 			text: payload.content || '',
-			timestamp: formatTimeFromIso(payload.sentAt),
+			timestamp: timeIdentity ? formatTimeFromIso(timeIdentity) : '',
 			type: inferMessageType(
 				payload.content || '',
 				'type' in payload ? payload.type : undefined,
 			),
-			clientMessageId: payload.clientMessageId || undefined,
-			serverMessageId: payload.messageId || undefined,
+			clientMessageId: normalizeId(payload.clientMessageId),
+			serverMessageId: normalizeId(payload.messageId),
 			deliveryStatus: 'sent',
 			sentAt,
 		}
+	}
+
+	const buildMessageFingerprint = (item: Message): string => {
+		const sentAt = item.sentAt?.trim() || ''
+		const timestamp = item.timestamp?.trim() || ''
+		const timeKey = sentAt || timestamp || 'no-time'
+		return `${item.senderId}|${item.type}|${timeKey}|${item.text || ''}`
+	}
+
+	const compactDuplicateMessages = (rows: Message[]): Message[] => {
+		if (rows.length <= 1) return rows
+		const seenLocalId = new Set<number>()
+		const seenClientId = new Set<string>()
+		const seenServerId = new Set<string>()
+		const seenFingerprint = new Set<string>()
+		const compacted: Message[] = []
+
+		for (const row of rows) {
+			const clientId = row.clientMessageId?.trim() || ''
+			const serverId = row.serverMessageId?.trim() || ''
+			const fingerprint = buildMessageFingerprint(row)
+			const duplicatedByLocalId = seenLocalId.has(row.id)
+			const duplicatedByClientId = !!clientId && seenClientId.has(clientId)
+			const duplicatedByServerId = !!serverId && seenServerId.has(serverId)
+			const duplicatedByFingerprint =
+				!serverId &&
+				!clientId &&
+				!!fingerprint &&
+				seenFingerprint.has(fingerprint)
+			if (
+				duplicatedByLocalId ||
+				duplicatedByClientId ||
+				duplicatedByServerId ||
+				duplicatedByFingerprint
+			) {
+				continue
+			}
+
+			compacted.push(row)
+			seenLocalId.add(row.id)
+			if (clientId) seenClientId.add(clientId)
+			if (serverId) seenServerId.add(serverId)
+			if (fingerprint) seenFingerprint.add(fingerprint)
+		}
+		return compacted
 	}
 
 	const mergeMessagesToStore = (
@@ -290,28 +540,83 @@ export const useChatStore = defineStore('chat', () => {
 		position: 'append' | 'prepend' = 'append',
 	): number => {
 		if (!incomingMessages.length) return 0
+		const debugEnabled = shouldLogChatMergeDebug()
 		const existing = messages.value[chatId] || []
-		const clientIdSet = new Set(
-			existing
-				.map((item) => item.clientMessageId)
-				.filter((item): item is string => !!item),
-		)
-		const serverIdSet = new Set(
-			existing
-				.map((item) => item.serverMessageId)
-				.filter((item): item is string => !!item),
-		)
+		const byLocalId = new Map<number, Message>()
+		const byClientId = new Map<string, Message>()
+		const byServerId = new Map<string, Message>()
+		const fingerprintMap = new Map<string, Message>()
+		for (const existingMessage of existing) {
+			byLocalId.set(existingMessage.id, existingMessage)
+			if (existingMessage.clientMessageId) {
+				byClientId.set(existingMessage.clientMessageId, existingMessage)
+			}
+			if (existingMessage.serverMessageId) {
+				byServerId.set(existingMessage.serverMessageId, existingMessage)
+			}
+			const key = buildMessageFingerprint(existingMessage)
+			if (key) {
+				fingerprintMap.set(key, existingMessage)
+			}
+		}
 		const toInsert: Message[] = []
+		let duplicatedByIdCount = 0
+		let duplicatedByFingerprintCount = 0
 
 		for (const item of incomingMessages) {
-			const duplicatedByClientId =
-				!!item.clientMessageId && clientIdSet.has(item.clientMessageId)
-			const duplicatedByServerId =
-				!!item.serverMessageId && serverIdSet.has(item.serverMessageId)
-			if (duplicatedByClientId || duplicatedByServerId) continue
+			item.clientMessageId =
+				typeof item.clientMessageId === 'string'
+					? item.clientMessageId.trim() || undefined
+					: item.clientMessageId !== undefined &&
+						  item.clientMessageId !== null
+						? String(item.clientMessageId).trim() || undefined
+						: undefined
+			item.serverMessageId =
+				typeof item.serverMessageId === 'string'
+					? item.serverMessageId.trim() || undefined
+					: item.serverMessageId !== undefined &&
+						  item.serverMessageId !== null
+						? String(item.serverMessageId).trim() || undefined
+						: undefined
+			const duplicatedByIds =
+				byLocalId.get(item.id) ||
+				(item.clientMessageId
+					? byClientId.get(item.clientMessageId)
+					: undefined) ||
+				(item.serverMessageId
+					? byServerId.get(item.serverMessageId)
+					: undefined)
+			const duplicatedByFingerprint =
+				!duplicatedByIds && !item.serverMessageId && !item.clientMessageId
+					? fingerprintMap.get(buildMessageFingerprint(item))
+					: undefined
+			const duplicated = duplicatedByIds || duplicatedByFingerprint
+			if (duplicated) {
+				if (duplicatedByIds) duplicatedByIdCount += 1
+				else duplicatedByFingerprintCount += 1
+				duplicated.serverMessageId =
+					duplicated.serverMessageId || item.serverMessageId
+				duplicated.clientMessageId =
+					duplicated.clientMessageId || item.clientMessageId
+				duplicated.sentAt = duplicated.sentAt || item.sentAt
+				duplicated.deliveryStatus = item.deliveryStatus || 'sent'
+				duplicated.hasResult = !!item.hasResult
+				duplicated.result = item.result
+				db.saveMessage(duplicated)
+				continue
+			}
 			toInsert.push(item)
-			if (item.clientMessageId) clientIdSet.add(item.clientMessageId)
-			if (item.serverMessageId) serverIdSet.add(item.serverMessageId)
+			byLocalId.set(item.id, item)
+			if (item.clientMessageId) {
+				byClientId.set(item.clientMessageId, item)
+			}
+			if (item.serverMessageId) {
+				byServerId.set(item.serverMessageId, item)
+			}
+			const key = buildMessageFingerprint(item)
+			if (key) {
+				fingerprintMap.set(key, item)
+			}
 			db.saveMessage(item)
 		}
 
@@ -320,11 +625,32 @@ export const useChatStore = defineStore('chat', () => {
 			position === 'prepend'
 				? [...toInsert, ...existing]
 				: [...existing, ...toInsert]
+		merged.sort((a, b) => {
+			const aTime = a.sentAt ? new Date(a.sentAt).getTime() : 0
+			const bTime = b.sentAt ? new Date(b.sentAt).getTime() : 0
+			if (aTime && bTime && aTime !== bTime) {
+				return aTime - bTime
+			}
+			return a.id - b.id
+		})
+		const compacted = compactDuplicateMessages(merged)
 
 		if (!messages.value[chatId]) {
 			messages.value[chatId] = []
 		}
-		messages.value[chatId] = merged
+		messages.value[chatId] = compacted
+		if (debugEnabled) {
+			console.info('[chat-merge-debug]', {
+				chatId,
+				position,
+				incoming: incomingMessages.length,
+				inserted,
+				duplicatedById: duplicatedByIdCount,
+				duplicatedByFingerprint: duplicatedByFingerprintCount,
+				existingBefore: existing.length,
+				totalAfter: compacted.length,
+			})
+		}
 		return inserted
 	}
 
@@ -356,6 +682,9 @@ export const useChatStore = defineStore('chat', () => {
 			)
 			return (rawChats as DbChatItem[]).map((c) => ({
 				...c,
+				timestamp: c.lastMessageAt
+					? formatTimeFromIso(c.lastMessageAt)
+					: c.timestamp,
 				online: !!c.online,
 				isPinned: !!c.isPinned,
 			}))
@@ -371,6 +700,33 @@ export const useChatStore = defineStore('chat', () => {
 				(m) =>
 					({
 						...m,
+						timestamp: m.sentAt
+							? formatTimeFromIso(m.sentAt)
+							: m.timestamp,
+						hasResult: !!m.hasResult,
+					}) as Message,
+			)
+		},
+		async getMessagesSegment(
+			chatId: number,
+			limit: number,
+			offsetFromLatest: number,
+		): Promise<Message[]> {
+			const account = getCurrentAccount()
+			const rawMsgs = await window.electron.ipcRenderer.invoke(
+				'db-get-messages-segment',
+				account,
+				chatId,
+				limit,
+				offsetFromLatest,
+			)
+			return (rawMsgs as DbMessage[]).map(
+				(m) =>
+					({
+						...m,
+						timestamp: m.sentAt
+							? formatTimeFromIso(m.sentAt)
+							: m.timestamp,
 						hasResult: !!m.hasResult,
 					}) as Message,
 			)
@@ -390,7 +746,12 @@ export const useChatStore = defineStore('chat', () => {
 				hasResult: message.hasResult ? 1 : 0,
 			})
 		},
-		updateLastMessage(id: number, text: string, time: string): void {
+		updateLastMessage(
+			id: number,
+			text: string,
+			time: string,
+			lastMessageAt: string,
+		): void {
 			const account = getCurrentAccount()
 			window.electron.ipcRenderer.invoke(
 				'db-update-last-message',
@@ -398,6 +759,7 @@ export const useChatStore = defineStore('chat', () => {
 				id,
 				text,
 				time,
+				lastMessageAt,
 			)
 		},
 		setPinned(id: number, isPinned: boolean): void {
@@ -415,6 +777,114 @@ export const useChatStore = defineStore('chat', () => {
 		},
 	}
 
+	const getTimeMs = (value?: string): number => {
+		if (!value) return 0
+		const ms = new Date(value).getTime()
+		return Number.isFinite(ms) ? ms : 0
+	}
+
+	const hydrateSingleChatPreviewFromLatestMessage = async (
+		chat: ChatItem,
+	): Promise<boolean> => {
+		try {
+			const latestSegment = await db.getMessagesSegment(chat.id, 1, 0)
+			if (!latestSegment.length) return false
+			const latest = latestSegment[latestSegment.length - 1]
+			const preview = getTextPreview(latest.text || '')
+			const latestSentAt = latest.sentAt?.trim() || ''
+			const latestTimeLabel =
+				latest.timestamp ||
+				(latestSentAt ? formatTimeFromIso(latestSentAt) : '')
+			const currentLastMs = getTimeMs(chat.lastMessageAt)
+			const latestMs = getTimeMs(latestSentAt)
+			const hasNewerMessage = latestMs > currentLastMs
+			const missingPreview = !chat.lastMessage?.trim()
+			const missingTimeLabel = !chat.timestamp?.trim()
+
+			if (!hasNewerMessage && !missingPreview && !missingTimeLabel) {
+				return true
+			}
+
+			chat.lastMessage = preview || chat.lastMessage || ''
+			chat.timestamp = latestTimeLabel || chat.timestamp || formatTimeFromIso()
+			if (latestSentAt) {
+				chat.lastMessageAt = latestSentAt
+			}
+			db.saveChat(chat)
+			return true
+		} catch (error) {
+			console.warn('回填会话最新消息预览失败:', chat.id, error)
+			return false
+		}
+	}
+
+	const resolveLatestPreviewBeforeCreate = async (
+		chatId: number,
+	): Promise<{ preview: string; timeLabel: string; sentAt?: string } | null> => {
+		try {
+			const latestSegment = await db.getMessagesSegment(chatId, 1, 0)
+			if (latestSegment.length) {
+				const latest = latestSegment[latestSegment.length - 1]
+				const sentAt = latest.sentAt?.trim() || undefined
+				return {
+					preview: getTextPreview(latest.text || ''),
+					timeLabel:
+						latest.timestamp ||
+						(sentAt ? formatTimeFromIso(sentAt) : ''),
+					sentAt,
+				}
+			}
+		} catch (error) {
+			console.warn('创建会话前读取本地最新消息失败:', chatId, error)
+		}
+
+		try {
+			const data = await pullChatHistory(chatId, {
+				page: 1,
+				size: 20,
+				appendToStore: false,
+			})
+			const rows = Array.isArray(data.messages) ? data.messages : []
+			if (!rows.length) return null
+			let currentAccount = ''
+			try {
+				currentAccount = getCurrentAccount()
+			} catch {
+				currentAccount = ''
+			}
+			const mapped = rows.map((item) =>
+				createLocalMessageFromServer(item, chatId, currentAccount),
+			)
+			if (!mapped.length) return null
+			mapped.sort((a, b) => {
+				const aMs = getTimeMs(a.sentAt)
+				const bMs = getTimeMs(b.sentAt)
+				if (aMs !== bMs) return aMs - bMs
+				return a.id - b.id
+			})
+			const latest = mapped[mapped.length - 1]
+			const sentAt = latest.sentAt?.trim() || undefined
+			return {
+				preview: getTextPreview(latest.text || ''),
+				timeLabel: latest.timestamp || (sentAt ? formatTimeFromIso(sentAt) : ''),
+				sentAt,
+			}
+		} catch (error) {
+			console.warn('创建会话前拉取远端最新消息失败:', chatId, error)
+			return null
+		}
+	}
+
+	const hydrateChatPreviewFromLatestMessage = async (
+		chats: ChatItem[],
+	): Promise<void> => {
+		await Promise.all(
+			chats.map(async (chat) => {
+				await hydrateSingleChatPreviewFromLatestMessage(chat)
+			}),
+		)
+	}
+
 	// --- 初始化逻辑 ---
 	const init = async (): Promise<void> => {
 		const account = getCurrentAccount()
@@ -429,12 +899,16 @@ export const useChatStore = defineStore('chat', () => {
 		messages.value = {}
 		pendingMessageMap.value.clear()
 		historyPaginationMap.value.clear()
+		localHistoryCursorMap.value.clear()
 		loadingHistoryChatIds.value.clear()
 		hydratedHistoryChatIds.value.clear()
 
 		const chats = await db.getAllChats()
+		await hydrateChatPreviewFromLatestMessage(chats)
 		chatlist.value = chats
 		pinnedChats.value = chats.filter((c) => c.isPinned)
+		await ensureFriendDataReady()
+		syncChatProfilesWithFriends()
 		initializedAccount.value = account
 		isDbInitialized.value = true
 		bindPrivateChatWs()
@@ -467,23 +941,69 @@ export const useChatStore = defineStore('chat', () => {
 		}
 	}
 
-	const syncChatAvatarsWithFriends = (): void => {
+	const ensureFriendDataReady = async (): Promise<void> => {
+		let account = ''
+		try {
+			account = getCurrentAccount()
+		} catch {
+			return
+		}
+
+		if (
+			friendStore.friends.length > 0 &&
+			friendsLoadedAccount.value === account
+		) {
+			return
+		}
+		if (loadingFriendsPromise) {
+			await loadingFriendsPromise
+			return
+		}
+
+		loadingFriendsPromise = friendStore.fetchFriends()
+		try {
+			const ok = await loadingFriendsPromise
+			if (ok) {
+				friendsLoadedAccount.value = account
+			}
+		} finally {
+			loadingFriendsPromise = null
+		}
+	}
+
+	const syncChatProfilesWithFriends = (): void => {
 		if (!chatlist.value.length || !friendStore.friends.length) return
-		const friendAvatarMap = new Map(
-			friendStore.friends.map((friend) => [
-				friend.id,
-				resolveAvatarUrl(friend.avatar),
-			]),
+		const friendMap = new Map(
+			friendStore.friends.map((friend) => [friend.id, friend]),
 		)
 
 		for (const chat of chatlist.value) {
-			const friendAvatar = friendAvatarMap.get(String(chat.id))
-			if (!friendAvatar) continue
-			if (chat.avatar === friendAvatar) continue
-			if (!chat.avatar.trim() || isDicebearAvatarUrl(chat.avatar)) {
+			const friend = friendMap.get(String(chat.id))
+			if (!friend) continue
+
+			const friendAvatar = resolveAvatarUrl(friend.avatar)
+			const friendName = friend.name?.trim() || ''
+			const friendOnline = friend.status === 'online'
+			const shouldUpdateAvatar =
+				chat.avatar !== friendAvatar &&
+				(!chat.avatar.trim() ||
+					isDicebearAvatarUrl(chat.avatar) ||
+					isDefaultAvatarUrl(chat.avatar))
+			const shouldUpdateName = !!friendName && chat.name !== friendName
+			const shouldUpdateOnline = chat.online !== friendOnline
+			if (!shouldUpdateAvatar && !shouldUpdateName && !shouldUpdateOnline)
+				continue
+
+			if (shouldUpdateAvatar) {
 				chat.avatar = friendAvatar
-				db.saveChat(chat)
 			}
+			if (shouldUpdateName) {
+				chat.name = friendName
+			}
+			if (shouldUpdateOnline) {
+				chat.online = friendOnline
+			}
+			db.saveChat(chat)
 		}
 	}
 
@@ -494,7 +1014,10 @@ export const useChatStore = defineStore('chat', () => {
 		if (!Number.isFinite(chatId)) return null
 
 		let existing = chatlist.value.find((item) => item.id === chatId)
-		if (existing) return chatId
+		if (existing) {
+			await hydrateSingleChatPreviewFromLatestMessage(existing)
+			return chatId
+		}
 
 		const friend = friendStore.friends.find((item) => item.id === account)
 		const newChat: ChatItem = {
@@ -503,19 +1026,25 @@ export const useChatStore = defineStore('chat', () => {
 			avatar: resolveAvatarUrl(friend?.avatar),
 			lastMessage: '',
 			timestamp: formatTimeFromIso(),
-			online: true,
+			lastMessageAt: new Date().toISOString(),
+			online: friend?.status === 'online',
 			unreadCount: 0,
 			isPinned: false,
 		}
 		chatlist.value.unshift(newChat)
 		db.saveChat(newChat)
 		existing = newChat
+		void hydrateSingleChatPreviewFromLatestMessage(existing)
 		return existing.id
 	}
 
 	const handleIncomingWsMessage = async (
 		payload: PrivateChatMessageFrame,
 	): Promise<void> => {
+		const normalizeId = (value: unknown): string => {
+			if (value === null || value === undefined) return ''
+			return String(value).trim()
+		}
 		let currentAccount = ''
 		try {
 			currentAccount = getCurrentAccount()
@@ -528,27 +1057,32 @@ export const useChatStore = defineStore('chat', () => {
 		const chatId = await ensureChatSession(peerAccount)
 		if (!chatId) return
 
-		const incomingClientMessageId = payload.clientMessageId || ''
-		const incomingServerMessageId = payload.messageId || ''
+		const incomingClientMessageId = normalizeId(payload.clientMessageId)
+		const incomingServerMessageId = normalizeId(payload.messageId)
 		const existingList = messages.value[chatId] || []
-		if (
-			existingList.some(
-				(item) =>
-					(!!incomingClientMessageId &&
-						item.clientMessageId === incomingClientMessageId) ||
-					(!!incomingServerMessageId &&
-						item.serverMessageId === incomingServerMessageId),
-			)
-		) {
-			// 发送方回显或重复消息，直接标记为 sent
-			if (incomingClientMessageId) {
-				updateMessageStatusLocal(
-					chatId,
-					incomingClientMessageId,
-					'sent',
-				)
-				pendingMessageMap.value.delete(incomingClientMessageId)
+		const duplicatedByIdentity = existingList.find(
+			(item) =>
+				(!!incomingClientMessageId &&
+					item.clientMessageId === incomingClientMessageId) ||
+				(!!incomingServerMessageId &&
+					item.serverMessageId === incomingServerMessageId),
+		)
+		if (!!duplicatedByIdentity) {
+			// 发送方回显或重复消息，合并服务器返回字段并标记 sent，避免消息被“覆盖感知”
+			if (duplicatedByIdentity) {
+				duplicatedByIdentity.serverMessageId =
+					duplicatedByIdentity.serverMessageId ||
+					incomingServerMessageId ||
+					undefined
+				duplicatedByIdentity.sentAt =
+					duplicatedByIdentity.sentAt || payload.sentAt || undefined
+				duplicatedByIdentity.deliveryStatus = 'sent'
+				duplicatedByIdentity.hasResult = false
+				duplicatedByIdentity.result = undefined
+				db.saveMessage(duplicatedByIdentity)
 			}
+			if (incomingClientMessageId)
+				pendingMessageMap.value.delete(incomingClientMessageId)
 			return
 		}
 
@@ -565,7 +1099,13 @@ export const useChatStore = defineStore('chat', () => {
 		db.saveMessage(newMessage)
 
 		const preview = getTextPreview(newMessage.text)
-		updateLastMessageLocal(chatId, preview, newMessage.timestamp)
+		updateLastMessageLocal(
+			chatId,
+			preview,
+			newMessage.timestamp,
+			true,
+			newMessage.sentAt,
+		)
 
 		const chat = chatlist.value.find((item) => item.id === chatId)
 		const isReadingCurrentChat =
@@ -573,6 +1113,10 @@ export const useChatStore = defineStore('chat', () => {
 		if (chat && newMessage.senderId === 'other' && !isReadingCurrentChat) {
 			chat.unreadCount = (chat.unreadCount || 0) + 1
 			db.saveChat(chat)
+			triggerSystemMessageReminder({
+				chatName: chat.name || '联系人',
+				messageText: preview,
+			})
 		}
 	}
 
@@ -650,27 +1194,26 @@ export const useChatStore = defineStore('chat', () => {
 		)
 
 		if (options.appendToStore !== false && filtered.length) {
-			const currentPage = data.page || page
+			const currentPage = page
 			mergeMessagesToStore(
 				chatId,
 				filtered,
 				currentPage > 1 ? 'prepend' : 'append',
 			)
-
-			const latest = filtered[filtered.length - 1]
-			if (latest) {
-				updateLastMessageLocal(
-					chatId,
-					getTextPreview(latest.text),
-					latest.timestamp,
-					false,
-				)
-			}
 		}
 
+		const serverPage =
+			typeof data.page === 'number' && data.page > 0 ? data.page : page
+		const resolvedPage = Math.max(page, serverPage)
+		const hasMore =
+			typeof data.hasMore === 'boolean'
+				? data.hasMore
+				: typeof data.totalPages === 'number'
+					? resolvedPage < data.totalPages
+					: rawMessages.length >= size
 		historyPaginationMap.value.set(chatId, {
-			nextPage: (data.page || page) + 1,
-			hasMore: !!data.hasMore,
+			nextPage: resolvedPage + 1,
+			hasMore,
 		})
 
 		return {
@@ -683,12 +1226,54 @@ export const useChatStore = defineStore('chat', () => {
 		chatId: number,
 		size = 20,
 	): Promise<boolean> => {
+		const localPagination = localHistoryCursorMap.value.get(chatId)
+		const remotePagination = historyPaginationMap.value.get(chatId)
 		if (loadingHistoryChatIds.value.has(chatId)) {
-			return !!historyPaginationMap.value.get(chatId)?.hasMore
+			return !!localPagination?.hasMore || !!remotePagination?.hasMore
 		}
-		const pagination = historyPaginationMap.value.get(chatId)
-		if (pagination && !pagination.hasMore) return false
-		const targetPage = pagination?.nextPage || 2
+
+		// 优先分页读取本地历史，滚动加载更平滑。
+		if (localPagination?.hasMore) {
+			loadingHistoryChatIds.value.add(chatId)
+			try {
+				try {
+					const segment = await db.getMessagesSegment(
+						chatId,
+						size,
+						localPagination.nextOffsetFromLatest,
+					)
+					if (segment.length) {
+						mergeMessagesToStore(chatId, segment, 'prepend')
+					}
+					localHistoryCursorMap.value.set(chatId, {
+						nextOffsetFromLatest:
+							localPagination.nextOffsetFromLatest +
+							segment.length,
+						hasMore: segment.length >= size,
+					})
+					return (
+						segment.length >= size || !!remotePagination?.hasMore
+					)
+				} catch (error) {
+					// 分段 IPC 不可用时兜底回退，避免历史消息空白。
+					console.warn('分段读取本地聊天记录失败，回退全量读取:', error)
+					const allLocal = await db.getMessages(chatId)
+					if (allLocal.length) {
+						mergeMessagesToStore(chatId, allLocal, 'append')
+					}
+					localHistoryCursorMap.value.set(chatId, {
+						nextOffsetFromLatest: allLocal.length,
+						hasMore: false,
+					})
+					return !!remotePagination?.hasMore
+				}
+			} finally {
+				loadingHistoryChatIds.value.delete(chatId)
+			}
+		}
+
+		if (remotePagination && !remotePagination.hasMore) return false
+		const targetPage = remotePagination?.nextPage || 2
 		loadingHistoryChatIds.value.add(chatId)
 		try {
 			const data = await pullChatHistory(chatId, {
@@ -830,6 +1415,7 @@ export const useChatStore = defineStore('chat', () => {
 		isWsBound.value = false
 		wsBoundToken.value = ''
 		offlinePulledAccount.value = ''
+		friendsLoadedAccount.value = ''
 		bindPrivateChatWs()
 		void pullOfflineMessages()
 	})
@@ -840,22 +1426,26 @@ export const useChatStore = defineStore('chat', () => {
 		wsBoundAccount.value = ''
 		wsBoundToken.value = ''
 		offlinePulledAccount.value = ''
+		friendsLoadedAccount.value = ''
 		pendingMessageMap.value.clear()
 		historyPaginationMap.value.clear()
+		localHistoryCursorMap.value.clear()
 	})
 
 	watch(
 		() =>
 			friendStore.friends.map(
-				(friend) => `${friend.id}:${friend.avatar}`,
+				(friend) =>
+					`${friend.id}:${friend.avatar}:${friend.name}:${friend.status}`,
 			),
 		() => {
-			syncChatAvatarsWithFriends()
+			syncChatProfilesWithFriends()
 		},
 		{ immediate: true },
 	)
 
 	if (window.electron && window.electron.ipcRenderer) {
+		clearChatIpcListeners()
 		window.electron.ipcRenderer.on(
 			'store-update',
 			(
@@ -880,21 +1470,34 @@ export const useChatStore = defineStore('chat', () => {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				const data = payload.data as any
 				switch (action) {
-					case 'sendMessage':
+					case 'sendMessage': {
 						if (!messages.value[data.chatId])
 							messages.value[data.chatId] = []
+						const incomingMessage = data.message as Message
 						if (
 							!messages.value[data.chatId].some(
-								(m) => m.id === data.message.id,
+								(m) =>
+									m.id === incomingMessage.id ||
+									(!!incomingMessage.clientMessageId &&
+										m.clientMessageId ===
+											incomingMessage.clientMessageId) ||
+									(!!incomingMessage.serverMessageId &&
+										m.serverMessageId ===
+											incomingMessage.serverMessageId),
 							)
 						) {
-							messages.value[data.chatId].push(data.message)
+							messages.value[data.chatId].push(incomingMessage)
 							updateLastMessageLocal(
 								data.chatId,
 								data.textPreview,
+								data.timestamp,
+								typeof data.moveToTop === 'boolean'
+									? data.moveToTop
+									: true,
 							)
 						}
 						break
+					}
 					case 'updateMessageStatus':
 						updateMessageStatusLocal(
 							data.chatId,
@@ -952,7 +1555,17 @@ export const useChatStore = defineStore('chat', () => {
 				}
 				if (payload.scope && payload.scope !== currentAccount) return
 
-				if (payload.messages) messages.value = payload.messages
+				if (payload.messages) {
+					for (const [chatIdKey, chatMessages] of Object.entries(
+						payload.messages,
+					)) {
+						const chatId = Number(chatIdKey)
+						if (!Number.isFinite(chatId)) continue
+						if (!Array.isArray(chatMessages) || !chatMessages.length)
+							continue
+						mergeMessagesToStore(chatId, chatMessages, 'append')
+					}
+				}
 				if (payload.chatlist) chatlist.value = payload.chatlist
 				if (payload.pinnedChats) pinnedChats.value = payload.pinnedChats
 			},
@@ -979,6 +1592,7 @@ export const useChatStore = defineStore('chat', () => {
 		message: string,
 		timeOverride?: string,
 		moveToTop = true,
+		lastMessageAtOverride?: string,
 	): void => {
 		const index = chatlist.value.findIndex((c) => c.id === id)
 		if (index !== -1) {
@@ -991,6 +1605,7 @@ export const useChatStore = defineStore('chat', () => {
 				})
 			chat.lastMessage = message
 			chat.timestamp = time
+			chat.lastMessageAt = lastMessageAtOverride || new Date().toISOString()
 
 			if (moveToTop) {
 				// 新消息到达时移动到顶部 (所有聊天列表)
@@ -1008,7 +1623,7 @@ export const useChatStore = defineStore('chat', () => {
 				}
 			}
 
-			db.updateLastMessage(id, message, time)
+			db.updateLastMessage(id, message, time, chat.lastMessageAt)
 		}
 	}
 
@@ -1027,6 +1642,7 @@ export const useChatStore = defineStore('chat', () => {
 		target.deliveryStatus = status
 		target.hasResult = status === 'failed'
 		target.result = result
+		db.saveMessage(target)
 	}
 
 	const markAsReadLocal = (id: number): void => {
@@ -1058,6 +1674,9 @@ export const useChatStore = defineStore('chat', () => {
 	const deleteChatLocal = (chatId: number): void => {
 		chatlist.value = chatlist.value.filter((c) => c.id !== chatId)
 		pinnedChats.value = pinnedChats.value.filter((c) => c.id !== chatId)
+		localHistoryCursorMap.value.delete(chatId)
+		historyPaginationMap.value.delete(chatId)
+		hydratedHistoryChatIds.value.delete(chatId)
 		db.deleteChat(chatId)
 		if (activeChatId.value === chatId) activeChatId.value = null
 	}
@@ -1068,9 +1687,36 @@ export const useChatStore = defineStore('chat', () => {
 			await init()
 		}
 		activeChatId.value = id
-		if (!messages.value[id]) {
-			const msgs = await db.getMessages(id)
-			messages.value[id] = msgs
+
+		if (!localHistoryCursorMap.value.has(id) || !messages.value[id]) {
+			if (!messages.value[id]) {
+				messages.value[id] = []
+			}
+			try {
+				const segment = await db.getMessagesSegment(
+					id,
+					LOCAL_HISTORY_INITIAL_CHUNK_SIZE,
+					0,
+				)
+				if (segment.length) {
+					mergeMessagesToStore(id, segment, 'append')
+				}
+				localHistoryCursorMap.value.set(id, {
+					nextOffsetFromLatest: segment.length,
+					hasMore: segment.length >= LOCAL_HISTORY_INITIAL_CHUNK_SIZE,
+				})
+			} catch (error) {
+				// 分段读取失败时回退老逻辑，保证聊天记录可见。
+				console.warn('初始化分段读取失败，回退全量读取:', error)
+				const allLocal = await db.getMessages(id)
+				if (allLocal.length) {
+					mergeMessagesToStore(id, allLocal, 'append')
+				}
+				localHistoryCursorMap.value.set(id, {
+					nextOffsetFromLatest: allLocal.length,
+					hasMore: false,
+				})
+			}
 		}
 		if (hydratedHistoryChatIds.value.has(id)) return
 		try {
@@ -1112,7 +1758,7 @@ export const useChatStore = defineStore('chat', () => {
 		const clientMessageId = createClientMessageId()
 		const sentAt = new Date().toISOString()
 		const newMessage: Message = {
-			id: Date.now(),
+			id: createLocalMessageId(),
 			chatId,
 			senderId: 'me',
 			text: content,
@@ -1130,12 +1776,20 @@ export const useChatStore = defineStore('chat', () => {
 		db.saveMessage(newMessage) // 保存到 DB
 
 		const textPreview = getTextPreview(content)
-		updateLastMessageLocal(chatId, textPreview)
+		updateLastMessageLocal(
+			chatId,
+			textPreview,
+			newMessage.timestamp,
+			true,
+			newMessage.sentAt,
+		)
 
 		syncAction('sendMessage', {
 			chatId,
 			message: newMessage,
 			textPreview,
+			timestamp: newMessage.timestamp,
+			moveToTop: true,
 		})
 
 		const sent = privateChatWs.sendPrivate(
@@ -1189,28 +1843,35 @@ export const useChatStore = defineStore('chat', () => {
 		id: string
 		name: string
 		avatar: string
+		status?: 'online' | 'offline'
 	}): Promise<number> => {
+		if (!isDbInitialized.value) {
+			await init()
+		}
 		const id = parseInt(friend.id)
 		const existing = chatlist.value.find((c) => c.id === id)
 		if (existing) {
+			await hydrateSingleChatPreviewFromLatestMessage(existing)
 			return id
 		}
+		const latestPreview = await resolveLatestPreviewBeforeCreate(id)
 		// 创建新会话
 		const newChat: ChatItem = {
 			id,
 			name: friend.name,
 			avatar: resolveAvatarUrl(friend.avatar),
-			lastMessage: '',
-			timestamp: new Date().toLocaleTimeString([], {
-				hour: '2-digit',
-				minute: '2-digit',
-			}),
-			online: true,
+			lastMessage: latestPreview?.preview || '',
+			timestamp: latestPreview?.timeLabel || '',
+			lastMessageAt: latestPreview?.sentAt,
+			online: friend.status === 'online',
 			unreadCount: 0,
 			isPinned: false,
 		}
 		chatlist.value.unshift(newChat)
 		db.saveChat(newChat)
+		if (!latestPreview) {
+			void hydrateSingleChatPreviewFromLatestMessage(newChat)
+		}
 		return id
 	}
 
@@ -1245,6 +1906,7 @@ export interface ChatItem {
 	avatar: string
 	lastMessage: string
 	timestamp: string
+	lastMessageAt?: string
 	online: boolean
 	unreadCount?: number
 	isPinned?: boolean

@@ -25,25 +25,69 @@ export const useUserInfoStore = defineStore(
 		const gender = ref('')
 		const email = ref('')
 		const avatarUrl = ref('')
+		const phone = ref('')
+		const address = ref('')
+		const age = ref<number | null>(null)
 		const userToken = ref('')
 
+		interface UserInfoPayload {
+			account?: string
+			realName?: string
+			gender?: string
+			email?: string
+			avatarUrl?: string
+			phone?: string
+			address?: string
+			age?: number | null
+		}
+
 		function setUserInfo(
-			info: {
-				account?: string
-				realName: string
-				gender: string
-				email: string
-				avatarUrl: string
-			},
+			info: UserInfoPayload,
 			token: string,
 		): void {
 			account.value = info.account || resolveAccountFromToken(token)
-			userName.value = info.realName
-			gender.value = info.gender
-			email.value = info.email
-			avatarUrl.value = info.avatarUrl
+			userName.value = info.realName || ''
+			gender.value = info.gender || ''
+			email.value = info.email || ''
+			avatarUrl.value = info.avatarUrl || ''
+			phone.value = info.phone || ''
+			address.value = info.address || ''
+			age.value =
+				typeof info.age === 'number' && Number.isFinite(info.age)
+					? info.age
+					: null
 			userToken.value = token
 			window.localStorage.setItem('token', token)
+		}
+
+		function patchUserInfo(patch: UserInfoPayload): void {
+			if (typeof patch.account === 'string') {
+				account.value = patch.account
+			}
+			if (typeof patch.realName === 'string') {
+				userName.value = patch.realName
+			}
+			if (typeof patch.gender === 'string') {
+				gender.value = patch.gender
+			}
+			if (typeof patch.email === 'string') {
+				email.value = patch.email
+			}
+			if (typeof patch.avatarUrl === 'string') {
+				avatarUrl.value = patch.avatarUrl
+			}
+			if (typeof patch.phone === 'string') {
+				phone.value = patch.phone
+			}
+			if (typeof patch.address === 'string') {
+				address.value = patch.address
+			}
+			if (
+				patch.age === null ||
+				(typeof patch.age === 'number' && Number.isFinite(patch.age))
+			) {
+				age.value = patch.age
+			}
 		}
 
 		function logout(): void {
@@ -52,6 +96,9 @@ export const useUserInfoStore = defineStore(
 			gender.value = ''
 			email.value = ''
 			avatarUrl.value = ''
+			phone.value = ''
+			address.value = ''
+			age.value = null
 			userToken.value = ''
 			tokenManager.clear()
 		}
@@ -62,8 +109,12 @@ export const useUserInfoStore = defineStore(
 			gender,
 			email,
 			avatarUrl,
+			phone,
+			address,
+			age,
 			userToken,
 			setUserInfo,
+			patchUserInfo,
 			logout,
 		}
 	},

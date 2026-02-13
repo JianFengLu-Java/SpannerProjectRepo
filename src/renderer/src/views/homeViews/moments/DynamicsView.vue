@@ -1,7 +1,7 @@
 <template>
 	<div
 		ref="containerRef"
-		class="h-full w-full flex flex-col overflow-hidden rounded-[24px] bg-page-bg transition-all duration-300 relative"
+		class="h-full w-full flex flex-col overflow-hidden bg-page-bg transition-all duration-300 relative"
 	>
 		<!-- 列表页 (始终保持在 DOM 中以保留滚动位置与背景视觉) -->
 		<div class="h-full flex flex-col">
@@ -22,7 +22,7 @@
 							发现精彩
 						</h2>
 						<div
-							class="flex items-center gap-1 bg-gray-100/50 p-1 rounded-2xl overflow-x-auto no-scrollbar shrink-0"
+							class="flex items-center gap-1 bg-gray-100/50 dark:bg-zinc-800/60 p-1 rounded-2xl overflow-x-auto no-scrollbar shrink-0"
 						>
 							<div
 								v-for="tab in tabs"
@@ -30,8 +30,8 @@
 								class="px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all no-drag shrink-0"
 								:class="[
 									momentStore.activeTab === tab.key
-										? 'bg-white text-primary shadow-sm scale-105'
-										: 'text-gray-400 hover:text-gray-600',
+										? 'bg-white dark:bg-zinc-700 text-primary shadow-sm scale-105'
+										: 'text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-100',
 								]"
 								@click="momentStore.activeTab = tab.key"
 							>
@@ -47,7 +47,7 @@
 						<n-input
 							v-model:value="momentStore.searchQuery"
 							placeholder="搜索内容..."
-							class="rounded-2xl bg-gray-100/50 border-none transition-all no-drag duration-300"
+							class="rounded-2xl bg-gray-100/50 dark:bg-zinc-800/60 border-none transition-all no-drag duration-300"
 							:class="[containerWidth < 650 ? 'flex-1' : 'w-64']"
 							size="medium"
 						>
@@ -79,7 +79,7 @@
 					<div
 						v-for="tag in hotTags"
 						:key="tag"
-						class="px-3 py-1.5 rounded-full bg-white border border-gray-100 text-[11px] font-medium text-gray-500 hover:border-primary/30 hover:text-primary transition-all cursor-pointer shrink-0"
+						class="px-3 py-1.5 rounded-full bg-white dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 text-[11px] font-medium text-gray-500 dark:text-gray-300 hover:border-primary/30 hover:text-primary transition-all cursor-pointer shrink-0"
 					>
 						# {{ tag }}
 					</div>
@@ -88,10 +88,12 @@
 
 			<!-- 动态内容区 (瀑布流布局) -->
 			<div class="flex-1 overflow-y-auto px-6 pb-8 custom-scrollbar">
-				<FriendMomentList
+				<div
 					v-if="momentStore.activeTab === 'friends'"
-					:moments="filteredMoments"
-				/>
+					class="friend-list-shell mx-auto w-full"
+				>
+					<FriendMomentList :moments="filteredMoments" />
+				</div>
 				<div v-else class="grid gap-4" :style="gridStyle">
 					<MomentCard
 						v-for="moment in filteredMoments"
@@ -103,7 +105,10 @@
 				</div>
 
 				<!-- 加载状态 -->
-				<div v-if="loading" class="flex justify-center py-8">
+				<div
+					v-if="momentStore.isLoading"
+					class="flex justify-center py-8"
+				>
 					<n-spin size="large" />
 				</div>
 
@@ -112,10 +117,13 @@
 					v-if="filteredMoments.length === 0"
 					class="h-[400px] flex flex-col items-center justify-center opacity-30 select-none"
 				>
-					<n-icon size="120" class="mb-4 text-gray-300">
+					<n-icon
+						size="120"
+						class="mb-4 text-gray-300 dark:text-gray-600"
+					>
 						<LeafOutline />
 					</n-icon>
-					<span class="text-lg text-gray-400"
+					<span class="text-lg text-gray-400 dark:text-gray-500"
 						>暂时没有发现更多动态</span
 					>
 				</div>
@@ -131,7 +139,6 @@
 				<div
 					v-if="momentStore.selectedMoment && containerWidth > 1000"
 					class="absolute inset-0 bg-black/20 backdrop-blur-sm pointer-events-auto"
-					@click="momentStore.selectedMomentId = null"
 				></div>
 			</Transition>
 
@@ -141,7 +148,7 @@
 			>
 				<div
 					v-if="momentStore.selectedMoment"
-					class="h-full bg-white shadow-2xl relative z-10 pointer-events-auto"
+					class="h-full bg-white dark:bg-zinc-900 shadow-2xl relative z-10 pointer-events-auto"
 					:style="{ width: containerWidth > 1000 ? '550px' : '100%' }"
 				>
 					<MomentDetail
@@ -155,8 +162,9 @@
 		<n-modal
 			v-model:show="showPublishModal"
 			preset="card"
-			style="width: min(860px, calc(100vw - 48px)); height: 80vh"
+			:style="publishModalStyle"
 			title="发布帖子"
+			:mask-closable="false"
 			:bordered="false"
 			size="huge"
 			segmented
@@ -171,11 +179,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Search24Regular, Add24Filled } from '@vicons/fluent'
 import { LeafOutline } from '@vicons/ionicons5'
 import { NIcon, NInput, NButton, NSpin, NModal, useMessage } from 'naive-ui'
-import { useElementSize } from '@vueuse/core'
+import { useElementSize, useWindowSize } from '@vueuse/core'
 import MomentCard from './MomentCard.vue'
 import MomentDetail from './MomentDetail.vue'
 import MomentPublishEditor from './MomentPublishEditor.vue'
@@ -187,11 +195,29 @@ const message = useMessage()
 
 const containerRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(containerRef)
+const { width: windowWidth } = useWindowSize()
 
-const loading = ref(false)
 const showPublishModal = ref(false)
 const publishing = ref(false)
 // activeTab, searchQuery, selectedMoment 已由于需要保持状态移至 Store
+
+const publishModalStyle = computed(() => {
+	if (windowWidth.value <= 768) {
+		return {
+			width: 'calc(100vw - 20px)',
+			height: 'calc(100vh - 20px)',
+			maxHeight: 'calc(100vh - 20px)',
+			marginTop: '10px',
+			overflow: 'hidden',
+		}
+	}
+	return {
+		width: 'min(860px, calc(100vw - 48px))',
+		height: '80vh',
+		maxHeight: 'calc(100vh - 24px)',
+		overflow: 'hidden',
+	}
+})
 
 const gridStyle = computed(() => {
 	if (containerWidth.value < 650) {
@@ -223,7 +249,7 @@ const tabs = [
 	{ key: 'friends', label: '朋友' },
 	{ key: 'nearby', label: '附近' },
 	{ key: 'trending', label: '热榜' },
-]
+] as const
 
 const hotTags = [
 	'猫咪大赏',
@@ -236,46 +262,74 @@ const hotTags = [
 ]
 
 const filteredMoments = computed(() => {
-	let list = momentStore.moments
-	if (momentStore.searchQuery) {
-		const query = momentStore.searchQuery.toLowerCase()
-		list = list.filter(
-			(m) =>
-				m.title.toLowerCase().includes(query) ||
-				m.author.name.toLowerCase().includes(query) ||
-				(m.content || '').toLowerCase().includes(query),
-		)
-	}
-	return list
+	return momentStore.moments
 })
-
-if (momentStore.activeTab === 'follow') {
-	momentStore.activeTab = 'friends'
-}
 
 const handlePublish = (): void => {
 	showPublishModal.value = true
 }
 
-const handleSubmitPublish = (payload: {
+const handleSubmitPublish = async (payload: {
 	title: string
 	contentHtml: string
 	contentText: string
 	images: string[]
-}): void => {
+}): Promise<void> => {
 	try {
 		publishing.value = true
-		momentStore.addMoment(payload)
+		await momentStore.addMoment(payload)
 		showPublishModal.value = false
 		message.success('发布成功')
+		await momentStore.fetchMoments({ reset: true })
+	} catch (error) {
+		console.error('发布动态失败', error)
+		message.error('发布失败，请稍后重试')
 	} finally {
 		publishing.value = false
 	}
 }
 
-const handleMomentClick = (moment: Moment): void => {
-	momentStore.selectedMomentId = moment.id
+const handleMomentClick = async (moment: Moment): Promise<void> => {
+	try {
+		await momentStore.openMoment(moment.id)
+	} catch (error) {
+		console.error('加载动态详情失败', error)
+		message.error('加载详情失败，请稍后重试')
+	}
 }
+
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+const refreshMoments = (delay = 0): void => {
+	if (searchDebounceTimer) {
+		clearTimeout(searchDebounceTimer)
+		searchDebounceTimer = null
+	}
+	searchDebounceTimer = setTimeout(() => {
+		void momentStore.fetchMoments({ reset: true })
+	}, delay)
+}
+
+watch(
+	() => momentStore.activeTab,
+	() => refreshMoments(),
+)
+
+watch(
+	() => momentStore.searchQuery,
+	() => refreshMoments(300),
+)
+
+onMounted(() => {
+	void momentStore.fetchMoments({ reset: true })
+})
+
+onUnmounted(() => {
+	if (searchDebounceTimer) {
+		clearTimeout(searchDebounceTimer)
+		searchDebounceTimer = null
+	}
+})
 </script>
 
 <style scoped>
@@ -292,6 +346,22 @@ const handleMomentClick = (moment: Moment): void => {
 
 .no-scrollbar::-webkit-scrollbar {
 	display: none;
+}
+
+.friend-list-shell {
+	max-width: min(860px, 100%);
+}
+
+@media (max-width: 900px) {
+	.friend-list-shell {
+		max-width: min(720px, 100%);
+	}
+}
+
+@media (max-width: 640px) {
+	.friend-list-shell {
+		max-width: 100%;
+	}
 }
 
 /* 详情页滑入动效 */

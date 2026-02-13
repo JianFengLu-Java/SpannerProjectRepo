@@ -3,7 +3,7 @@ import axios from 'axios'
 interface TokenBundle {
 	token: string
 	refreshToken: string
-	accessTokenExpiresIn?: number | null
+	accessTokenExpiresIn?: number | string | null
 }
 
 interface StoredTokenState {
@@ -13,16 +13,54 @@ interface StoredTokenState {
 }
 
 const TOKEN_STATE_KEY = 'authTokenState'
+const REFRESH_AHEAD_MS = 60_000
+const HOURLY_REFRESH_INTERVAL_MS = 60 * 60 * 1000
 let refreshPromise: Promise<string> | null = null
 let refreshTimer: number | null = null
 const tokenUpdateListeners = new Set<(token: string) => void>()
 const tokenClearListeners = new Set<() => void>()
+const TOKEN_REFRESH_DEBUG_KEY = 'token-refresh-debug'
+
+const shouldLogTokenRefreshDebug = (): boolean => {
+	if (!import.meta.env.DEV) return false
+	try {
+		const setting = window.localStorage.getItem(TOKEN_REFRESH_DEBUG_KEY)
+		return setting !== '0'
+	} catch {
+		return true
+	}
+}
+
+const logTokenRefreshDebug = (
+	message: string,
+	payload?: Record<string, unknown>,
+): void => {
+	if (!shouldLogTokenRefreshDebug()) return
+	if (payload) {
+		console.info(`[token-refresh-debug] ${message}`, payload)
+		return
+	}
+	console.info(`[token-refresh-debug] ${message}`)
+}
 
 const normalizeToken = (token: string): string => {
 	const trimmed = token.trim()
 	if (!trimmed) return ''
 	const raw = trimmed.replace(/^Bearer\s+/i, '').trim()
 	return raw
+}
+
+const parseExpiresIn = (
+	expiresIn: number | string | null | undefined,
+): number | null => {
+	if (typeof expiresIn === 'number' && Number.isFinite(expiresIn) && expiresIn > 0) {
+		return expiresIn
+	}
+	if (typeof expiresIn === 'string') {
+		const parsed = Number(expiresIn)
+		if (Number.isFinite(parsed) && parsed > 0) return parsed
+	}
+	return null
 }
 
 const parseJwtExp = (token: string): number | null => {
@@ -75,9 +113,44 @@ const readState = (): StoredTokenState | null => {
 	}
 }
 
-const isExpired = (expiresAt: number | null, skewMs = 30_000): boolean => {
+const isExpiringSoon = (expiresAt: number | null, skewMs = 30_000): boolean => {
 	if (!expiresAt) return false
 	return Date.now() + skewMs >= expiresAt
+}
+
+const extractTokenBundle = (payload: unknown): TokenBundle | null => {
+	if (!payload || typeof payload !== 'object') return null
+	const source = payload as Record<string, unknown>
+	const rawData = source.data
+	const nested =
+		rawData && typeof rawData === 'object'
+			? (rawData as Record<string, unknown>)
+			: null
+
+	const token =
+		(typeof source.token === 'string' && source.token) ||
+		(typeof nested?.token === 'string' && nested.token) ||
+		''
+	const refreshToken =
+		(typeof source.refreshToken === 'string' && source.refreshToken) ||
+		(typeof nested?.refreshToken === 'string' && nested.refreshToken) ||
+		''
+
+	const accessTokenExpiresIn =
+		typeof source.accessTokenExpiresIn === 'number' ||
+		typeof source.accessTokenExpiresIn === 'string'
+			? (source.accessTokenExpiresIn as number | string)
+			: typeof nested?.accessTokenExpiresIn === 'number' ||
+				  typeof nested?.accessTokenExpiresIn === 'string'
+				? (nested.accessTokenExpiresIn as number | string)
+				: null
+
+	if (!token || !refreshToken) return null
+	return {
+		token,
+		refreshToken,
+		accessTokenExpiresIn,
+	}
 }
 
 const emitTokenUpdated = (token: string): void => {
@@ -101,7 +174,7 @@ const emitTokenCleared = (): void => {
 }
 
 const clearRefreshTimer = (): void => {
-	if (refreshTimer) {
+	if (refreshTimer !== null) {
 		clearTimeout(refreshTimer)
 		refreshTimer = null
 	}
@@ -110,15 +183,28 @@ const clearRefreshTimer = (): void => {
 const scheduleRefresh = (): void => {
 	clearRefreshTimer()
 	const state = readState()
-	if (!state?.refreshToken || !state.accessTokenExpiresAt) return
+	if (!state?.refreshToken) {
+		logTokenRefreshDebug('skip schedule refresh: missing refresh token')
+		return
+	}
 
-	const refreshAheadMs = 60_000
+	const expiresDelay =
+		typeof state.accessTokenExpiresAt === 'number'
+			? state.accessTokenExpiresAt - Date.now() - REFRESH_AHEAD_MS
+			: Number.POSITIVE_INFINITY
 	const delay = Math.max(
 		5_000,
-		state.accessTokenExpiresAt - Date.now() - refreshAheadMs,
+		Math.min(HOURLY_REFRESH_INTERVAL_MS, expiresDelay),
 	)
+	logTokenRefreshDebug('schedule refresh', {
+		delayMs: delay,
+		expiresAt: state.accessTokenExpiresAt,
+		refreshAheadMs: REFRESH_AHEAD_MS,
+		hourlyIntervalMs: HOURLY_REFRESH_INTERVAL_MS,
+	})
 
 	refreshTimer = window.setTimeout(() => {
+		logTokenRefreshDebug('refresh timer fired')
 		void tokenManager.refreshAccessToken().catch(() => {
 			// 刷新失败由 refreshAccessToken 内部处理（清理并通知）
 		})
@@ -128,15 +214,25 @@ const scheduleRefresh = (): void => {
 export const tokenManager = {
 	init(): void {
 		const state = readState()
-		if (!state?.accessToken || !state.refreshToken) return
+		if (!state?.accessToken || !state.refreshToken) {
+			logTokenRefreshDebug('init skipped: missing stored token state')
+			return
+		}
 
 		// 规范化并回写，确保兼容历史存储
 		saveState(state)
+		logTokenRefreshDebug('init with stored state', {
+			hasExpiresAt: !!state.accessTokenExpiresAt,
+			expiringSoon: isExpiringSoon(
+				state.accessTokenExpiresAt,
+				REFRESH_AHEAD_MS,
+			),
+		})
 		emitTokenUpdated(state.accessToken)
 		scheduleRefresh()
 
-		// 启动时如果已过期，立即尝试刷新一次
-		if (isExpired(state.accessTokenExpiresAt, 0)) {
+		// 启动时如果即将过期，立即尝试刷新一次
+		if (isExpiringSoon(state.accessTokenExpiresAt, REFRESH_AHEAD_MS)) {
 			void this.refreshAccessToken().catch(() => {
 				// 已在 refresh 中处理清理
 			})
@@ -148,16 +244,20 @@ export const tokenManager = {
 		const refreshToken = normalizeToken(bundle.refreshToken || '')
 		if (!accessToken || !refreshToken) return
 
+		const expiresInSeconds = parseExpiresIn(bundle.accessTokenExpiresIn)
 		const expiresAt =
-			typeof bundle.accessTokenExpiresIn === 'number' &&
-			bundle.accessTokenExpiresIn > 0
-				? Date.now() + bundle.accessTokenExpiresIn * 1000
+			typeof expiresInSeconds === 'number'
+				? Date.now() + expiresInSeconds * 1000
 				: parseJwtExp(accessToken)
 
 		saveState({
 			accessToken,
 			refreshToken,
 			accessTokenExpiresAt: expiresAt,
+		})
+		logTokenRefreshDebug('set token bundle', {
+			hasExpiresAt: !!expiresAt,
+			expiresAt,
 		})
 		emitTokenUpdated(accessToken)
 		scheduleRefresh()
@@ -176,21 +276,30 @@ export const tokenManager = {
 		window.localStorage.removeItem(TOKEN_STATE_KEY)
 		window.localStorage.removeItem('token')
 		window.localStorage.removeItem('refreshToken')
+		logTokenRefreshDebug('clear token state')
 		emitTokenCleared()
 	},
 
 	async getValidAccessToken(): Promise<string> {
 		const state = readState()
 		if (!state) return ''
-		if (!isExpired(state.accessTokenExpiresAt)) return state.accessToken
+		if (!isExpiringSoon(state.accessTokenExpiresAt, REFRESH_AHEAD_MS)) {
+			logTokenRefreshDebug('reuse current access token')
+			return state.accessToken
+		}
+		logTokenRefreshDebug('access token expiring soon, refreshing')
 		return this.refreshAccessToken()
 	},
 
 	async refreshAccessToken(): Promise<string> {
-		if (refreshPromise) return refreshPromise
+		if (refreshPromise) {
+			logTokenRefreshDebug('reuse pending refresh promise')
+			return refreshPromise
+		}
 
 		const state = readState()
 		if (!state?.refreshToken) {
+			logTokenRefreshDebug('refresh failed: refresh token missing')
 			this.clear()
 			throw new Error('refresh token missing')
 		}
@@ -200,22 +309,34 @@ export const tokenManager = {
 			timeout: 10000,
 		})
 
+		logTokenRefreshDebug('start refresh request')
 		refreshPromise = refreshClient
 			.post('/user/refresh', {
 				refreshToken: state.refreshToken,
 			})
 			.then((res) => {
-				const data = res.data as TokenBundle
+				const data = extractTokenBundle(res.data)
+				if (!data) throw new Error('refresh token invalid response')
 				this.setTokenBundle(data)
 				const nextToken = this.getAccessToken()
 				if (!nextToken) throw new Error('refresh token invalid response')
+				logTokenRefreshDebug('refresh success')
 				return nextToken
 			})
 			.catch((error) => {
+				logTokenRefreshDebug('refresh failed', {
+					message:
+						error instanceof Error
+							? error.message
+							: typeof error === 'string'
+								? error
+								: 'unknown error',
+				})
 				this.clear()
 				throw error
 			})
 			.finally(() => {
+				logTokenRefreshDebug('refresh settled')
 				refreshPromise = null
 			})
 

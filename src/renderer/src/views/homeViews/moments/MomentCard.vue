@@ -1,10 +1,12 @@
 <template>
 	<div
-		class="moment-card group bg-white rounded-[24px] overflow-hidden border border-gray-200 transition-all duration-300 cursor-pointer"
+		class="moment-card group bg-white dark:bg-zinc-900 rounded-[14px] overflow-hidden border border-gray-200 dark:border-zinc-700 transition-all duration-300 cursor-pointer"
 		@click="$emit('click', moment)"
 	>
 		<!-- 封面图 -->
-		<div class="relative aspect-square overflow-hidden bg-gray-100">
+		<div
+			class="relative aspect-square overflow-hidden bg-gray-100 dark:bg-zinc-800"
+		>
 			<img
 				:src="moment.cover"
 				class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -18,7 +20,7 @@
 		<!-- 内容区 -->
 		<div class="p-3">
 			<h3
-				class="text-[13px] font-bold text-gray-800 line-clamp-2 mb-2 leading-snug group-hover:text-primary transition-colors"
+				class="text-[13px] font-bold text-gray-800 dark:text-gray-100 line-clamp-2 mb-2 leading-snug group-hover:text-primary transition-colors"
 			>
 				{{ moment.title }}
 			</h3>
@@ -30,11 +32,12 @@
 						round
 						:size="24"
 						:src="moment.author.avatar"
-						class="shrink-0 border border-white"
+						class="shrink-0 border border-white dark:border-zinc-700"
 					/>
-					<span class="text-[11px] text-gray-500 truncate">{{
-						moment.author.name
-					}}</span>
+					<span
+						class="text-[11px] text-gray-500 dark:text-gray-300 truncate"
+						>{{ moment.author.name }}</span
+					>
 				</div>
 
 				<!-- 互动数据 -->
@@ -68,12 +71,16 @@
 					</div>
 
 					<!-- 评论 -->
-					<div class="flex items-center gap-1 text-gray-400">
+					<div
+						class="flex items-center gap-1 text-gray-400 dark:text-gray-500"
+					>
 						<n-icon :size="16">
 							<Comment16Regular />
 						</n-icon>
 						<span class="text-[11px] font-medium select-none">{{
-							formatCount(moment.comments.length)
+							formatCount(
+								moment.commentsCount ?? moment.comments.length,
+							)
 						}}</span>
 					</div>
 				</div>
@@ -97,8 +104,12 @@ defineEmits<{
 
 const momentStore = useMomentStore()
 
-const toggleLike = (): void => {
-	momentStore.toggleLike(props.moment.id)
+const toggleLike = async (): Promise<void> => {
+	try {
+		await momentStore.toggleLike(props.moment.id)
+	} catch (error) {
+		console.error('点赞失败', error)
+	}
 }
 
 const formatCount = (count: number): string | number => {

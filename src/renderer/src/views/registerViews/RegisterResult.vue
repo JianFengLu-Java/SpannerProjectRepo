@@ -3,7 +3,7 @@
 		class="flex h-screen w-screen items-center justify-center bg-linear-to-br from-grad-start to-grad-end"
 	>
 		<div
-			class="w-[420px] bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center"
+			class="w-[420px] bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-700 p-8 text-center"
 		>
 			<div class="mb-6 flex justify-center">
 				<div
@@ -15,22 +15,22 @@
 				</div>
 			</div>
 
-			<h2 class="text-2xl font-bold text-gray-800 mb-2">注册成功</h2>
-			<p class="text-gray-500 text-sm mb-8">
+			<h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">注册成功</h2>
+			<p class="text-gray-500 dark:text-gray-300 text-sm mb-8">
 				欢迎加入 LinkR，您的专属账号已生成
 			</p>
 
 			<div
-				class="bg-gray-50 rounded-xl p-5 border border-dashed border-gray-200 mb-8 relative group"
+				class="bg-gray-50 dark:bg-zinc-800/70 rounded-xl p-5 border border-dashed border-gray-200 dark:border-zinc-700 mb-8 relative group"
 			>
 				<p
-					class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"
+					class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2"
 				>
 					Spanner ID
 				</p>
 				<div class="flex items-center justify-center gap-3">
 					<span
-						class="text-3xl font-mono font-bold text-gray-800 tracking-wider"
+						class="text-3xl font-mono font-bold text-gray-800 dark:text-gray-100 tracking-wider"
 					>
 						{{ prop.userInfo }}
 					</span>

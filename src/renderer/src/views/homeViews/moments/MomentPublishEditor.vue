@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import {
-	Image24Regular,
 	TextBold24Regular,
 	TextItalic24Regular,
 	TextStrikethrough24Regular,
@@ -14,6 +12,7 @@ import {
 	List24Regular,
 } from '@vicons/fluent'
 import { NButton, NIcon, NInput } from 'naive-ui'
+import MomentImageUploader from '@renderer/components/MomentImageUploader.vue'
 
 interface PublishPayload {
 	title: string
@@ -25,9 +24,17 @@ interface PublishPayload {
 const props = withDefaults(
 	defineProps<{
 		submitting?: boolean
+		initialTitle?: string
+		initialContentHtml?: string
+		initialImages?: string[]
+		submitText?: string
 	}>(),
 	{
 		submitting: false,
+		initialTitle: '',
+		initialContentHtml: '',
+		initialImages: () => [],
+		submitText: '发布',
 	},
 )
 
@@ -36,11 +43,16 @@ const emit = defineEmits<{
 	(e: 'submit', payload: PublishPayload): void
 }>()
 
-const title = ref('')
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const title = ref(props.initialTitle)
+const isUploadingImages = ref(false)
+const uploadedImages = ref<string[]>([...props.initialImages])
+const imageUploaderRef = ref<{
+	openFileDialog: () => void
+	addFiles: (files: File[]) => Promise<void>
+} | null>(null)
 
 const editor = useEditor({
-	content: '',
+	content: props.initialContentHtml || '',
 	extensions: [
 		StarterKit,
 		Placeholder.configure({
@@ -51,11 +63,6 @@ const editor = useEditor({
 			openOnClick: false,
 			HTMLAttributes: {
 				class: 'text-blue-500 underline',
-			},
-		}),
-		Image.configure({
-			HTMLAttributes: {
-				class: 'post-image',
 			},
 		}),
 	],
@@ -74,7 +81,7 @@ const editor = useEditor({
 				}
 			}
 			if (files.length > 0) {
-				void uploadImages(files)
+				void imageUploaderRef.value?.addFiles(files)
 				return true
 			}
 			return false
@@ -85,7 +92,7 @@ const editor = useEditor({
 				(file) => file.type.startsWith('image/'),
 			)
 			if (files.length > 0) {
-				void uploadImages(files)
+				void imageUploaderRef.value?.addFiles(files)
 				return true
 			}
 			return false
@@ -93,51 +100,46 @@ const editor = useEditor({
 	},
 })
 
+watch(
+	() => props.initialTitle,
+	(value) => {
+		title.value = value || ''
+	},
+)
+
+watch(
+	() => props.initialImages,
+	(value) => {
+		uploadedImages.value = [...(value || [])]
+	},
+	{ deep: true },
+)
+
+watch(
+	() => props.initialContentHtml,
+	(value) => {
+		if (!editor.value) return
+		const nextHtml = value || ''
+		if (editor.value.getHTML() === nextHtml) return
+		editor.value.commands.setContent(nextHtml)
+	},
+)
+
 const hasContent = computed(() => {
 	if (!editor.value) return false
 	const text = editor.value.getText().trim()
-	const hasImage = editor.value.getHTML().includes('<img')
+	const hasImage = uploadedImages.value.length > 0
 	return text.length > 0 || hasImage
 })
 
 const canSubmit = computed(() => {
-	return title.value.trim().length > 0 && hasContent.value && !props.submitting
+	return (
+		title.value.trim().length > 0 &&
+		hasContent.value &&
+		!props.submitting &&
+		!isUploadingImages.value
+	)
 })
-
-const triggerUpload = (): void => {
-	fileInputRef.value?.click()
-}
-
-const readFileAsDataUrl = (file: File): Promise<string> => {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader()
-		reader.onload = (event) => resolve((event.target?.result as string) || '')
-		reader.onerror = () => reject(new Error('read-file-failed'))
-		reader.readAsDataURL(file)
-	})
-}
-
-const insertImageSrc = (src: string): void => {
-	if (!editor.value || !src) return
-	editor.value.chain().focus().setImage({ src }).insertContent('<p></p>').run()
-}
-
-const uploadImages = async (files: File[]): Promise<void> => {
-	const validFiles = files.filter((file) => file.type.startsWith('image/'))
-	if (!validFiles.length) return
-
-	for (const file of validFiles) {
-		const src = await readFileAsDataUrl(file)
-		insertImageSrc(src)
-	}
-}
-
-const onFileChange = async (event: Event): Promise<void> => {
-	const input = event.target as HTMLInputElement
-	const files = Array.from(input.files || [])
-	await uploadImages(files)
-	input.value = ''
-}
 
 const setLink = (): void => {
 	if (!editor.value) return
@@ -149,15 +151,12 @@ const setLink = (): void => {
 		editor.value.chain().focus().unsetLink().run()
 		return
 	}
-	editor.value.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
-}
-
-const extractImages = (html: string): string[] => {
-	if (!html.trim()) return []
-	const doc = new DOMParser().parseFromString(html, 'text/html')
-	return Array.from(doc.querySelectorAll('img'))
-		.map((img) => img.getAttribute('src') || '')
-		.filter(Boolean)
+	editor.value
+		.chain()
+		.focus()
+		.extendMarkRange('link')
+		.setLink({ href: url })
+		.run()
 }
 
 const handleSubmit = (): void => {
@@ -168,7 +167,7 @@ const handleSubmit = (): void => {
 		title: title.value.trim(),
 		contentHtml,
 		contentText,
-		images: extractImages(contentHtml),
+		images: [...uploadedImages.value],
 	})
 }
 
@@ -179,7 +178,7 @@ onUnmounted(() => {
 
 <template>
 	<div class="publish-editor-wrap">
-		<div class="mb-4">
+		<div class="publish-editor-title">
 			<n-input
 				v-model:value="title"
 				placeholder="输入标题（必填）"
@@ -193,6 +192,8 @@ onUnmounted(() => {
 			<button
 				type="button"
 				class="toolbar-btn"
+				:class="{ 'toolbar-btn-active': editor?.isActive('bold') }"
+				aria-label="加粗"
 				@click="editor?.chain().focus().toggleBold().run()"
 			>
 				<n-icon size="18"><TextBold24Regular /></n-icon>
@@ -200,6 +201,8 @@ onUnmounted(() => {
 			<button
 				type="button"
 				class="toolbar-btn"
+				:class="{ 'toolbar-btn-active': editor?.isActive('italic') }"
+				aria-label="斜体"
 				@click="editor?.chain().focus().toggleItalic().run()"
 			>
 				<n-icon size="18"><TextItalic24Regular /></n-icon>
@@ -207,6 +210,8 @@ onUnmounted(() => {
 			<button
 				type="button"
 				class="toolbar-btn"
+				:class="{ 'toolbar-btn-active': editor?.isActive('strike') }"
+				aria-label="删除线"
 				@click="editor?.chain().focus().toggleStrike().run()"
 			>
 				<n-icon size="18"><TextStrikethrough24Regular /></n-icon>
@@ -214,6 +219,8 @@ onUnmounted(() => {
 			<button
 				type="button"
 				class="toolbar-btn"
+				:class="{ 'toolbar-btn-active': editor?.isActive('bulletList') }"
+				aria-label="无序列表"
 				@click="editor?.chain().focus().toggleBulletList().run()"
 			>
 				<n-icon size="18"><List24Regular /></n-icon>
@@ -221,11 +228,19 @@ onUnmounted(() => {
 			<button
 				type="button"
 				class="toolbar-btn"
+				:class="{ 'toolbar-btn-active': editor?.isActive('orderedList') }"
+				aria-label="有序列表"
 				@click="editor?.chain().focus().toggleOrderedList().run()"
 			>
 				<span class="text-xs font-bold">1.</span>
 			</button>
-			<button type="button" class="toolbar-btn" @click="setLink">
+			<button
+				type="button"
+				class="toolbar-btn"
+				:class="{ 'toolbar-btn-active': editor?.isActive('link') }"
+				aria-label="设置链接"
+				@click="setLink"
+			>
 				<n-icon size="18"><Link24Regular /></n-icon>
 			</button>
 		</div>
@@ -234,26 +249,22 @@ onUnmounted(() => {
 			<editor-content :editor="editor" class="publish-editor-content" />
 		</div>
 
+		<div class="mt-3">
+			<MomentImageUploader
+				ref="imageUploaderRef"
+				v-model="uploadedImages"
+				@uploading-change="
+					(uploading) => (isUploadingImages = uploading)
+				"
+			/>
+		</div>
+
 		<div class="publish-editor-footer">
-			<div class="flex items-center gap-2">
-				<n-button secondary @click="triggerUpload">
-					<template #icon>
-						<n-icon size="18"><Image24Regular /></n-icon>
-					</template>
-					上传图片
-				</n-button>
-				<input
-					ref="fileInputRef"
-					type="file"
-					accept="image/*"
-					multiple
-					class="hidden"
-					@change="onFileChange"
-				/>
-				<span class="text-xs text-gray-400">支持粘贴和拖拽图片</span>
+			<div class="publish-editor-actions-left">
+				<span class="publish-editor-hint">支持粘贴、拖拽、排序</span>
 			</div>
 
-			<div class="flex items-center gap-2">
+			<div class="publish-editor-actions-right">
 				<n-button :disabled="submitting" @click="emit('cancel')">
 					取消
 				</n-button>
@@ -263,7 +274,7 @@ onUnmounted(() => {
 					:disabled="!canSubmit"
 					@click="handleSubmit"
 				>
-					发布
+					{{ submitText }}
 				</n-button>
 			</div>
 		</div>
@@ -275,17 +286,31 @@ onUnmounted(() => {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	max-height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.publish-editor-title {
+	margin-bottom: 12px;
 }
 
 .publish-editor-toolbar {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	flex-wrap: wrap;
 	padding: 8px;
 	border: 1px solid rgba(0, 0, 0, 0.06);
 	border-bottom: 0;
 	border-radius: 12px 12px 0 0;
 	background: #fafafa;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.publish-editor-toolbar::-webkit-scrollbar {
+	display: none;
 }
 
 .toolbar-btn {
@@ -294,9 +319,15 @@ onUnmounted(() => {
 	justify-content: center;
 	width: 32px;
 	height: 32px;
+	flex: 0 0 auto;
 	border-radius: 8px;
 	color: #4b5563;
 	transition: all 0.2s ease;
+}
+
+.toolbar-btn-active {
+	background: rgba(16, 185, 129, 0.16);
+	color: #047857;
 }
 
 .toolbar-btn:hover {
@@ -306,7 +337,7 @@ onUnmounted(() => {
 
 .publish-editor-content-wrap {
 	flex: 1;
-	min-height: 280px;
+	min-height: clamp(120px, 24vh, 220px);
 	border: 1px solid rgba(0, 0, 0, 0.06);
 	border-radius: 0 0 12px 12px;
 	padding: 12px;
@@ -322,12 +353,27 @@ onUnmounted(() => {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
 	padding-top: 12px;
+}
+
+.publish-editor-actions-left,
+.publish-editor-actions-right {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.publish-editor-hint {
+	font-size: 12px;
+	color: #9ca3af;
+	white-space: nowrap;
 }
 
 :deep(.post-editor-content) {
 	outline: none;
-	min-height: 260px;
+	min-height: clamp(90px, 18vh, 180px);
 	line-height: 1.7;
 	word-break: break-word;
 }
@@ -354,5 +400,72 @@ onUnmounted(() => {
 	display: block;
 	border-radius: 12px;
 	margin: 10px 0;
+}
+
+@media (max-width: 768px) {
+	.publish-editor-title {
+		margin-bottom: 10px;
+	}
+
+	.publish-editor-content-wrap {
+		padding: 10px;
+		min-height: clamp(96px, 20vh, 160px);
+	}
+
+	.publish-editor-actions-left {
+		flex-wrap: wrap;
+	}
+
+	.publish-editor-hint {
+		white-space: normal;
+	}
+}
+
+@media (max-height: 760px) {
+	.publish-editor-toolbar {
+		padding: 6px;
+		gap: 6px;
+	}
+
+	.publish-editor-content-wrap {
+		min-height: 88px;
+		padding: 8px;
+	}
+
+	:deep(.post-editor-content) {
+		min-height: 72px;
+	}
+
+	.publish-editor-footer {
+		padding-top: 8px;
+		gap: 8px;
+	}
+}
+
+@media (max-width: 560px) {
+	.publish-editor-toolbar {
+		gap: 6px;
+		padding: 7px;
+	}
+
+	.toolbar-btn {
+		width: 30px;
+		height: 30px;
+	}
+
+	.publish-editor-footer {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.publish-editor-actions-left {
+		justify-content: space-between;
+		width: 100%;
+	}
+
+	.publish-editor-actions-right {
+		width: 100%;
+		justify-content: flex-end;
+	}
 }
 </style>

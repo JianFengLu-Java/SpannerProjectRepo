@@ -1,41 +1,50 @@
 <template>
 	<div
-		class="h-full w-full rounded-2xl flex flex-col overflow-hidden transition-colors duration-300"
-		:class="
-			themeStore.isDark
-				? 'bg-[#18181c] text-gray-200'
-				: 'bg-white text-gray-800'
-		"
+		class="setting-page h-full w-full rounded-2xl flex flex-col overflow-hidden transition-colors duration-300 bg-page-bg text-text-main"
 	>
 		<div
-			class="h-16 flex items-center px-6 border-b transition-colors duration-300"
-			:class="themeStore.isDark ? 'border-gray-800' : 'border-gray-100'"
+			class="px-6 border-b border-border-default transition-colors duration-300 setting-header"
 		>
-			<span class="text-xl font-bold tracking-tight">系统设置</span>
+			<div class="setting-header-inner">
+				<div>
+					<div class="text-xl font-bold tracking-tight">系统设置</div>
+					<p class="text-xs mt-1 text-gray-500 dark:text-gray-400">
+						管理应用外观、通知和隐私偏好
+					</p>
+				</div>
+				<div class="hidden md:flex items-center gap-2">
+					<span class="stat-chip">
+						{{ themeStore.isDark ? '深色主题' : '浅色主题' }}
+					</span>
+					<span class="stat-chip">
+						{{ appSettings.notificationsEnabled ? '通知已开启' : '通知已关闭' }}
+					</span>
+				</div>
+			</div>
 		</div>
 
-		<div class="flex-1 flex overflow-hidden">
+		<div class="setting-main flex-1 flex overflow-hidden">
 			<!-- Sidebar Menu -->
 			<div
-				class="w-48 h-full p-3 border-r flex flex-col gap-1 transition-colors duration-300"
-				:class="
-					themeStore.isDark ? 'border-gray-800' : 'border-gray-100'
-				"
+				class="w-52 h-full p-3 border-r border-border-default flex flex-col gap-1 transition-colors duration-300 setting-sidebar"
 			>
 				<div
-					v-for="menu in menus"
+					v-for="(menu, index) in menus"
 					:key="menu.key"
+					:ref="(el) => setMenuRef(el, index)"
+					role="button"
+					tabindex="0"
+					:aria-selected="activeKey === menu.key"
 					:class="[
-						'flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-200 group',
+						'menu-item flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-200 group',
 						activeKey === menu.key
-							? themeStore.isDark
-								? 'bg-blue-500/10 text-blue-400'
-								: 'bg-blue-50 text-blue-600'
+							? 'menu-item-active'
 							: themeStore.isDark
-								? 'text-gray-400 hover:bg-white/5'
-								: 'text-gray-600 hover:bg-gray-50',
+								? 'text-gray-400 hover:bg-white/5 hover:text-white'
+								: 'text-gray-600 hover:bg-gray-50 dark:hover:bg-zinc-800/60',
 					]"
-					@click="activeKey = menu.key"
+					@click="selectMenu(menu.key)"
+					@keydown="onMenuKeydown($event, index)"
 				>
 					<component :is="menu.icon" class="w-4 h-4" />
 					<span class="text-sm font-medium">{{ menu.label }}</span>
@@ -43,188 +52,235 @@
 			</div>
 
 			<!-- Content Area -->
-			<div class="flex-1 h-full overflow-y-auto p-8 custom-scrollbar">
-				<div class="max-w-3xl animate-fade-in">
-					<header class="mb-8">
-						<h2 class="text-2xl font-bold mb-2">
-							{{ currentMenu?.label }}
-						</h2>
-						<p class="text-gray-400 text-sm">
-							{{ currentMenu?.desc }}
-						</p>
-					</header>
-
-					<!-- Appearance Settings -->
-					<div v-if="activeKey === 'appearance'" class="space-y-4">
-						<div class="setting-item-card">
-							<div class="setting-info">
-								<span class="setting-title">深色模式</span>
-								<span class="setting-desc"
-									>随系统或手动切换深色视觉风格</span
-								>
-							</div>
-							<n-switch
-								v-model:value="themeStore.isDark"
-								size="large"
-								:rail-style="railStyle"
-							/>
-						</div>
-						<div class="setting-item-card">
-							<div class="setting-info">
-								<span class="setting-title">紧凑模式</span>
-								<span class="setting-desc"
-									>在列表和消息中展示更多内容</span
-								>
-							</div>
-							<n-switch
-								v-model:value="settings.compactMode"
-								size="large"
-								:rail-style="railStyle"
-							/>
-						</div>
-					</div>
-
-					<!-- Task Settings -->
-					<div v-else-if="activeKey === 'task'" class="space-y-4">
-						<div class="setting-item-card">
-							<div class="setting-info">
-								<span class="setting-title">开机启动</span>
-								<span class="setting-desc"
-									>电脑启动时自动运行应用</span
-								>
-							</div>
-							<n-switch
-								v-model:value="settings.autoStart"
-								size="large"
-								:rail-style="railStyle"
-								@update:value="handleAutoStartToggle"
-							/>
-						</div>
-						<div class="setting-item-card">
-							<div class="setting-info">
-								<span class="setting-title"
-									>关闭窗口时最小化到托盘</span
-								>
-								<span class="setting-desc"
-									>点击关闭按钮不退出程序，而是在后台运行</span
-								>
-							</div>
-							<n-switch
-								v-model:value="settings.minimizeToTray"
-								size="large"
-								:rail-style="railStyle"
-								@update:value="handleMinimizeToTrayToggle"
-							/>
-						</div>
-					</div>
-
-					<!-- Notification Settings -->
-					<div v-else-if="activeKey === 'notify'" class="space-y-4">
-						<div class="setting-item-card">
-							<div class="setting-info">
-								<span class="setting-title">消息通知</span>
-								<span class="setting-desc"
-									>接收来自系统和聊天的通知推送</span
-								>
-							</div>
-							<n-switch
-								v-model:value="settings.notifications"
-								size="large"
-								:rail-style="railStyle"
-							/>
-						</div>
-						<div class="setting-item-card">
-							<div class="setting-info">
-								<span class="setting-title">消息预览</span>
-								<span class="setting-desc"
-									>在通知弹窗中显示消息正文</span
-								>
-							</div>
-							<n-switch
-								v-model:value="settings.notifyPreview"
-								size="large"
-								:rail-style="railStyle"
-							/>
-						</div>
-					</div>
-
-					<!-- Privacy Settings -->
-					<div v-else-if="activeKey === 'privacy'" class="space-y-4">
-						<div class="setting-item-card">
-							<div class="setting-info">
-								<span class="setting-title">清除应用缓存</span>
-								<span class="setting-desc"
-									>清除所有本地缓存文件和存储数据</span
-								>
-							</div>
-							<n-button
-								secondary
-								strong
-								type="error"
-								@click="handleClearCache"
-							>
-								立即清除
-							</n-button>
-						</div>
-					</div>
-
-					<!-- About Settings -->
-					<div v-else-if="activeKey === 'about'" class="space-y-6">
-						<div
-							class="flex flex-col items-center justify-center p-8 bg-black/5 rounded-2xl"
-						>
-							<div
-								class="w-20 h-20 bg-blue-500 rounded-2xl mb-4 flex items-center justify-center shadow-lg shadow-blue-500/20"
-							>
-								<span class="text-white text-3xl font-bold"
-									>S</span
-								>
-							</div>
-							<h3 class="text-xl font-bold">Spanner</h3>
-							<p class="text-gray-500 text-sm mt-1">
-								Version {{ appVersion }}
+			<div class="setting-content flex-1 h-full overflow-y-auto p-8 custom-scrollbar">
+				<transition name="settings-panel" mode="out-in">
+					<div :key="activeKey" class="setting-panel max-w-3xl animate-fade-in">
+						<header class="setting-section-header mb-6">
+							<h2 class="setting-section-title">
+								{{ currentMenu?.label }}
+							</h2>
+							<p class="setting-section-desc">
+								{{ currentMenu?.desc }}
 							</p>
+						</header>
+
+						<!-- Appearance Settings -->
+						<div v-if="activeKey === 'appearance'" class="space-y-4 section-shell">
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title">深色模式</span>
+									<span class="setting-desc"
+										>切换到更护眼的夜间视觉风格</span
+									>
+								</div>
+								<div class="setting-control">
+									<span class="setting-state">{{ themeStore.isDark ? '已开启' : '已关闭' }}</span>
+									<n-switch
+										v-model:value="themeStore.isDark"
+										size="large"
+										:rail-style="railStyle"
+									/>
+								</div>
+							</div>
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title">紧凑模式</span>
+									<span class="setting-desc"
+										>在列表和消息中展示更多内容</span
+									>
+								</div>
+								<div class="setting-control">
+									<span class="setting-state">{{ appSettings.compactMode ? '已开启' : '已关闭' }}</span>
+									<n-switch
+										v-model:value="appSettings.compactMode"
+										size="large"
+										:rail-style="railStyle"
+									/>
+								</div>
+							</div>
 						</div>
 
-						<div class="setting-item-card">
-							<div class="setting-info">
-								<span class="setting-title">检查更新</span>
-								<span class="setting-desc"
-									>当前已是最新版本</span
+						<!-- Task Settings -->
+						<div v-else-if="activeKey === 'task'" class="space-y-4 section-shell">
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title">开机启动</span>
+									<span class="setting-desc"
+										>电脑启动时自动运行应用</span
+									>
+								</div>
+								<div class="setting-control">
+									<span class="setting-state">{{ settings.autoStart ? '已开启' : '已关闭' }}</span>
+									<n-switch
+										v-model:value="settings.autoStart"
+										size="large"
+										:rail-style="railStyle"
+										@update:value="handleAutoStartToggle"
+									/>
+								</div>
+							</div>
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title"
+										>关闭窗口时最小化到托盘</span
+									>
+									<span class="setting-desc"
+										>点击关闭按钮不退出程序，而是在后台运行</span
+									>
+								</div>
+								<div class="setting-control">
+									<span class="setting-state">{{ settings.minimizeToTray ? '已开启' : '已关闭' }}</span>
+									<n-switch
+										v-model:value="settings.minimizeToTray"
+										size="large"
+										:rail-style="railStyle"
+										@update:value="handleMinimizeToTrayToggle"
+									/>
+								</div>
+							</div>
+						</div>
+
+						<!-- Notification Settings -->
+						<div v-else-if="activeKey === 'notify'" class="space-y-4 section-shell">
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title">消息通知</span>
+									<span class="setting-desc"
+										>接收来自系统和聊天的通知推送</span
+									>
+								</div>
+								<div class="setting-control">
+									<span class="setting-state">{{ appSettings.notificationsEnabled ? '已开启' : '已关闭' }}</span>
+									<n-switch
+										v-model:value="
+											appSettings.notificationsEnabled
+										"
+										size="large"
+										:rail-style="railStyle"
+									/>
+								</div>
+							</div>
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title"
+										>新消息提醒显示类型</span
+									>
+									<span class="setting-desc"
+										>选择系统提醒展示的消息内容级别</span
+									>
+								</div>
+								<n-radio-group
+									v-model:value="
+										appSettings.messageReminderDisplayType
+									"
+									size="small"
+									:disabled="
+										!appSettings.notificationsEnabled
+									"
 								>
+									<n-radio value="detail">显示正文</n-radio>
+									<n-radio value="sender">仅显示联系人</n-radio>
+									<n-radio value="summary">仅提示新消息</n-radio>
+								</n-radio-group>
 							</div>
-							<n-button secondary @click="handleCheckUpdate">
-								检查更新
-							</n-button>
 						</div>
 
-						<div class="setting-item-card">
-							<div class="setting-info">
-								<span class="setting-title">官方网站</span>
-								<span class="setting-desc">访问我们的主页</span>
+						<!-- Privacy Settings -->
+						<div v-else-if="activeKey === 'privacy'" class="space-y-4 section-shell">
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title">清除应用缓存</span>
+									<span class="setting-desc"
+										>清除所有本地缓存文件和存储数据</span
+									>
+								</div>
+								<n-button
+									secondary
+									strong
+									type="error"
+									@click="handleClearCache"
+								>
+									立即清除
+								</n-button>
 							</div>
-							<n-button
-								quaternary
-								type="info"
-								@click="
-									openExternal('https://electron-vite.org')
-								"
+						</div>
+
+						<!-- About Settings -->
+						<div v-else-if="activeKey === 'about'" class="space-y-6 section-shell">
+							<div
+								class="about-card flex flex-col items-center justify-center p-8 rounded-2xl"
 							>
-								访问
-							</n-button>
+								<div
+									class="w-20 h-20 rounded-2xl mb-4 flex items-center justify-center app-logo-box"
+								>
+									<span class="text-white text-3xl font-bold"
+										>S</span
+									>
+								</div>
+								<h3 class="text-xl font-bold">Spanner</h3>
+								<p class="text-gray-500 dark:text-gray-300 text-sm mt-1">
+									Version {{ appVersion }}
+								</p>
+							</div>
+
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title">检查更新</span>
+									<span class="setting-desc"
+										>当前已是最新版本</span
+									>
+								</div>
+								<n-button secondary @click="handleCheckUpdate">
+									检查更新
+								</n-button>
+							</div>
+
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title">官方网站</span>
+									<span class="setting-desc">访问我们的主页</span>
+								</div>
+								<n-button
+									quaternary
+									type="info"
+									@click="
+										openExternal('https://electron-vite.org')
+									"
+								>
+									访问
+								</n-button>
+							</div>
 						</div>
 					</div>
-				</div>
+				</transition>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, CSSProperties, reactive } from 'vue'
-import { NSwitch, NButton, useMessage } from 'naive-ui'
+import {
+	ref,
+	onMounted,
+	computed,
+	CSSProperties,
+	reactive,
+	nextTick,
+	ComponentPublicInstance,
+} from 'vue'
+import {
+	NSwitch,
+	NButton,
+	NRadioGroup,
+	NRadio,
+	useMessage,
+} from 'naive-ui'
 import { useTitleStore } from '@renderer/stores/title'
 import { useThemeStore } from '@renderer/stores/theme'
+import { useAppSettingsStore } from '@renderer/stores/appSettings'
+import { useUserInfoStore } from '@renderer/stores/userInfo'
+import { tokenManager } from '@renderer/services/tokenManager'
+import { useRouter } from 'vue-router'
 import {
 	ColorPaletteOutline,
 	NotificationsOutline,
@@ -235,16 +291,17 @@ import {
 
 const title = useTitleStore()
 const themeStore = useThemeStore()
+const appSettings = useAppSettingsStore()
+const userInfoStore = useUserInfoStore()
 const message = useMessage()
+const router = useRouter()
 const activeKey = ref('appearance')
 const appVersion = ref('1.0.0')
+const menuRefs = ref<(HTMLElement | null)[]>([])
 
 const settings = reactive({
-	compactMode: false,
 	autoStart: false,
-	minimizeToTray: true,
-	notifications: true,
-	notifyPreview: true,
+	minimizeToTray: false,
 })
 
 const menus = [
@@ -282,6 +339,55 @@ const menus = [
 
 const currentMenu = computed(() => menus.find((m) => m.key === activeKey.value))
 
+const setMenuRef = (
+	el: Element | ComponentPublicInstance | null,
+	index: number,
+): void => {
+	if (!el) {
+		menuRefs.value[index] = null
+		return
+	}
+	if (el instanceof Element) {
+		menuRefs.value[index] = el as HTMLElement
+		return
+	}
+	if ('$el' in el) {
+		menuRefs.value[index] = (el.$el as HTMLElement | null) ?? null
+		return
+	}
+	menuRefs.value[index] = null
+}
+
+const selectMenu = (key: string): void => {
+	activeKey.value = key
+}
+
+const focusMenuByIndex = async (index: number): Promise<void> => {
+	await nextTick()
+	menuRefs.value[index]?.focus()
+}
+
+const onMenuKeydown = (event: KeyboardEvent, index: number): void => {
+	if (event.key === 'ArrowDown') {
+		event.preventDefault()
+		const next = index >= menus.length - 1 ? 0 : index + 1
+		selectMenu(menus[next].key)
+		void focusMenuByIndex(next)
+		return
+	}
+	if (event.key === 'ArrowUp') {
+		event.preventDefault()
+		const prev = index <= 0 ? menus.length - 1 : index - 1
+		selectMenu(menus[prev].key)
+		void focusMenuByIndex(prev)
+		return
+	}
+	if (event.key === 'Enter' || event.key === ' ') {
+		event.preventDefault()
+		selectMenu(menus[index].key)
+	}
+}
+
 const railStyle = ({ checked }: { checked: boolean }): CSSProperties => {
 	return checked ? { background: '#10b981' } : {}
 }
@@ -302,10 +408,57 @@ const handleMinimizeToTrayToggle = (value: boolean): void => {
 	message.success(value ? '已开启关闭最小化到托盘' : '已关闭最小化到托盘')
 }
 
+const clearRendererPersistentStorage = async (): Promise<void> => {
+	// Pinia 持久化、token、偏好等都在 localStorage
+	window.localStorage.clear()
+	window.sessionStorage.clear()
+
+	// 删除浏览器侧 IndexedDB
+	try {
+		const dbFactory = indexedDB as IDBFactory & {
+			databases?: () => Promise<Array<{ name?: string }>>
+		}
+		if (typeof dbFactory.databases === 'function') {
+			const databases = await dbFactory.databases()
+			await Promise.all(
+				(databases || [])
+					.map((item) => item?.name)
+					.filter((name): name is string => !!name)
+					.map(
+						(name) =>
+							new Promise<void>((resolve) => {
+								const req = indexedDB.deleteDatabase(name)
+								req.onsuccess = () => resolve()
+								req.onerror = () => resolve()
+								req.onblocked = () => resolve()
+							}),
+					),
+			)
+		}
+	} catch (error) {
+		console.warn('清理 IndexedDB 失败:', error)
+	}
+
+	// 删除 CacheStorage（service worker 缓存）
+	try {
+		if ('caches' in window) {
+			const keys = await caches.keys()
+			await Promise.all(keys.map((key) => caches.delete(key)))
+		}
+	} catch (error) {
+		console.warn('清理 CacheStorage 失败:', error)
+	}
+}
+
 const handleClearCache = async (): Promise<void> => {
 	try {
 		await window.electron.ipcRenderer.invoke('clear-app-cache')
-		message.success('清理成功')
+		await clearRendererPersistentStorage()
+		tokenManager.clear()
+		userInfoStore.logout()
+		message.success('本地持久化数据已全部清除')
+		await router.replace({ name: 'Login' })
+		window.location.reload()
 	} catch {
 		message.error('清理失败')
 	}
@@ -338,6 +491,113 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.setting-page {
+	background:
+		radial-gradient(
+			circle at 100% 0%,
+			rgba(16, 185, 129, 0.14),
+			transparent 40%
+		),
+		linear-gradient(
+			160deg,
+			var(--color-grad-start),
+			var(--color-page-bg) 42%,
+			var(--color-grad-end)
+		);
+}
+
+.setting-header,
+.setting-sidebar {
+	background-color: rgba(255, 255, 255, 0.45);
+	backdrop-filter: blur(18px);
+}
+
+.setting-header-inner {
+	min-height: 5rem;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.setting-section-header {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+
+.setting-section-title {
+	font-size: 1.2rem;
+	line-height: 1.35;
+	font-weight: 650;
+	letter-spacing: 0.01em;
+}
+
+.setting-section-desc {
+	font-size: 0.84rem;
+	line-height: 1.45;
+	color: #9ca3af;
+}
+
+.dark .setting-section-desc {
+	color: #6b7280;
+}
+
+.dark .setting-header,
+.dark .setting-sidebar {
+	background-color: rgba(18, 18, 20, 0.45);
+}
+
+.stat-chip {
+	padding: 0.25rem 0.6rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 500;
+	color: rgb(15, 118, 110);
+	background: rgba(16, 185, 129, 0.15);
+	border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.dark .stat-chip {
+	color: rgb(167, 243, 208);
+	background: rgba(16, 185, 129, 0.16);
+	border-color: rgba(52, 211, 153, 0.2);
+}
+
+.menu-item {
+	position: relative;
+	outline: none;
+}
+
+.menu-item-active {
+	color: #059669;
+	background: rgba(16, 185, 129, 0.14);
+	box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.2);
+}
+
+.dark .menu-item-active {
+	color: #6ee7b7;
+	background: rgba(16, 185, 129, 0.18);
+}
+
+.menu-item:focus-visible {
+	box-shadow:
+		0 0 0 2px rgba(16, 185, 129, 0.35),
+		inset 0 0 0 1px rgba(16, 185, 129, 0.35);
+}
+
+.section-shell {
+	background: rgba(255, 255, 255, 0.45);
+	border: 1px solid rgba(15, 23, 42, 0.06);
+	padding: 1rem;
+	border-radius: 1.25rem;
+}
+
+.dark .section-shell {
+	background: rgba(255, 255, 255, 0.03);
+	border-color: rgba(255, 255, 255, 0.08);
+}
+
 .setting-item-card {
 	display: flex;
 	align-items: center;
@@ -348,24 +608,24 @@ onMounted(async () => {
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.bg-white .setting-item-card {
-	background-color: #f9fafb;
-	border-color: #f3f4f6;
+.setting-item-card {
+	background: rgba(255, 255, 255, 0.72);
+	border-color: rgba(15, 23, 42, 0.08);
 }
 
-.bg-white .setting-item-card:hover {
-	border-color: #e5e7eb;
+.setting-item-card:hover {
+	border-color: rgba(16, 185, 129, 0.32);
 	background-color: #ffffff;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+	box-shadow: 0 10px 26px rgba(2, 132, 199, 0.08);
 }
 
-.bg-\[\#18181c\] .setting-item-card {
-	background-color: rgba(255, 255, 255, 0.03);
-	border-color: rgba(255, 255, 255, 0.05);
+.dark .setting-item-card {
+	background-color: rgba(255, 255, 255, 0.02);
+	border-color: rgba(255, 255, 255, 0.08);
 }
 
-.bg-\[\#18181c\] .setting-item-card:hover {
-	border-color: rgba(255, 255, 255, 0.1);
+.dark .setting-item-card:hover {
+	border-color: rgba(52, 211, 153, 0.34);
 	background-color: rgba(255, 255, 255, 0.06);
 	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
@@ -384,6 +644,56 @@ onMounted(async () => {
 .setting-desc {
 	font-size: 0.8rem;
 	color: #9ca3af;
+}
+
+.setting-control {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.setting-state {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.22rem 0.55rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	color: #0f766e;
+	background-color: rgba(16, 185, 129, 0.12);
+	border: 1px solid rgba(16, 185, 129, 0.22);
+}
+
+.dark .setting-state {
+	color: #99f6e4;
+	background-color: rgba(20, 184, 166, 0.18);
+	border-color: rgba(45, 212, 191, 0.28);
+}
+
+.about-card {
+	background:
+		radial-gradient(
+			1200px circle at 10% 0%,
+			rgba(16, 185, 129, 0.16),
+			transparent 55%
+		),
+		rgba(255, 255, 255, 0.42);
+	border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.dark .about-card {
+	background:
+		radial-gradient(
+			1200px circle at 10% 0%,
+			rgba(16, 185, 129, 0.2),
+			transparent 55%
+		),
+		rgba(255, 255, 255, 0.04);
+	border-color: rgba(255, 255, 255, 0.08);
+}
+
+.app-logo-box {
+	background: linear-gradient(135deg, #10b981, #14b8a6);
+	box-shadow: 0 14px 30px rgba(15, 118, 110, 0.28);
 }
 
 .animate-fade-in {
@@ -408,7 +718,143 @@ onMounted(async () => {
 	background-color: rgba(0, 0, 0, 0.05);
 	border-radius: 10px;
 }
-.bg-\[\#18181c\] .custom-scrollbar::-webkit-scrollbar-thumb {
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
 	background-color: rgba(255, 255, 255, 0.05);
+}
+
+.settings-panel-enter-active,
+.settings-panel-leave-active {
+	transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.settings-panel-enter-from,
+.settings-panel-leave-to {
+	opacity: 0;
+	transform: translateY(6px);
+}
+
+@media (max-width: 900px) {
+	.setting-header {
+		padding-left: 1rem;
+		padding-right: 1rem;
+	}
+
+	.setting-header-inner {
+		min-height: 4.5rem;
+	}
+
+	.setting-main {
+		flex-direction: column;
+	}
+
+	.setting-sidebar {
+		width: 100%;
+		height: auto;
+		padding: 0.6rem 0.8rem;
+		border-right: 0;
+		border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+		flex-direction: row;
+		gap: 0.5rem;
+		overflow-x: auto;
+		white-space: nowrap;
+		position: relative;
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+	}
+
+	.setting-sidebar::-webkit-scrollbar {
+		display: none;
+	}
+
+	.setting-content {
+		padding: 1.25rem;
+	}
+
+	.setting-panel {
+		max-width: 100%;
+	}
+
+	.setting-section-title {
+		font-size: 1.12rem;
+	}
+
+	.setting-section-desc {
+		font-size: 0.8rem;
+	}
+
+	.menu-item {
+		flex: 0 0 auto;
+		padding-left: 0.85rem;
+		padding-right: 0.85rem;
+	}
+
+	.setting-item-card {
+		padding: 1rem;
+	}
+
+	.setting-control {
+		gap: 0.5rem;
+	}
+}
+
+@media (max-width: 640px) {
+	.setting-header {
+		padding-left: 0.85rem;
+		padding-right: 0.85rem;
+	}
+
+	.setting-header-inner {
+		min-height: 4rem;
+	}
+
+	.setting-sidebar {
+		padding-top: 0.55rem;
+		padding-bottom: 0.55rem;
+	}
+
+	.setting-content {
+		padding: 1rem 0.85rem 1.2rem;
+	}
+
+	.setting-section-header {
+		gap: 0.25rem;
+	}
+
+	.setting-section-title {
+		font-size: 1.02rem;
+	}
+
+	.setting-section-desc {
+		font-size: 0.76rem;
+		line-height: 1.4;
+	}
+
+	.section-shell {
+		padding: 0.75rem;
+		border-radius: 1rem;
+	}
+
+	.setting-item-card {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.85rem;
+		padding: 0.9rem;
+		border-radius: 1rem;
+	}
+
+	.setting-control {
+		width: 100%;
+		justify-content: space-between;
+	}
+
+	.about-card {
+		padding: 1.1rem;
+	}
+
+	:deep(.n-radio-group) {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 0.8rem;
+	}
 }
 </style>

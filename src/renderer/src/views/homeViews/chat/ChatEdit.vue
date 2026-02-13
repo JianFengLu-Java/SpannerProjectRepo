@@ -8,6 +8,7 @@ import Link from '@tiptap/extension-link'
 import { ImageOutline, At, HappyOutline } from '@vicons/ionicons5'
 import { useMessage, NPopover, NIcon } from 'naive-ui'
 import { useChatStore } from '@renderer/stores/chat'
+import request from '@renderer/utils/request'
 import StarterKit from '@tiptap/starter-kit'
 import {
 	FontDecrease24Regular,
@@ -21,6 +22,13 @@ import {
 } from '@vicons/fluent'
 import type { Editor } from '@tiptap/core'
 import EmojiPicker from '@renderer/components/EmojiPicker.vue'
+
+interface ApiResponse<T> {
+	code: number
+	status: string
+	message: string
+	data: T
+}
 
 // 接收 currentId 确保闭环
 const props = defineProps<{
@@ -325,6 +333,10 @@ const onSelectCustomEmoji = (item: {
 	showEmoji.value = false
 }
 
+const focusEditor = (): void => {
+	editor.value?.chain().focus().run()
+}
+
 const insertImageSrc = (src: string): void => {
 	if (!editor.value) return
 	editor.value.chain().focus().setImage({ src }).insertContent(' ').run()
@@ -355,15 +367,59 @@ const handleSendMessage = (): void => {
 	}
 }
 
-const insertImageFile = (file: File): void => {
-	const reader = new FileReader()
-	reader.onload = (e) => {
-		const src = e.target?.result as string
-		if (!editor.value) return
-		editor.value.chain().focus().setImage({ src }).insertContent(' ').run()
-		scrollToBottom()
+const parseUploadUrl = (payload: Record<string, unknown> | null): string => {
+	if (!payload) return ''
+	const url =
+		(typeof payload.url === 'string' && payload.url) ||
+		(typeof payload.fileUrl === 'string' && payload.fileUrl) ||
+		(typeof payload.path === 'string' && payload.path) ||
+		''
+	return url.trim()
+}
+
+const uploadImageFile = async (file: File): Promise<string> => {
+	const formData = new FormData()
+	formData.append('file', file)
+	const response = await request.post<ApiResponse<Record<string, unknown>>>(
+		'/files/upload',
+		formData,
+		{
+			headers: {
+				'Content-Type': 'multipart/form-data',
+			},
+		},
+	)
+	return parseUploadUrl(response.data.data || null)
+}
+
+const insertImageFile = async (file: File): Promise<void> => {
+	if (!file) return
+	if (!file.type.startsWith('image/')) {
+		message.warning('只能上传图片格式')
+		return
 	}
-	reader.readAsDataURL(file)
+	if (file.size > 10 * 1024 * 1024) {
+		message.warning('图片不能超过 10MB')
+		return
+	}
+
+	try {
+		const imageUrl = await uploadImageFile(file)
+		if (!imageUrl) {
+			throw new Error('upload-url-empty')
+		}
+		if (!editor.value) return
+		editor.value
+			.chain()
+			.focus()
+			.setImage({ src: imageUrl })
+			.insertContent(' ')
+			.run()
+		scrollToBottom()
+	} catch (error) {
+		console.error('聊天图片上传失败', error)
+		message.error('图片上传失败，请稍后重试')
+	}
 }
 
 const scrollToBottom = (): void => {
@@ -470,6 +526,7 @@ onUnmounted(() => {
 
 				<div
 					class="flex-1 min-w-[120px] px-1 min-h-9 cursor-text flex items-center"
+					@click="focusEditor"
 				>
 					<!-- BubbleMenu -->
 					<BubbleMenu
@@ -479,12 +536,12 @@ onUnmounted(() => {
 						:tippy-options="bubbleMenuTippyOptions"
 					>
 						<div
-							class="flex items-center bg-white/80 backdrop-blur-md shadow-xl border border-gray-200/80 rounded-xl p-1.5 gap-1 animate-bubble-in"
+							class="flex items-center bg-white/80 dark:bg-zinc-800/85 backdrop-blur-md shadow-xl border border-gray-200/80 dark:border-zinc-700 rounded-xl p-1.5 gap-1 animate-bubble-in"
 						>
 							<button
 								type="button"
 								title="加粗 (Ctrl+B)"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-emerald-900/30 hover:text-green-600 dark:hover:text-emerald-300 active:scale-95"
 								:class="{
 									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('bold'),
@@ -499,7 +556,7 @@ onUnmounted(() => {
 							<button
 								type="button"
 								title="斜体 (Ctrl+I)"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-emerald-900/30 hover:text-green-600 dark:hover:text-emerald-300 active:scale-95"
 								:class="{
 									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('italic'),
@@ -516,7 +573,7 @@ onUnmounted(() => {
 							<button
 								type="button"
 								title="下划线 (Ctrl+U)"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-emerald-900/30 hover:text-green-600 dark:hover:text-emerald-300 active:scale-95"
 								:class="{
 									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('underline'),
@@ -537,7 +594,7 @@ onUnmounted(() => {
 							<button
 								type="button"
 								title="删除线"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-emerald-900/30 hover:text-green-600 dark:hover:text-emerald-300 active:scale-95"
 								:class="{
 									'text-green-600 bg-green-100/50 shadow-inner':
 										editor.isActive('strike'),
@@ -551,9 +608,7 @@ onUnmounted(() => {
 								/></n-icon>
 							</button>
 
-							<div
-								class="w-[1.5px] h-4 bg-gray-200/60 mx-1"
-							></div>
+							<div class="w-[1.5px] h-4 bg-gray-200/60 dark:bg-zinc-700 mx-1"></div>
 
 							<button
 								type="button"
@@ -601,14 +656,20 @@ onUnmounted(() => {
 					<editor-content
 						:editor="editor"
 						class="tiptap-editor w-full max-h-64 overflow-y-auto overflow-x-hidden"
+						@click="focusEditor"
 					/>
 
 					<div
 						v-if="editor?.isEmpty"
-						class="absolute left-1 ml-1 pointer-events-none text-text-main/40 select-none"
+						class="absolute left-1 ml-1 pointer-events-none text-text-main/40 select-none transition-opacity duration-150"
+						:class="isFocus ? 'opacity-0' : 'opacity-100'"
 					>
 						输入消息...
 					</div>
+					<span
+						v-if="editor?.isEmpty && isFocus"
+						class="editor-fake-caret pointer-events-none"
+					></span>
 				</div>
 
 				<div
@@ -757,10 +818,35 @@ onUnmounted(() => {
 
 :deep(.ProseMirror) {
 	cursor: text;
+	caret-color: #10b981;
 }
 
 :deep(.ProseMirror-focused) {
 	outline: none;
+	caret-color: #10b981;
+}
+
+.editor-fake-caret {
+	position: absolute;
+	left: 8px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 2px;
+	height: 1.1em;
+	background: #10b981;
+	border-radius: 1px;
+	animation: editorCaretBlink 1s steps(2, start) infinite;
+}
+
+@keyframes editorCaretBlink {
+	0%,
+	45% {
+		opacity: 1;
+	}
+	46%,
+	100% {
+		opacity: 0;
+	}
 }
 
 :deep(.ProseMirror-selectednode) {

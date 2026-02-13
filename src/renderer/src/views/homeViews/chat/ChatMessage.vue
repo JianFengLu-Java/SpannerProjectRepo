@@ -1,5 +1,6 @@
 <template>
 	<div
+		ref="messageRootRef"
 		class="flex w-full mt-1"
 		:class="isMe ? 'flex-row-reverse' : 'flex-row'"
 	>
@@ -23,7 +24,7 @@
 				:class="
 					isMe
 						? 'bg-[#0e6a86] text-white px-3 py-2'
-						: 'bg-[#dbdbdb] text-[#333] px-3 py-2'
+						: 'bg-gray-200 text-gray-800 dark:bg-zinc-700 dark:text-gray-100 px-3 py-2'
 				"
 				@click="handleClickEvent"
 			>
@@ -53,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUpdated } from 'vue'
+import { computed, onMounted, onUpdated, ref } from 'vue'
 
 const props = defineProps<{
 	content: string
@@ -64,6 +65,7 @@ const props = defineProps<{
 	result?: string
 	deliveryStatus?: 'sending' | 'sent' | 'failed'
 }>()
+const messageRootRef = ref<HTMLElement | null>(null)
 
 const emit = defineEmits<{
 	(e: 'image-loaded'): void
@@ -124,10 +126,16 @@ const handleClickEvent = (e: MouseEvent): void => {
 }
 
 const attachLoadEvents = (): void => {
-	const imgs = document.querySelectorAll('.msg-content-selectable img')
+	const imgs =
+		messageRootRef.value?.querySelectorAll('.msg-content-selectable img') ||
+		[]
 	imgs.forEach((img) => {
 		const image = img as HTMLImageElement
-		if (!image.complete) image.onload = () => emit('image-loaded')
+		if (image.complete) {
+			emit('image-loaded')
+			return
+		}
+		image.onload = () => emit('image-loaded')
 	})
 }
 

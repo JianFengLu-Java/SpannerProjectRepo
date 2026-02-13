@@ -1,14 +1,18 @@
-import { ipcMain, app, shell, BrowserWindow } from 'electron'
+import { ipcMain, app, shell, BrowserWindow, Notification } from 'electron'
 import {
 	openLoginWindow,
 	openHomeWindow,
 	openRegisterWindow,
 	viewIMGWindow,
 	setMinimizeToTray,
+	getMinimizeToTray,
 	openChatWindow,
 	windowRegistry,
 } from '../windowState/windowManage'
 import { chatService, DbChatItem, DbMessage } from '../database/chatService'
+import { initDatabase, purgeDatabaseFiles } from '../database/db'
+import { join } from 'path'
+import { existsSync, rmSync } from 'fs'
 
 export function setupIpcHandlers(): void {
 	// --- 数据库相关 IPC ---
@@ -35,6 +39,24 @@ export function setupIpcHandlers(): void {
 	)
 
 	ipcMain.handle(
+		'db-get-messages-segment',
+		(
+			_,
+			userAccount: string,
+			chatId: number,
+			limit: number,
+			offsetFromLatest: number,
+		) => {
+			return chatService.getMessagesSegment(
+				userAccount,
+				chatId,
+				limit,
+				offsetFromLatest,
+			)
+		},
+	)
+
+	ipcMain.handle(
 		'db-save-message',
 		(_, userAccount: string, message: DbMessage) => {
 			return chatService.saveMessage(userAccount, message)
@@ -49,12 +71,14 @@ export function setupIpcHandlers(): void {
 			id: number,
 			message: string,
 			timestamp: string,
+			lastMessageAt: string,
 		) => {
 			return chatService.updateLastMessage(
 				userAccount,
 				id,
 				message,
 				timestamp,
+				lastMessageAt,
 			)
 		},
 	)
@@ -113,7 +137,7 @@ export function setupIpcHandlers(): void {
 
 	// 最小化到托盘控制
 	ipcMain.handle('get-minimize-to-tray', () => {
-		return true // 如果没有持久化存储，这里暂时写死或根据变量返回
+		return getMinimizeToTray()
 	})
 
 	ipcMain.on('set-minimize-to-tray', (_, value: boolean) => {
@@ -124,7 +148,40 @@ export function setupIpcHandlers(): void {
 	ipcMain.handle('clear-app-cache', async () => {
 		const sessions = (await import('electron')).session.defaultSession
 		await sessions.clearCache()
-		await sessions.clearStorageData()
+		await sessions.clearStorageData({
+			storages: [
+				'cookies',
+				'filesystem',
+				'indexdb',
+				'localstorage',
+				'cachestorage',
+				'serviceworkers',
+				'shadercache',
+				'websql',
+			],
+		})
+
+		// 清理应用数据库文件（聊天/会话持久化）
+		await purgeDatabaseFiles()
+		await initDatabase()
+
+		// 清理 Electron 持久化存储目录残留
+		const userDataPath = app.getPath('userData')
+		const persistentDirs = [
+			'Cache',
+			'Code Cache',
+			'GPUCache',
+			'Local Storage',
+			'Session Storage',
+			'IndexedDB',
+			'Service Worker',
+		]
+		for (const dir of persistentDirs) {
+			const target = join(userDataPath, dir)
+			if (existsSync(target)) {
+				rmSync(target, { recursive: true, force: true })
+			}
+		}
 		return true
 	})
 
@@ -137,6 +194,27 @@ export function setupIpcHandlers(): void {
 	ipcMain.on('open-chat-window', (_, chatId: number, chatName: string) => {
 		openChatWindow(chatId, chatName)
 	})
+
+	ipcMain.on(
+		'show-system-notification',
+		(
+			_,
+			payload: {
+				title?: string
+				body?: string
+			},
+		) => {
+			if (!Notification.isSupported()) return
+			const title = String(payload?.title || '新消息提醒').trim()
+			const body = String(payload?.body || '').trim()
+			const notification = new Notification({
+				title,
+				body,
+				silent: false,
+			})
+			notification.show()
+		},
+	)
 
 	// 跨窗口 Store 同步
 	ipcMain.on(

@@ -4,9 +4,7 @@
 		class="h-full w-full flex flex-col justify-between chat-context-root relative"
 	>
 		<!-- header -->
-		<div
-			class="h-14 shrink-0 border-gray-200 flex items-center justify-between w-full p-3"
-		>
+		<div class="h-14 shrink-0 flex items-center justify-between w-full p-3">
 			<div class="flex gap-2 items-center">
 				<n-avatar
 					round
@@ -18,19 +16,19 @@
 						class="text-[16px] no-drag font-medium w-fit text-text-main"
 						>{{ currentChat?.name }}</span
 					>
-					<span class="text-[11px] text-gray-400"
-						>1390703178@dhaudh.com</span
-					>
+					<span class="text-[11px] text-gray-400">{{
+						currentChatEmail
+					}}</span>
 				</div>
 			</div>
 			<div class="w-40 h-13 grid grid-cols-5 gap-1 no-drag">
 				<div
 					v-for="item in menus"
 					:key="item.key"
-					class="no-drag grid-cols-1 flex items-center justify-center rounded-md h-8 hover:bg-gray-100 cursor-pointer"
+					class="no-drag grid-cols-1 flex items-center justify-center rounded-md h-8 hover:bg-gray-100 dark:hover:bg-zinc-700/40 cursor-pointer"
 					@click="handleMenuAction(item.key)"
 				>
-					<n-icon size="15" color="#555">
+					<n-icon size="15" class="text-gray-600 dark:text-gray-300">
 						<component :is="iconMap[item.icon]" />
 					</n-icon>
 				</div>
@@ -63,6 +61,7 @@
 			v-model:show="showHistorySearchModal"
 			preset="card"
 			title="查询聊天记录"
+			:mask-closable="false"
 			class="max-w-[680px]"
 		>
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -118,7 +117,9 @@
 								<n-tag size="small" :bordered="false">
 									{{ item.type }}
 								</n-tag>
-								<n-text depth="3">{{ item.timestamp }}</n-text>
+								<n-text depth="3">{{
+									getDebugMessageTime(item)
+								}}</n-text>
 							</div>
 							<div class="text-sm text-text-main mt-1 break-all">
 								{{ getMessagePlainText(item) }}
@@ -131,7 +132,7 @@
 	</div>
 	<div
 		v-if="!currentChat"
-		class="h-full w-full flex flex-col justify-center items-center bg-linear-to-br from-gray-50 to-white rounded-xl p-8"
+		class="h-full w-full flex flex-col justify-center items-center bg-linear-to-br from-gray-50 to-white dark:from-zinc-900 dark:to-zinc-950 rounded-xl p-8"
 	>
 		<div class="flex flex-col items-center gap-4 max-w-md text-center">
 			<!-- 图标 -->
@@ -144,10 +145,12 @@
 			</div>
 
 			<!-- 标题 -->
-			<h3 class="text-2xl font-black text-gray-800">开始对话</h3>
+			<h3 class="text-2xl font-black text-gray-800 dark:text-gray-100">
+				开始对话
+			</h3>
 
 			<!-- 描述 -->
-			<p class="text-sm text-gray-500 leading-relaxed">
+			<p class="text-sm text-gray-500 dark:text-gray-300 leading-relaxed">
 				从左侧选择一个联系人开始聊天<br />
 				或点击右上角创建新的对话
 			</p>
@@ -184,10 +187,16 @@ import { computed, ref } from 'vue'
 import type { Component } from 'vue'
 import ChatContainer from './ChatContainer.vue'
 import { NIcon } from 'naive-ui'
+import { useFriendStore } from '@renderer/stores/friend'
 
 const chatStore = useChatStore()
+const friendStore = useFriendStore()
+const emit = defineEmits<{
+	(e: 'toggle-friend-setting'): void
+}>()
 
 const { activeChat, activeChatId, activeChatMessages } = storeToRefs(chatStore)
+const { friends } = storeToRefs(friendStore)
 
 const currentChat = computed(() => {
 	return activeChat.value
@@ -195,6 +204,14 @@ const currentChat = computed(() => {
 
 const currentChatMessages = computed(() => {
 	return activeChatMessages.value
+})
+
+const currentChatEmail = computed(() => {
+	if (!currentChat.value) return '未填写邮箱'
+	const friend = friends.value.find(
+		(item) => Number(item.id) === currentChat.value?.id,
+	)
+	return friend?.email?.trim() || '未填写邮箱'
 })
 
 type MessageTypeFilter = 'all' | 'text' | 'image' | 'file'
@@ -276,6 +293,20 @@ const getMessagePlainText = (item: Message): string => {
 	return plain || '[图片/富文本消息]'
 }
 
+const getDebugMessageTime = (item: Message): string => {
+	const source = item.sentAt?.trim() || item.timestamp?.trim() || ''
+	if (!source) return '-'
+	const date = new Date(source)
+	if (Number.isNaN(date.getTime())) return source
+	const y = date.getFullYear()
+	const m = String(date.getMonth() + 1).padStart(2, '0')
+	const d = String(date.getDate()).padStart(2, '0')
+	const hh = String(date.getHours()).padStart(2, '0')
+	const mm = String(date.getMinutes()).padStart(2, '0')
+	const ss = String(date.getSeconds()).padStart(2, '0')
+	return `${y}-${m}-${d} ${hh}:${mm}:${ss}`
+}
+
 const resetHistorySearchForm = (): void => {
 	historySearchForm.value = {
 		keyword: '',
@@ -286,9 +317,14 @@ const resetHistorySearchForm = (): void => {
 }
 
 const handleMenuAction = (key: string): void => {
-	if (key !== 'search') return
 	if (!activeChatId.value) return
-	showHistorySearchModal.value = true
+	if (key === 'search') {
+		showHistorySearchModal.value = true
+		return
+	}
+	if (key === 'more') {
+		emit('toggle-friend-setting')
+	}
 }
 
 const runHistorySearch = async (): Promise<void> => {

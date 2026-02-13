@@ -42,10 +42,9 @@ onMounted(() => {
 	>
 		<dragable v-if="!isWin" />
 		<div
-			class="h-screen w-screen overflow-hidden flex flex-col relative"
+			class="h-screen w-screen overflow-hidden flex flex-col relative bg-page-bg"
 			:class="[
 				isWin && !isMaximized ? 'rounded-[12px] shadow-xl' : '',
-				themeStore.isDark ? 'bg-[#18181c]' : 'bg-white',
 			]"
 		>
 			<win-title-bar

@@ -67,7 +67,7 @@
 						>
 							<n-icon
 								size="20"
-								class="text-gray-400 cursor-pointer hover:text-gray-600 transition-colors"
+								class="text-gray-400 dark:text-gray-300 cursor-pointer hover:text-gray-600 dark:hover:text-gray-100 transition-colors"
 								@click="toggleAddDropdown"
 							>
 								<Add16Filled />
@@ -80,7 +80,7 @@
 
 		<div class="no-drag w-full px-2 flex justify-center">
 			<div
-				class="text-zinc-800 flex items-center cursor-pointer overflow-hidden transition-custom hover:bg-sidebar-unselect-item/30"
+				class="text-zinc-800 dark:text-gray-200 flex items-center cursor-pointer overflow-hidden transition-custom hover:bg-sidebar-unselect-item/30"
 				:class="
 					isExpanded
 						? 'is-expanded  bg-card-bg'
@@ -88,7 +88,7 @@
 				"
 				@click="showSearchModal = true"
 			>
-				<n-icon size="20" color="#666" class="shrink-0">
+				<n-icon size="20" class="shrink-0 text-zinc-500 dark:text-zinc-300">
 					<Search />
 				</n-icon>
 
@@ -133,57 +133,132 @@
 		<div
 			class="flex-1 w-full flex flex-col items-center gap-1 rounded-xl pt-0 p-2 overflow-y-auto"
 		>
-			<div
-				v-for="item in menus"
-				:key="item.key"
-				:class="[
-					'flex items-center cursor-pointer transition-all no-drag',
-					isExpanded
-						? 'w-full px-3 h-9 gap-3 rounded-xl'
-						: 'w-12 h-12 flex-col justify-center gap-1 rounded-2xl',
-					route.name === item.name
-						? ' bg-sidebar-select-bg text-primary-600'
-						: ' hover:bg-sidebar-select-bg/35 ',
-				]"
-				@click="go(item)"
-			>
-				<n-badge :dot="item.hasMessage" class="sidebar-menu-dot">
-					<div class="flex justify-center items-center">
-						<n-icon
-							size="18"
-							:class="[
-								route.name === item.name
-									? ' text-sidebar-select-item'
-									: ' text-sidebar-unselect-item',
-							]"
-						>
-							<component :is="iconMap[item.icon]" />
-						</n-icon>
-					</div>
-				</n-badge>
+			<div class="w-full flex flex-col gap-1">
+				<div
+					v-for="item in routeMenus"
+					:key="item.key"
+					:class="[
+						'flex items-center cursor-pointer transition-all no-drag',
+						isExpanded
+							? 'w-full px-3 h-9 gap-3 rounded-xl'
+							: 'w-12 h-12 flex-col justify-center gap-1 rounded-2xl',
+						isMenuActive(item)
+							? ' bg-sidebar-select-bg text-primary-600'
+							: ' hover:bg-sidebar-select-bg/35 ',
+					]"
+					@click="go(item)"
+				>
+					<n-badge :dot="item.hasMessage" class="sidebar-menu-dot">
+						<div class="flex justify-center items-center">
+							<n-icon
+								size="18"
+								:class="[
+									isMenuActive(item)
+										? ' text-sidebar-select-item'
+										: ' text-sidebar-unselect-item',
+								]"
+							>
+								<component :is="iconMap[item.icon]" />
+							</n-icon>
+						</div>
+					</n-badge>
 
-				<span
+					<span
+						v-if="isExpanded"
+						class="text-xs whitespace-nowrap overflow-hidden flex-1"
+						:class="[
+							isMenuActive(item)
+								? ' text-sidebar-select-item'
+								: ' text-sidebar-unselect-item',
+						]"
+					>
+						{{ item.label }}
+					</span>
+					<span
+						v-else
+						class="text-[10px] leading-none"
+						:class="[
+							isMenuActive(item)
+								? ' text-sidebar-select-item'
+								: ' text-sidebar-unselect-item',
+						]"
+					>
+						{{ item.label }}
+					</span>
+				</div>
+			</div>
+
+			<div v-if="slotMenus.length > 0" class="w-full py-2">
+				<div class="slot-separator w-full"></div>
+				<div
 					v-if="isExpanded"
-					class="text-xs whitespace-nowrap overflow-hidden"
-					:class="[
-						route.name === item.name
-							? ' text-sidebar-select-item'
-							: ' text-sidebar-unselect-item',
-					]"
+					class="mt-2 px-2 text-[11px] tracking-wide text-sidebar-unselect-item"
 				>
-					{{ item.label }}
-				</span>
-				<span
-					v-else
-					class="text-[10px] leading-none"
+					临时插槽
+				</div>
+			</div>
+
+			<div v-if="slotMenus.length > 0" class="w-full flex flex-col gap-1">
+				<div
+					v-for="item in slotMenus"
+					:key="item.key"
 					:class="[
-						route.name === item.name
-							? ' text-sidebar-select-item'
-							: ' text-sidebar-unselect-item',
+						'flex items-center cursor-pointer transition-all no-drag',
+						isExpanded
+							? 'w-full px-3 h-9 gap-3 rounded-xl'
+							: 'w-12 h-12 flex-col justify-center gap-1 rounded-2xl',
+						isMenuActive(item)
+							? ' bg-sidebar-select-bg text-primary-600'
+							: ' hover:bg-sidebar-select-bg/35 ',
 					]"
+					@click="go(item)"
 				>
-					{{ item.label }}
-				</span>
+					<n-badge :dot="item.hasMessage" class="sidebar-menu-dot">
+						<div class="flex justify-center items-center">
+							<n-icon
+								size="18"
+								:class="[
+									isMenuActive(item)
+										? ' text-sidebar-select-item'
+										: ' text-sidebar-unselect-item',
+								]"
+							>
+								<component :is="iconMap[item.icon]" />
+							</n-icon>
+						</div>
+					</n-badge>
+
+					<span
+						v-if="isExpanded"
+						class="text-xs whitespace-nowrap overflow-hidden flex-1"
+						:class="[
+							isMenuActive(item)
+								? ' text-sidebar-select-item'
+								: ' text-sidebar-unselect-item',
+						]"
+					>
+						{{ item.label }}
+					</span>
+					<span
+						v-else
+						class="text-[10px] leading-none"
+						:class="[
+							isMenuActive(item)
+								? ' text-sidebar-select-item'
+								: ' text-sidebar-unselect-item',
+						]"
+					>
+						{{ item.label }}
+					</span>
+					<n-icon
+						v-if="isExpanded && item.slotKey"
+						size="14"
+						class="text-sidebar-unselect-item hover:text-sidebar-select-item transition-colors"
+						@click.stop="destroySlot(item.slotKey)"
+					>
+						<Close />
+					</n-icon>
+				</div>
 			</div>
 		</div>
 
@@ -192,6 +267,7 @@
 			preset="dialog"
 			title="全局搜索"
 			:show-icon="false"
+			:mask-closable="false"
 			transform-origin="center"
 			style="width: 600px; border-radius: 24px; padding: 12px"
 		>
@@ -213,12 +289,12 @@
 						<div
 							v-for="item in ['联系人', '群组', '文件']"
 							:key="item"
-							class="flex flex-col items-center p-4 rounded-2xl border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+							class="flex flex-col items-center p-4 rounded-2xl border border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
 						>
 							<div
 								class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 mb-2"
 							></div>
-							<span class="text-xs text-gray-500">{{
+							<span class="text-xs text-gray-500 dark:text-gray-300">{{
 								item
 							}}</span>
 						</div>
@@ -227,9 +303,137 @@
 			</div>
 		</n-modal>
 
+		<n-modal
+			v-model:show="showEditProfileModal"
+			preset="card"
+			title="编辑个人信息"
+			:mask-closable="false"
+			style="width: 560px"
+		>
+			<div class="mb-3 text-xs text-gray-500 dark:text-gray-300">
+				字段失焦后自动保存，保存成功不提示。
+			</div>
+			<n-form label-placement="left" label-width="90">
+				<n-form-item label="真实姓名">
+					<div class="w-full flex items-center gap-2">
+						<n-input
+							v-model:value="editProfile.realName"
+							placeholder="请输入真实姓名"
+							@blur="saveField('realName')"
+						/>
+						<span
+							v-if="savingField.realName"
+							class="text-xs text-gray-400 shrink-0"
+							>保存中...</span
+						>
+					</div>
+				</n-form-item>
+				<n-form-item label="头像地址">
+					<div class="w-full flex items-center gap-3">
+						<n-avatar
+							:size="40"
+							round
+							:src="editProfile.avatarUrl || user.avatarUrl"
+							class="shrink-0 border border-gray-200 dark:border-zinc-700"
+						/>
+						<n-button
+							size="small"
+							:loading="isAvatarUploading || savingField.avatarUrl"
+							@click="triggerAvatarUpload"
+						>
+							上传头像
+						</n-button>
+						<span
+							v-if="savingField.avatarUrl"
+							class="text-xs text-gray-400 shrink-0"
+							>保存中...</span
+						>
+					</div>
+				</n-form-item>
+				<n-form-item label="性别">
+					<div class="w-full flex items-center gap-2">
+						<n-select
+							v-model:value="editProfile.gender"
+							:options="genderOptions"
+							placeholder="请选择"
+							@update:value="saveField('gender')"
+						/>
+						<span
+							v-if="savingField.gender"
+							class="text-xs text-gray-400 shrink-0"
+							>保存中...</span
+						>
+					</div>
+				</n-form-item>
+				<n-form-item label="邮箱">
+					<div class="w-full flex items-center gap-2">
+						<n-input
+							v-model:value="editProfile.email"
+							placeholder="a@b.com"
+							@blur="saveField('email')"
+						/>
+						<span
+							v-if="savingField.email"
+							class="text-xs text-gray-400 shrink-0"
+							>保存中...</span
+						>
+					</div>
+				</n-form-item>
+				<n-form-item label="手机号">
+					<div class="w-full flex items-center gap-2">
+						<n-input
+							v-model:value="editProfile.phone"
+							placeholder="13800138000"
+							@blur="saveField('phone')"
+						/>
+						<span
+							v-if="savingField.phone"
+							class="text-xs text-gray-400 shrink-0"
+							>保存中...</span
+						>
+					</div>
+				</n-form-item>
+				<n-form-item label="地址">
+					<div class="w-full flex items-center gap-2">
+						<n-input
+							v-model:value="editProfile.address"
+							placeholder="Shanghai"
+							@blur="saveField('address')"
+						/>
+						<span
+							v-if="savingField.address"
+							class="text-xs text-gray-400 shrink-0"
+							>保存中...</span
+						>
+					</div>
+				</n-form-item>
+				<n-form-item label="年龄">
+					<div class="w-full flex items-center gap-2">
+						<n-input-number
+							v-model:value="editProfile.age"
+							:min="0"
+							placeholder="25"
+							class="w-full"
+							@blur="saveField('age')"
+						/>
+						<span
+							v-if="savingField.age"
+							class="text-xs text-gray-400 shrink-0"
+							>保存中...</span
+						>
+					</div>
+				</n-form-item>
+			</n-form>
+		</n-modal>
+
 		<FriendApplyModal
 			v-model:show="showAddFriendModal"
 			@applied="handleFriendApplied"
+		/>
+		<AvatarUploadEditor
+			ref="avatarUploadEditorRef"
+			@uploaded="handleAvatarUploaded"
+			@uploading-change="handleAvatarUploadingChange"
 		/>
 	</div>
 </template>
@@ -243,6 +447,12 @@ import {
 	NModal,
 	NInput,
 	NBadge,
+	NForm,
+	NFormItem,
+	NSelect,
+	NInputNumber,
+	NButton,
+	useMessage,
 } from 'naive-ui'
 import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import type { Component } from 'vue'
@@ -254,19 +464,25 @@ import {
 	SearchOutline as Search,
 	Add,
 	ApertureOutline,
+	Close,
 } from '@vicons/ionicons5'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { Add16Filled } from '@vicons/fluent'
 import FriendApplyModal from '@renderer/components/FriendApplyModal.vue'
 import { useFriendStore } from '@renderer/stores/friend'
 import { useChatStore } from '@renderer/stores/chat'
+import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
 import { storeToRefs } from 'pinia'
+import request from '@renderer/utils/request'
+import AvatarUploadEditor from '@renderer/components/AvatarUploadEditor.vue'
 
 defineProps<{ isExpanded: boolean; width: number }>()
 
 const user = useUserInfoStore()
 const friendStore = useFriendStore()
 const chatStore = useChatStore()
+const sidebarSlotStore = useSidebarSlotStore()
+const message = useMessage()
 const router = useRouter()
 const route = useRoute()
 const { chatlist } = storeToRefs(chatStore)
@@ -274,7 +490,225 @@ const showSearchModal = ref(false)
 const showAddFriendModal = ref(false)
 const showUserDropdown = ref(false)
 const showAddDropdown = ref(false)
+const showEditProfileModal = ref(false)
+const isAvatarUploading = ref(false)
+const avatarUploadEditorRef = ref<{
+	openFileDialog: () => void
+} | null>(null)
 const platfrom = window.api.platform
+
+type EditableField =
+	| 'realName'
+	| 'avatarUrl'
+	| 'gender'
+	| 'email'
+	| 'phone'
+	| 'address'
+	| 'age'
+
+interface EditableProfile {
+	realName: string
+	avatarUrl: string
+	gender: string
+	email: string
+	phone: string
+	address: string
+	age: number | null
+}
+
+type EditableValue = string | number | null
+
+const genderOptions = [
+	{ label: '男', value: 'male' },
+	{ label: '女', value: 'female' },
+	{ label: '未知', value: 'unknown' },
+]
+
+const createEditableProfile = (): EditableProfile => ({
+	realName: user.userName || '',
+	avatarUrl: user.avatarUrl || '',
+	gender: user.gender || 'unknown',
+	email: user.email || '',
+	phone: user.phone || '',
+	address: user.address || '',
+	age:
+		typeof user.age === 'number' && Number.isFinite(user.age)
+			? user.age
+			: null,
+})
+
+const editProfile = ref<EditableProfile>(createEditableProfile())
+const persistedProfile = ref<EditableProfile>(createEditableProfile())
+const savingField = ref<Record<EditableField, boolean>>({
+	realName: false,
+	avatarUrl: false,
+	gender: false,
+	email: false,
+	phone: false,
+	address: false,
+	age: false,
+})
+
+const getProfileFieldValue = (
+	profile: EditableProfile,
+	field: EditableField,
+): EditableValue => {
+	switch (field) {
+		case 'realName':
+			return profile.realName
+		case 'avatarUrl':
+			return profile.avatarUrl
+		case 'gender':
+			return profile.gender
+		case 'email':
+			return profile.email
+		case 'phone':
+			return profile.phone
+		case 'address':
+			return profile.address
+		case 'age':
+			return profile.age
+	}
+}
+
+const setProfileFieldValue = (
+	profile: EditableProfile,
+	field: EditableField,
+	value: EditableValue,
+): void => {
+	switch (field) {
+		case 'realName':
+			profile.realName = String(value ?? '')
+			return
+		case 'avatarUrl':
+			profile.avatarUrl = String(value ?? '')
+			return
+		case 'gender':
+			profile.gender = String(value ?? 'unknown')
+			return
+		case 'email':
+			profile.email = String(value ?? '')
+			return
+		case 'phone':
+			profile.phone = String(value ?? '')
+			return
+		case 'address':
+			profile.address = String(value ?? '')
+			return
+		case 'age':
+			profile.age =
+				typeof value === 'number' && Number.isFinite(value)
+					? value
+					: null
+			return
+	}
+}
+
+const normalizeFieldValue = (
+	field: EditableField,
+	value: EditableValue,
+): EditableValue => {
+	if (field === 'age') {
+		if (typeof value !== 'number' || !Number.isFinite(value)) return null
+		return Math.max(0, Math.floor(value))
+	}
+	if (field === 'gender') {
+		return value === 'male' || value === 'female' || value === 'unknown'
+			? value
+			: 'unknown'
+	}
+	return typeof value === 'string' ? value.trim() : value
+}
+
+const openEditProfile = (): void => {
+	const snapshot = createEditableProfile()
+	editProfile.value = { ...snapshot }
+	persistedProfile.value = { ...snapshot }
+	showEditProfileModal.value = true
+}
+
+const saveFieldValue = async (
+	field: EditableField,
+	nextValue: EditableValue,
+): Promise<void> => {
+	if (savingField.value[field]) return
+
+	const normalizedValue = normalizeFieldValue(field, nextValue)
+	const prevValue = getProfileFieldValue(persistedProfile.value, field)
+	if (normalizedValue === prevValue) {
+		setProfileFieldValue(editProfile.value, field, prevValue)
+		return
+	}
+
+	if (
+		field === 'email' &&
+		typeof normalizedValue === 'string' &&
+		normalizedValue
+	) {
+		const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+		if (!emailPattern.test(normalizedValue)) {
+			message.error('邮箱格式不正确')
+			setProfileFieldValue(editProfile.value, field, prevValue)
+			return
+		}
+	}
+
+	savingField.value[field] = true
+	setProfileFieldValue(editProfile.value, field, normalizedValue)
+
+	try {
+		const payload: Record<string, EditableValue> = {
+			[field]: normalizedValue,
+		}
+		await request.put('/user/me', payload)
+		setProfileFieldValue(persistedProfile.value, field, normalizedValue)
+		if (field === 'age') {
+			user.patchUserInfo({
+				age:
+					typeof normalizedValue === 'number' &&
+					Number.isFinite(normalizedValue)
+						? normalizedValue
+						: null,
+			})
+		} else if (field === 'realName') {
+			user.patchUserInfo({ realName: String(normalizedValue ?? '') })
+		} else if (field === 'avatarUrl') {
+			user.patchUserInfo({ avatarUrl: String(normalizedValue ?? '') })
+		} else if (field === 'gender') {
+			user.patchUserInfo({
+				gender: String(normalizedValue ?? 'unknown'),
+			})
+		} else if (field === 'email') {
+			user.patchUserInfo({ email: String(normalizedValue ?? '') })
+		} else if (field === 'phone') {
+			user.patchUserInfo({ phone: String(normalizedValue ?? '') })
+		} else if (field === 'address') {
+			user.patchUserInfo({ address: String(normalizedValue ?? '') })
+		}
+	} catch (error) {
+		console.error(`更新字段 ${field} 失败`, error)
+		setProfileFieldValue(editProfile.value, field, prevValue)
+		message.error('保存失败，请稍后重试')
+	} finally {
+		savingField.value[field] = false
+	}
+}
+
+const saveField = async (field: EditableField): Promise<void> => {
+	await saveFieldValue(field, getProfileFieldValue(editProfile.value, field))
+}
+
+const triggerAvatarUpload = (): void => {
+	avatarUploadEditorRef.value?.openFileDialog()
+}
+
+const handleAvatarUploaded = async (url: string): Promise<void> => {
+	await saveFieldValue('avatarUrl', url)
+}
+
+const handleAvatarUploadingChange = (uploading: boolean): void => {
+	isAvatarUploading.value = uploading
+}
 
 // Dropdown 控制函数
 const toggleUserDropdown = (): void => {
@@ -320,7 +754,9 @@ const handleGlobalClick = (e: MouseEvent): void => {
 
 interface MenuItem {
 	key: string
-	name: string
+	type: 'route' | 'slot'
+	name?: string
+	slotKey?: string
 	icon: string
 	label?: string
 	hasMessage?: boolean
@@ -371,7 +807,7 @@ const userMenuOptions = [
 						h(
 							'div',
 							{
-								class: 'text-lg font-semibold flex items-center text-gray-800',
+								class: 'text-lg font-semibold flex items-center text-text-main',
 							},
 							[
 								h(
@@ -402,6 +838,7 @@ const userMenuOptions = [
 	},
 	{ type: 'divider' },
 	{ label: '我的个人名片', key: 'my-card' },
+	{ label: '编辑个人信息', key: 'edit-profile' },
 	{ type: 'divider' },
 	{
 		label: '退出登录',
@@ -410,6 +847,21 @@ const userMenuOptions = [
 ]
 
 const handleUserMenuSelect = (key: string): void => {
+	if (key === 'my-card') {
+		showUserDropdown.value = false
+		sidebarSlotStore.openSlot({
+			slotKey: 'my-profile-card',
+			title: '我的名片',
+			componentKey: 'profile-card',
+			icon: 'user',
+		})
+		return
+	}
+	if (key === 'edit-profile') {
+		showUserDropdown.value = false
+		openEditProfile()
+		return
+	}
 	if (key !== 'logout') return
 	showUserDropdown.value = false
 	user.logout()
@@ -424,9 +876,10 @@ const iconMap: Record<string, Component> = {
 	setting: Settings,
 }
 
-const menus = computed<MenuItem[]>(() => [
+const routeMenus = computed<MenuItem[]>(() => [
 	{
 		key: 'home',
+		type: 'route',
 		name: 'chat',
 		icon: 'chat',
 		label: '消息',
@@ -434,29 +887,75 @@ const menus = computed<MenuItem[]>(() => [
 	},
 	{
 		key: 'user',
+		type: 'route',
 		name: 'user',
 		icon: 'user',
 		label: '通讯录',
 		hasMessage: friendStore.pendingRequests.length > 0,
 	},
-	{ key: 'moments', name: 'moments', icon: 'moments', label: '动态' },
-	{ key: 'setting', name: 'setting', icon: 'setting', label: '设置' },
+	{
+		key: 'moments',
+		type: 'route',
+		name: 'moments',
+		icon: 'moments',
+		label: '动态',
+	},
+	{
+		key: 'setting',
+		type: 'route',
+		name: 'setting',
+		icon: 'setting',
+		label: '设置',
+	},
 ])
 
+const slotMenus = computed<MenuItem[]>(() =>
+	sidebarSlotStore.slots.map((slot) => ({
+		key: `slot-${slot.slotKey}`,
+		type: 'slot',
+		slotKey: slot.slotKey,
+		icon: slot.icon,
+		label: slot.title,
+	})),
+)
+
 onMounted(() => {
-	void friendStore.fetchPendingRequests()
+	friendStore.startPendingRequestsAutoRefresh()
 
 	// 添加全局点击监听器
 	document.addEventListener('mousedown', handleGlobalClick)
 })
 
 onUnmounted(() => {
+	friendStore.stopPendingRequestsAutoRefresh()
+
 	// 移除全局监听器
 	document.removeEventListener('mousedown', handleGlobalClick)
 })
 
 function go(item: MenuItem): void {
-	if (route.name !== item.name) router.push({ name: item.name })
+	if (item.type === 'route') {
+		sidebarSlotStore.clearActiveSlot()
+		if (item.name && route.name !== item.name) {
+			router.push({ name: item.name })
+		}
+		return
+	}
+	if (item.slotKey) {
+		sidebarSlotStore.activateSlot(item.slotKey)
+	}
+}
+
+function destroySlot(slotKey: string): void {
+	sidebarSlotStore.removeSlot(slotKey)
+}
+
+function isMenuActive(item: MenuItem): boolean {
+	if (item.type === 'slot') {
+		return sidebarSlotStore.activeSlotKey === item.slotKey
+	}
+	if (sidebarSlotStore.activeSlotKey) return false
+	return route.name === item.name
 }
 </script>
 
@@ -549,5 +1048,16 @@ function go(item: MenuItem): void {
 
 :deep(.sidebar-menu-dot .n-badge-sup) {
 	background-color: #ef4444;
+}
+
+.slot-separator {
+	height: 1px;
+	background: linear-gradient(
+		to right,
+		transparent 0%,
+		rgba(156, 163, 175, 0.6) 20%,
+		rgba(156, 163, 175, 0.6) 80%,
+		transparent 100%
+	);
 }
 </style>

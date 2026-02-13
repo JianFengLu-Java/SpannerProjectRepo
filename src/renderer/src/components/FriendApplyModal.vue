@@ -3,6 +3,7 @@
 		:show="show"
 		preset="card"
 		title="添加好友"
+		:mask-closable="false"
 		transform-origin="center"
 		:segmented="{ content: true, footer: true }"
 		:bordered="false"

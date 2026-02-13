@@ -13,7 +13,7 @@
 				<n-tooltip trigger="hover">
 					<template #trigger>
 						<div
-							class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-gray-200/50 cursor-pointer transition-colors"
+							class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
 							:class="{ 'text-primary': isPinned }"
 							@click="togglePin"
 						>
@@ -28,11 +28,11 @@
 			</div>
 		</div>
 
-		<div
-			class="flex-1 overflow-hidden rounded-xl bg-white/50 backdrop-blur-sm border border-white/20 shadow-sm relative"
-		>
-			<ChatContext ref="chatContextRef" />
-		</div>
+			<div
+				class="flex-1 overflow-hidden rounded-xl bg-white/50 dark:bg-zinc-900/70 backdrop-blur-sm border border-white/20 dark:border-zinc-700/70 shadow-sm relative"
+			>
+				<ChatContext />
+			</div>
 	</div>
 </template>
 
@@ -51,7 +51,6 @@ const isWin = window.api.platform === 'win32'
 const chatId = parseInt(route.query.id as string)
 const chatName = route.query.name as string
 
-const chatContextRef = ref(null)
 const isPinned = ref(false)
 
 const togglePin = (): void => {

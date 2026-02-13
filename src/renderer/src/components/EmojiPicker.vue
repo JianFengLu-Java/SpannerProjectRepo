@@ -1,10 +1,10 @@
 <template>
 	<div
-		class="emoji-picker-container bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col"
+		class="emoji-picker-container bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-zinc-700 overflow-hidden flex flex-col"
 	>
 		<!-- 顶部 Tab 切换 -->
 		<div
-			class="flex items-center px-2 pt-2 gap-1 border-b border-gray-50 bg-gray-50/30"
+			class="flex items-center px-2 pt-2 gap-1 border-b border-gray-50 dark:border-zinc-700 bg-gray-50/30 dark:bg-zinc-800/40"
 		>
 			<div
 				v-for="tab in tabs"
@@ -12,8 +12,8 @@
 				class="px-3 py-1.5 cursor-pointer transition-all duration-200 rounded-t-lg text-xs font-medium relative group"
 				:class="[
 					activeTab === tab.id
-						? 'text-green-600 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.02)]'
-						: 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50',
+						? 'text-green-600 bg-white dark:bg-zinc-800 shadow-[0_-2px_10px_rgba(0,0,0,0.02)]'
+						: 'text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 hover:bg-gray-100/50 dark:hover:bg-zinc-700/50',
 				]"
 				@click="activeTab = tab.id"
 			>
@@ -42,7 +42,7 @@
 			<div v-else-if="activeTab === 'custom'" class="flex flex-col gap-4">
 				<div v-for="category in customEmojis" :key="category.title">
 					<div
-						class="text-[10px] text-gray-400 font-medium mb-2 uppercase tracking-wider px-1"
+						class="text-[10px] text-gray-400 dark:text-gray-500 font-medium mb-2 uppercase tracking-wider px-1"
 					>
 						{{ category.title }}
 					</div>
@@ -50,7 +50,7 @@
 						<div
 							v-for="(item, index) in category.items"
 							:key="index"
-							class="aspect-square flex items-center justify-center p-1.5 rounded-xl hover:bg-green-50/50 cursor-pointer transition-all duration-200 group active:scale-90"
+							class="aspect-square flex items-center justify-center p-1.5 rounded-xl hover:bg-green-50/50 dark:hover:bg-emerald-900/25 cursor-pointer transition-all duration-200 group active:scale-90"
 							@click="handleSelectCustom(item)"
 						>
 							<img
@@ -66,7 +66,7 @@
 				<!-- 动态贴纸 (更大尺寸) -->
 				<div v-if="stickers.length > 0">
 					<div
-						class="text-[10px] text-gray-400 font-medium mb-2 uppercase tracking-wider px-1"
+						class="text-[10px] text-gray-400 dark:text-gray-500 font-medium mb-2 uppercase tracking-wider px-1"
 					>
 						我的贴纸
 					</div>
@@ -74,7 +74,7 @@
 						<div
 							v-for="(item, index) in stickers"
 							:key="index"
-							class="aspect-square flex items-center justify-center p-2 rounded-xl border border-transparent hover:border-green-100 hover:bg-green-50/30 cursor-pointer transition-all duration-300 group overflow-hidden"
+							class="aspect-square flex items-center justify-center p-2 rounded-xl border border-transparent hover:border-green-100 dark:hover:border-emerald-900/50 hover:bg-green-50/30 dark:hover:bg-emerald-900/20 cursor-pointer transition-all duration-300 group overflow-hidden"
 							@click="handleSelectCustom(item, true)"
 						>
 							<img
@@ -90,9 +90,9 @@
 
 		<!-- 底部操作栏 -->
 		<div
-			class="p-2 border-t border-gray-50 bg-gray-50/20 flex items-center justify-between"
+			class="p-2 border-t border-gray-50 dark:border-zinc-700 bg-gray-50/20 dark:bg-zinc-800/30 flex items-center justify-between"
 		>
-			<div class="flex gap-2 text-[10px] text-gray-400">
+			<div class="flex gap-2 text-[10px] text-gray-400 dark:text-gray-500">
 				<span>快选:</span>
 				<span
 					class="hover:text-green-500 cursor-pointer transition-colors"
@@ -110,7 +110,10 @@
 					>❤️</span
 				>
 			</div>
-			<div class="text-[10px] text-gray-300">Spanner Emojis</div>
+			<div class="text-[10px] text-gray-300 dark:text-gray-500">Spanner Emojis</div>
+			<div class="text-[10px] text-gray-300 dark:text-gray-500">
+				插画来源: OpenMoji (CC BY-SA 4.0)
+			</div>
 		</div>
 	</div>
 </template>
@@ -129,57 +132,69 @@ const tabs = [
 	{ id: 'custom', name: '贴纸包' },
 ]
 
-// 模拟自定义表情数据 (可以通过 Props 传入以实现动态化)
+// 使用开源插画(OpenMoji)作为表情包素材
 const customEmojis = ref([
 	{
-		title: '热度前排',
+		title: 'OpenMoji 热门',
 		items: [
 			{
-				name: 'doge',
-				url: 'https://api.dicebear.com/7.x/bottts/svg?seed=doge',
+				name: 'party-face',
+				url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1F973.svg',
 			},
 			{
-				name: 'think',
-				url: 'https://api.dicebear.com/7.x/bottts/svg?seed=think',
+				name: 'hugging-face',
+				url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1F917.svg',
 			},
 			{
-				name: 'wow',
-				url: 'https://api.dicebear.com/7.x/bottts/svg?seed=wow',
+				name: 'rolling-laugh',
+				url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1F923.svg',
 			},
 			{
-				name: 'cool',
-				url: 'https://api.dicebear.com/7.x/bottts/svg?seed=cool',
+				name: 'star-struck',
+				url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1F929.svg',
 			},
 		],
 	},
 	{
-		title: '抽象艺术',
+		title: 'OpenMoji 风格',
 		items: [
 			{
-				name: 'pixel-1',
-				url: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Felix',
+				name: 'rocket',
+				url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1F680.svg',
 			},
 			{
-				name: 'pixel-2',
-				url: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Milo',
+				name: 'sparkles',
+				url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/2728.svg',
 			},
 			{
-				name: 'pixel-3',
-				url: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Toby',
+				name: 'heart-hands',
+				url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1FAF6.svg',
 			},
 			{
-				name: 'pixel-4',
-				url: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=Bella',
+				name: 'fire',
+				url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1F525.svg',
 			},
 		],
 	},
 ])
 
 const stickers = ref([
-	{ name: 'sticker-1', url: 'https://picsum.photos/seed/sticker1/200/200' },
-	{ name: 'sticker-2', url: 'https://picsum.photos/seed/sticker2/200/200' },
-	{ name: 'sticker-3', url: 'https://picsum.photos/seed/sticker3/200/200' },
-	{ name: 'sticker-4', url: 'https://picsum.photos/seed/sticker4/200/200' },
+	{
+		name: 'love-you',
+		url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1F970.svg',
+	},
+	{
+		name: 'ok-hand',
+		url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1F44C.svg',
+	},
+	{
+		name: 'victory-hand',
+		url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/270C.svg',
+	},
+	{
+		name: 'rainbow',
+		url: 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/svg/1F308.svg',
+	},
 ])
 
 const handleSelectEmoji = (emoji: { i: string }): void => {
@@ -246,6 +261,14 @@ const quickInsert = (emojiStr: string): void => {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
 	background: #cbd5e1;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+	background: #3f3f46;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: #52525b;
 }
 
 .emoji-grid {

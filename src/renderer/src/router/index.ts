@@ -11,11 +11,11 @@ const routes = [
 		name: 'Login',
 		component: () => import('../views/loginViews/Login.vue'),
 	},
-	{
-		path: '/view-img',
-		name: 'ViewIMG',
-		component: () => import('../views/imgView/IMGView.vue'),
-	},
+		{
+			path: '/view-img',
+			name: 'ViewIMG',
+			component: () => import('../views/IMGView/IMGView.vue'),
+		},
 	{
 		path: '/register',
 		name: 'Register',

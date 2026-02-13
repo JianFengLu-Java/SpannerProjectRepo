@@ -9,10 +9,14 @@ type WindowType = 'login' | 'register' | 'home' | 'view-img' | 'chat'
 // 窗口注册表：保存所有正在运行的窗口实例
 export const windowRegistry = new Map<string, BrowserWindow>()
 let tray: Tray | null = null
-let minimizeToTray = true // 默认开启
+let minimizeToTray = false // 默认关闭
 
 export function setMinimizeToTray(value: boolean): void {
 	minimizeToTray = value
+}
+
+export function getMinimizeToTray(): boolean {
+	return minimizeToTray
 }
 
 function createTray(): void {

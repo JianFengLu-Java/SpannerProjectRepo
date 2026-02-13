@@ -1,29 +1,68 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { useUserInfoStore } from './userInfo'
+import { computed, ref } from 'vue'
+import request from '@renderer/utils/request'
+import { resolveAvatarUrl } from '@renderer/utils/avatar'
+
+type MomentTab = 'recommend' | 'friends' | 'nearby' | 'trending'
+type FriendStatusWithAuthor =
+	| 'NONE'
+	| 'PENDING_OUTBOUND'
+	| 'PENDING_INBOUND'
+	| 'FRIEND'
+
+interface ApiResponse<T> {
+	code: number
+	status: string
+	message: string
+	data: T
+}
+
+interface CursorPage<T> {
+	records: T[]
+	nextCursor?: string | null
+	hasMore?: boolean
+}
+
+interface MomentAuthor {
+	account?: string
+	name: string
+	avatar: string
+}
 
 export interface Comment {
 	id: string
-	author: {
-		name: string
-		avatar: string
-	}
+	momentId?: string
+	parentCommentId?: string | null
+	replyToAccount?: string | null
+	author: MomentAuthor
 	text: string
 	timestamp: string
 	likes: number
+	isLiked?: boolean
+	replyCount?: number
+}
+
+export interface MomentLikeUser {
+	account: string
+	name: string
+	avatar: string
+	likedAt?: string
 }
 
 export interface Moment {
 	id: string
 	title: string
 	cover: string
-	author: {
-		name: string
-		avatar: string
-	}
+	author: MomentAuthor
 	likes: number
 	isLiked: boolean
+	likePreviewUsers?: MomentLikeUser[]
+	commentsCount?: number
+	isFavorited?: boolean
+	friendStatusWithAuthor?: FriendStatusWithAuthor
 	timestamp: string
+	createdAt?: string
+	updatedAt?: string
 	content?: string
 	contentHtml?: string
 	images?: string[]
@@ -37,208 +76,368 @@ interface AddMomentPayload {
 	images: string[]
 }
 
-export const useMomentStore = defineStore('moment', () => {
-	const moments = ref<Moment[]>([
-		{
-			id: '1',
-			title: '今日份打卡：深圳湾的日落真的太美了！🌊🌅',
-			cover: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80',
-			author: {
-				name: '欲盖弥彰',
-				avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
-			},
-			likes: 1240,
-			isLiked: false,
-			timestamp: '2小时前',
-			content:
-				'今天特意跑去深圳湾看日落，虽然人很多，但是看到太阳落下的那一刻，感觉所有的疲惫都消散了。这里的海风真的很舒服。',
-			images: [
-				'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80',
-				'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&q=80',
-			],
-			comments: [
-				{
-					id: 'c1',
-					author: {
-						name: '小王',
-						avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=1',
-					},
-					text: '真的好美呀！下次我也要去。',
-					timestamp: '1小时前',
-					likes: 12,
-				},
-				{
-					id: 'c2',
-					author: {
-						name: '老李',
-						avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=2',
-					},
-					text: '摄影技术不错！',
-					timestamp: '30分钟前',
-					likes: 5,
-				},
-			],
-		},
-		{
-			id: '2',
-			title: '终于拿到了程序员的终极快乐：新机械键盘开箱！⌨️✨',
-			cover: 'https://images.unsplash.com/photo-1511467687858-23d96c32e4ae?w=800&q=80',
-			author: {
-				name: '二当家',
-				avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-			},
-			likes: 856,
-			isLiked: true,
-			timestamp: '4小时前',
-			content: '打字效率直接翻倍，这就是金钱的魅力吗？😂',
-			comments: [],
-		},
-		{
-			id: '3',
-			title: '周末在家尝试做了简单的意面，卖相还不错吧？🍝😋',
-			cover: 'https://images.unsplash.com/photo-1473093226795-af9932fe5856?w=800&q=80',
-			author: {
-				name: '三当家',
-				avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Wang',
-			},
-			likes: 432,
-			isLiked: false,
-			timestamp: '昨天',
-			content: '其实做起来挺容易的，主要是摆盘要好看！',
-			comments: [],
-		},
-		{
-			id: '4',
-			title: '深夜撸码，唯独这盏灯陪着我... 💻🌙',
-			cover: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&q=80',
-			author: {
-				name: '张三',
-				avatar: 'https://randomuser.me/api/portraits/men/1.jpg',
-			},
-			likes: 2100,
-			isLiked: false,
-			timestamp: '5小时前',
-			content: '项目上线倒计时，冲冲冲！',
-			comments: [],
-		},
-		{
-			id: '5',
-			title: '猫咪真的能治愈一切不开心 🐱❤️',
-			cover: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&q=80',
-			author: {
-				name: '李四',
-				avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Cat',
-			},
-			likes: 3500,
-			isLiked: true,
-			timestamp: '3天前',
-			content: '看这小眼神，谁能受得了？',
-			comments: [],
-		},
-		{
-			id: '6',
-			title: '这就是大自然的鬼斧神工吗？震撼！🏞️',
-			cover: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80',
-			author: {
-				name: '王五',
-				avatar: 'https://randomuser.me/api/portraits/men/2.jpg',
-			},
-			likes: 189,
-			isLiked: false,
-			timestamp: '刚刚',
-			content: '此生一定要去一次这里。',
-			comments: [],
-		},
-		{
-			id: '7',
-			title: '极简风桌面改造，效率翻倍！🖥️',
-			cover: 'https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?w=800&q=80',
-			author: {
-				name: '欲盖弥彰',
-				avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
-			},
-			likes: 678,
-			isLiked: false,
-			timestamp: '1小时前',
-			content: '断舍离真的能让人心情愉悦。',
-			comments: [],
-		},
-	])
+interface UpdateMomentPayload {
+	title: string
+	contentHtml: string
+	contentText: string
+	images: string[]
+}
 
+interface LikeActionResponse {
+	liked: boolean
+	likes: number
+}
+
+interface FetchCommentsOptions {
+	size?: number
+	cursor?: string
+	parentCommentId?: string
+	sort?: 'latest' | 'hot'
+}
+
+const asString = (value: unknown): string => {
+	return typeof value === 'string' ? value : ''
+}
+
+const asNumber = (value: unknown, fallback = 0): number => {
+	return typeof value === 'number' && Number.isFinite(value)
+		? value
+		: fallback
+}
+
+const normalizeAuthor = (author: unknown): MomentAuthor => {
+	const source = (author || {}) as Record<string, unknown>
+	return {
+		account: asString(source.account) || undefined,
+		name: asString(source.name) || asString(source.account) || '用户',
+		avatar: resolveAvatarUrl(
+			asString(source.avatar) || asString(source.avatarUrl),
+		),
+	}
+}
+
+const normalizeComment = (item: unknown): Comment => {
+	const source = (item || {}) as Record<string, unknown>
+	return {
+		id: asString(source.id),
+		momentId: asString(source.momentId) || undefined,
+		parentCommentId: asString(source.parentCommentId) || null,
+		replyToAccount: asString(source.replyToAccount) || null,
+		author: normalizeAuthor(source.author),
+		text: asString(source.text),
+		timestamp:
+			asString(source.timestamp) ||
+			asString(source.createdAt) ||
+			new Date().toISOString(),
+		likes: asNumber(source.likes),
+		isLiked:
+			typeof source.isLiked === 'boolean' ? source.isLiked : undefined,
+		replyCount:
+			typeof source.replyCount === 'number'
+				? source.replyCount
+				: undefined,
+	}
+}
+
+const normalizeLikeUser = (item: unknown): MomentLikeUser => {
+	const source = (item || {}) as Record<string, unknown>
+	return {
+		account: asString(source.account),
+		name: asString(source.name) || asString(source.account),
+		avatar: resolveAvatarUrl(
+			asString(source.avatar) || asString(source.avatarUrl),
+		),
+		likedAt: asString(source.likedAt) || undefined,
+	}
+}
+
+const normalizeMoment = (item: unknown): Moment => {
+	const source = (item || {}) as Record<string, unknown>
+	const images = Array.isArray(source.images)
+		? source.images
+				.map((img) => asString(img))
+				.filter((img) => img.length > 0)
+		: []
+	const cover = asString(source.cover) || images[0] || ''
+	const comments = Array.isArray(source.comments)
+		? source.comments.map((comment) => normalizeComment(comment))
+		: []
+	return {
+		id: asString(source.id),
+		title: asString(source.title),
+		cover,
+		author: normalizeAuthor(source.author),
+		likes: asNumber(source.likes),
+		isLiked: Boolean(source.isLiked),
+		likePreviewUsers: Array.isArray(source.likePreviewUsers)
+			? source.likePreviewUsers.map((user) => normalizeLikeUser(user))
+			: undefined,
+		commentsCount:
+			typeof source.commentsCount === 'number'
+				? source.commentsCount
+				: comments.length,
+		isFavorited:
+			typeof source.isFavorited === 'boolean'
+				? source.isFavorited
+				: undefined,
+		friendStatusWithAuthor: (asString(source.friendStatusWithAuthor) ||
+			undefined) as FriendStatusWithAuthor | undefined,
+		timestamp:
+			asString(source.timestamp) ||
+			asString(source.createdAt) ||
+			new Date().toISOString(),
+		createdAt: asString(source.createdAt) || undefined,
+		updatedAt: asString(source.updatedAt) || undefined,
+		content: asString(source.content) || undefined,
+		contentHtml: asString(source.contentHtml) || undefined,
+		images,
+		comments,
+	}
+}
+
+export const useMomentStore = defineStore('moment', () => {
+	const moments = ref<Moment[]>([])
 	const selectedMomentId = ref<string | null>(null)
-	const activeTab = ref('recommend')
+	const activeTab = ref<MomentTab>('recommend')
 	const searchQuery = ref('')
+	const isLoading = ref(false)
+	const isDetailLoading = ref(false)
+	const listCursor = ref<string | null>(null)
+	const hasMore = ref(true)
+	let listFetchSeq = 0
 
 	const selectedMoment = computed(() => {
 		return (
-			moments.value.find((m) => m.id === selectedMomentId.value) || null
+			moments.value.find(
+				(moment) => moment.id === selectedMomentId.value,
+			) || null
 		)
 	})
 
-	const toggleLike = (id: string): void => {
-		const moment = moments.value.find((m) => m.id === id)
-		if (moment) {
-			moment.isLiked = !moment.isLiked
-			moment.likes += moment.isLiked ? 1 : -1
+	const upsertMoment = (nextMoment: Moment): Moment => {
+		const index = moments.value.findIndex(
+			(moment) => moment.id === nextMoment.id,
+		)
+		if (index === -1) {
+			moments.value.push(nextMoment)
+			return nextMoment
 		}
+		const current = moments.value[index]
+		const merged: Moment = {
+			...current,
+			...nextMoment,
+			comments:
+				nextMoment.comments.length > 0
+					? nextMoment.comments
+					: current.comments,
+			commentsCount: nextMoment.commentsCount ?? current.commentsCount,
+		}
+		moments.value[index] = merged
+		return merged
 	}
 
-	const addComment = (momentId: string, text: string): void => {
-		const moment = moments.value.find((m) => m.id === momentId)
-		if (moment && text.trim()) {
-			// 使用 userInfoStore 获取当前用户信息
-			const userInfoStore = useUserInfoStore()
-
-			const newComment: Comment = {
-				id: `c${Date.now()}`,
-				author: {
-					name: userInfoStore.userName || '当前用户',
-					avatar:
-						userInfoStore.avatarUrl ||
-						'https://api.dicebear.com/7.x/avataaars/svg?seed=current',
-				},
-				text: text.trim(),
-				timestamp: '刚刚',
-				likes: 0,
+	const fetchMoments = async ({
+		reset = true,
+		size = 20,
+	}: {
+		reset?: boolean
+		size?: number
+	} = {}): Promise<void> => {
+		if (isLoading.value && !reset) return
+		if (!reset && !hasMore.value) return
+		const requestSeq = ++listFetchSeq
+		isLoading.value = true
+		try {
+			if (reset) {
+				listCursor.value = null
+				hasMore.value = true
 			}
-			moment.comments.unshift(newComment)
+			const keyword = searchQuery.value.trim()
+			const response = await request.get<
+				ApiResponse<CursorPage<Record<string, unknown>>>
+			>('/moments', {
+				params: {
+					tab: activeTab.value,
+					keyword: keyword || undefined,
+					cursor: reset ? undefined : listCursor.value || undefined,
+					size,
+				},
+			})
+			if (requestSeq !== listFetchSeq) return
+			const page = response.data.data || { records: [], hasMore: false }
+			const mapped = (page.records || []).map((item) =>
+				normalizeMoment(item),
+			)
+			if (reset) {
+				moments.value = mapped
+			} else {
+				for (const item of mapped) upsertMoment(item)
+			}
+			listCursor.value = page.nextCursor || null
+			hasMore.value = Boolean(page.hasMore)
+		} finally {
+			if (requestSeq === listFetchSeq) {
+				isLoading.value = false
+			}
 		}
 	}
 
-	const createDefaultCover = (title: string): string => {
-		const safeTitle = title.slice(0, 28)
-		const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='1200'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='#34d399'/><stop offset='100%' stop-color='#60a5fa'/></linearGradient></defs><rect width='100%' height='100%' fill='url(#g)'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='rgba(255,255,255,.92)' font-size='58' font-family='Arial,sans-serif'>${safeTitle}</text></svg>`
-		return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+	const fetchMomentDetail = async (momentId: string): Promise<Moment> => {
+		isDetailLoading.value = true
+		try {
+			const response = await request.get<
+				ApiResponse<Record<string, unknown>>
+			>(`/moments/${momentId}`)
+			const mapped = normalizeMoment(response.data.data)
+			return upsertMoment(mapped)
+		} finally {
+			isDetailLoading.value = false
+		}
 	}
 
-	const addMoment = (payload: AddMomentPayload): Moment => {
-		const userInfoStore = useUserInfoStore()
-		const title = payload.title.trim()
-		const contentText = payload.contentText.trim()
-		const images = payload.images || []
-		const finalTitle = title || contentText.slice(0, 26) || '新动态'
-
-		const newMoment: Moment = {
-			id: `m-${Date.now()}`,
-			title: finalTitle,
-			cover: images[0] || createDefaultCover(finalTitle),
-			author: {
-				name: userInfoStore.userName || '当前用户',
-				avatar:
-					userInfoStore.avatarUrl ||
-					'https://api.dicebear.com/7.x/avataaars/svg?seed=current',
+	const fetchComments = async (
+		momentId: string,
+		options: FetchCommentsOptions = {},
+	): Promise<Comment[]> => {
+		const response = await request.get<
+			ApiResponse<CursorPage<Record<string, unknown>>>
+		>(`/moments/${momentId}/comments`, {
+			params: {
+				cursor: options.cursor,
+				size: options.size ?? 20,
+				parentCommentId: options.parentCommentId,
+				sort: options.sort || 'latest',
 			},
-			likes: 0,
-			isLiked: false,
-			timestamp: '刚刚',
-			content: contentText,
-			contentHtml: payload.contentHtml,
-			images,
-			comments: [],
+		})
+		const comments = (response.data.data.records || []).map((item) =>
+			normalizeComment(item),
+		)
+		const moment = moments.value.find((item) => item.id === momentId)
+		if (moment) {
+			moment.comments = comments
+			moment.commentsCount =
+				typeof moment.commentsCount === 'number'
+					? Math.max(moment.commentsCount, comments.length)
+					: comments.length
 		}
+		return comments
+	}
 
-		moments.value.unshift(newMoment)
-		return newMoment
+	const openMoment = async (momentId: string): Promise<void> => {
+		selectedMomentId.value = momentId
+		await Promise.all([
+			fetchMomentDetail(momentId),
+			fetchComments(momentId),
+		])
+	}
+
+	const toggleLike = async (momentId: string): Promise<void> => {
+		const moment = moments.value.find((item) => item.id === momentId)
+		if (!moment) return
+
+		const previousLiked = moment.isLiked
+		const previousLikes = moment.likes
+
+		moment.isLiked = !previousLiked
+		moment.likes = Math.max(0, previousLikes + (moment.isLiked ? 1 : -1))
+
+		try {
+			const endpoint = `/moments/${momentId}/likes`
+			const response = moment.isLiked
+				? await request.post<ApiResponse<LikeActionResponse>>(endpoint)
+				: await request.delete<ApiResponse<LikeActionResponse>>(
+						endpoint,
+					)
+			const data = response.data.data
+			moment.isLiked = data.liked
+			moment.likes = data.likes
+		} catch (error) {
+			moment.isLiked = previousLiked
+			moment.likes = previousLikes
+			throw error
+		}
+	}
+
+	const addComment = async (
+		momentId: string,
+		text: string,
+		parentCommentId: string | null = null,
+		replyToAccount: string | null = null,
+	): Promise<Comment> => {
+		const content = text.trim()
+		if (!content) {
+			throw new Error('comment-empty')
+		}
+		const response = await request.post<
+			ApiResponse<Record<string, unknown>>
+		>(`/moments/${momentId}/comments`, {
+			text: content,
+			parentCommentId,
+			replyToAccount,
+		})
+		const comment = normalizeComment(response.data.data)
+		const moment = moments.value.find((item) => item.id === momentId)
+		if (moment) {
+			moment.comments.unshift(comment)
+			moment.commentsCount = (moment.commentsCount || 0) + 1
+		}
+		return comment
+	}
+
+	const addMoment = async (payload: AddMomentPayload): Promise<Moment> => {
+		const response = await request.post<
+			ApiResponse<Record<string, unknown>>
+		>('/moments', payload)
+		const created = normalizeMoment(response.data.data)
+		moments.value.unshift(created)
+		return created
+	}
+
+	const updateMoment = async (
+		momentId: string,
+		payload: UpdateMomentPayload,
+	): Promise<Moment> => {
+		const response = await request.put<
+			ApiResponse<Record<string, unknown>>
+		>(`/moments/${momentId}`, payload)
+		const updated = normalizeMoment(response.data.data)
+		return upsertMoment(updated)
+	}
+
+	const deleteMoment = async (momentId: string): Promise<void> => {
+		await request.delete<ApiResponse<Record<string, unknown>>>(
+			`/moments/${momentId}`,
+		)
+		const index = moments.value.findIndex((item) => item.id === momentId)
+		if (index >= 0) {
+			moments.value.splice(index, 1)
+		}
+		if (selectedMomentId.value === momentId) {
+			selectedMomentId.value = null
+		}
+	}
+
+	const fetchMomentLikes = async ({
+		momentId,
+		cursor,
+		size = 20,
+	}: {
+		momentId: string
+		cursor?: string
+		size?: number
+	}): Promise<CursorPage<MomentLikeUser>> => {
+		const response = await request.get<
+			ApiResponse<CursorPage<Record<string, unknown>>>
+		>(`/moments/${momentId}/likes`, {
+			params: { cursor, size },
+		})
+		return {
+			records: (response.data.data.records || []).map((item) =>
+				normalizeLikeUser(item),
+			),
+			nextCursor: response.data.data.nextCursor || null,
+			hasMore: Boolean(response.data.data.hasMore),
+		}
 	}
 
 	return {
@@ -247,8 +446,18 @@ export const useMomentStore = defineStore('moment', () => {
 		selectedMoment,
 		activeTab,
 		searchQuery,
+		isLoading,
+		isDetailLoading,
+		hasMore,
+		fetchMoments,
+		fetchMomentDetail,
+		fetchComments,
+		openMoment,
 		toggleLike,
 		addComment,
 		addMoment,
+		updateMoment,
+		deleteMoment,
+		fetchMomentLikes,
 	}
 })

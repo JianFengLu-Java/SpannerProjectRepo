@@ -20,7 +20,7 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
 									@click="openPendingRequestsModal"
 								>
 									<n-badge
@@ -29,7 +29,10 @@
 											0
 										"
 									>
-										<n-icon size="20" class="text-gray-500">
+										<n-icon
+											size="20"
+											class="text-gray-500 dark:text-gray-300"
+										>
 											<Mail24Regular />
 										</n-icon>
 									</n-badge>
@@ -40,10 +43,13 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
 									@click="showAddFriendModal = true"
 								>
-									<n-icon size="20" class="text-gray-500">
+									<n-icon
+										size="20"
+										class="text-gray-500 dark:text-gray-300"
+									>
 										<PersonAdd24Regular />
 									</n-icon>
 								</div>
@@ -53,10 +59,13 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 cursor-pointer transition-colors"
+									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
 									@click="showAddGroupModal = true"
 								>
-									<n-icon size="20" class="text-gray-500">
+									<n-icon
+										size="20"
+										class="text-gray-500 dark:text-gray-300"
+									>
 										<FolderAdd24Regular />
 									</n-icon>
 								</div>
@@ -71,10 +80,10 @@
 					v-model:value="searchQuery"
 					placeholder="搜索联系人..."
 					size="small"
-					class="rounded-xl bg-gray-100/50 border-none"
+					class="rounded-xl bg-gray-100/50 dark:bg-zinc-800/60 border-none"
 				>
 					<template #prefix>
-						<n-icon class="text-gray-400">
+						<n-icon class="text-gray-400 dark:text-gray-500">
 							<Search24Regular />
 						</n-icon>
 					</template>
@@ -85,13 +94,13 @@
 			<div class="flex-1 overflow-y-auto custom-scrollbar p-2 pt-0">
 				<div
 					v-if="friendStore.isLoading"
-					class="h-full flex items-center justify-center text-sm text-gray-400"
+					class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
 				>
 					加载好友列表中...
 				</div>
 				<div
 					v-else-if="!friendStore.friends.length"
-					class="h-full flex items-center justify-center text-sm text-gray-400"
+					class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
 				>
 					暂无好友，点击右上角添加
 				</div>
@@ -103,23 +112,25 @@
 				>
 					<!-- 分组头部 -->
 					<div
-						class="group-header flex items-center gap-1 h-9 px-2 rounded-xl cursor-pointer hover:bg-black/5 transition-colors select-none"
+						class="group-header flex items-center gap-1 h-9 px-2 rounded-xl cursor-pointer hover:bg-black/5 dark:hover:bg-white/6 transition-colors select-none"
 						@click="friendStore.toggleGroupExpand(group.id)"
 						@contextmenu.prevent="onGroupContextMenu($event, group)"
 					>
 						<n-icon
 							size="14"
-							class="text-gray-400 transition-transform duration-200"
+							class="text-gray-400 dark:text-gray-500 transition-transform duration-200"
 							:class="{ 'rotate-90': group.expanded }"
 						>
 							<ChevronRight12Filled />
 						</n-icon>
 						<span
-							class="text-xs font-semibold text-gray-500 flex-1 truncate"
+							class="text-xs font-semibold text-gray-500 dark:text-gray-300 flex-1 truncate"
 						>
 							{{ group.name }}
 						</span>
-						<span class="text-[10px] text-gray-400">
+						<span
+							class="text-[10px] text-gray-400 dark:text-gray-500"
+						>
 							{{ onlineCount(group.id) }}/{{
 								(friendStore.groupedFriends[group.id] || [])
 									.length
@@ -139,7 +150,7 @@
 							:class="[
 								friendStore.selectedFriendId === friend.id
 									? 'bg-primary/10'
-									: 'hover:bg-black/5',
+									: 'hover:bg-black/5 dark:hover:bg-white/6',
 							]"
 							@click="selectFriend(friend.id)"
 						>
@@ -154,7 +165,7 @@
 									}"
 								/>
 								<div
-									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white"
+									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700"
 									:class="[
 										friend.status === 'online'
 											? 'bg-green-500'
@@ -171,7 +182,7 @@
 									</span>
 								</div>
 								<div
-									class="text-[11px] text-gray-400 truncate pr-4"
+									class="text-[11px] text-gray-400 dark:text-gray-500 truncate pr-4"
 								>
 									{{ friend.signature || '[无签名]' }}
 								</div>
@@ -185,15 +196,18 @@
 		<!-- 右侧：详情展示区 -->
 		<div
 			v-if="containerWidth >= 500 || friendStore.selectedFriendId"
-			class="flex-1 overflow-hidden relative flex flex-col bg-gray-50/30"
+			class="flex-1 overflow-hidden relative flex flex-col bg-page-bg"
 		>
+			<div
+				class="pointer-events-none absolute inset-0 hidden dark:block bg-black/30"
+			></div>
 			<!-- 窄屏返回按钮 -->
 			<div
 				v-if="containerWidth < 500 && friendStore.selectedFriendId"
 				class="absolute top-3 left-3 z-50"
 			>
 				<button
-					class="w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md rounded-full text-gray-600 active:scale-90 transition-all"
+					class="w-8 h-8 flex items-center justify-center bg-white/80 dark:bg-zinc-800/85 border border-black/5 dark:border-zinc-700/80 backdrop-blur-md rounded-full text-gray-600 dark:text-gray-100 active:scale-90 transition-all"
 					@click="friendStore.selectedFriendId = null"
 				>
 					<n-icon size="20"><ChevronLeft24Regular /></n-icon>
@@ -206,16 +220,16 @@
 					class="h-full overflow-y-auto custom-scrollbar"
 				>
 					<div
-						class="relative isolate px-3 pb-5 pt-4 sm:px-4 lg:px-5"
+						class="relative isolate px-3 pb-6 pt-4 sm:px-4 lg:px-5"
 					>
 						<div
-							class="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-emerald-100/45 via-cyan-50/30 to-transparent dark:from-emerald-900/25 dark:via-cyan-900/20"
+							class="pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-black/5 via-transparent to-transparent"
 						></div>
 						<div
 							class="relative mx-auto w-full max-w-5xl space-y-3"
 						>
 							<section
-								class="rounded-2xl border border-border-default/70 bg-white/90 p-3.5 backdrop-blur-md dark:bg-zinc-900/80 sm:p-4"
+								class="rounded-xl border border-border-default bg-card-bg p-3 shadow-[0_10px_30px_rgba(16,24,40,0.08)] backdrop-blur-md sm:p-4"
 							>
 								<div
 									class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
@@ -252,7 +266,7 @@
 												class="flex flex-wrap items-center gap-x-2 gap-y-1"
 											>
 												<h3
-													class="max-w-[340px] truncate text-2xl font-semibold text-text-main"
+													class="max-w-[340px] truncate text-xl font-semibold text-text-main"
 												>
 													{{
 														friendStore
@@ -287,8 +301,8 @@
 														friendStore
 															.selectedFriend
 															.status === 'online'
-															? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-															: 'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-gray-300'
+															? 'bg-emerald-500/15 text-emerald-600'
+															: 'bg-page-bg text-text-main/70 border border-border-default'
 													"
 												>
 													{{
@@ -301,7 +315,7 @@
 												</span>
 											</div>
 											<p
-												class="line-clamp-2 text-sm leading-relaxed text-gray-500 dark:text-gray-300"
+												class="line-clamp-2 text-[13px] leading-relaxed text-gray-500 dark:text-gray-300"
 											>
 												{{
 													friendStore.selectedFriend
@@ -310,10 +324,10 @@
 												}}
 											</p>
 											<div
-												class="flex flex-wrap items-center gap-1.5 text-xs text-gray-500"
+												class="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500"
 											>
 												<span
-													class="rounded-full bg-black/5 px-2 py-0.5 font-mono dark:bg-white/10"
+													class="rounded-full border border-border-default bg-page-bg px-2 py-0.5 font-mono text-text-main/80"
 												>
 													UID:
 													{{
@@ -322,7 +336,7 @@
 													}}
 												</span>
 												<span
-													class="rounded-full bg-black/5 px-2 py-0.5 dark:bg-white/10"
+													class="rounded-full border border-border-default bg-page-bg px-2 py-0.5 text-text-main/80"
 												>
 													{{
 														friendStore
@@ -374,28 +388,28 @@
 								class="grid grid-cols-1 gap-3 lg:grid-cols-3"
 							>
 								<div
-									class="rounded-2xl border border-border-default/70 bg-card-bg/90 p-4 backdrop-blur-sm lg:col-span-2"
+									class="rounded-xl border border-border-default bg-card-bg p-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm lg:col-span-2"
 								>
 									<p
-										class="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400"
+										class="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-400 dark:text-gray-500"
 									>
 										资料信息
 									</p>
 									<div
-										class="grid grid-cols-1 gap-2.5 sm:grid-cols-2"
+										class="grid grid-cols-1 gap-2 sm:grid-cols-2"
 									>
 										<div
-											v-for="item in selectedFriendInfoItems"
+											v-for="item in selectedFriendPrimaryInfoItems"
 											:key="item.label"
-											class="flex items-center gap-2.5 rounded-xl border border-border-default/60 bg-page-bg/90 p-2.5"
+											class="flex items-center gap-2 rounded-xl border border-border-default bg-page-bg p-2"
 										>
 											<div
-												class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+												class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
 												:class="item.iconBgClass"
 											>
 												<n-icon
 													:class="item.iconTextClass"
-													size="20"
+													size="16"
 												>
 													<component
 														:is="item.icon"
@@ -404,31 +418,81 @@
 											</div>
 											<div class="min-w-0">
 												<p
-													class="text-[11px] text-gray-400"
+													class="text-[10px] text-gray-400 dark:text-gray-500"
 												>
 													{{ item.label }}
 												</p>
 												<p
-													class="truncate text-sm font-medium text-text-main"
+													class="truncate text-[13px] font-medium text-text-main"
 												>
 													{{ item.value }}
 												</p>
 											</div>
 										</div>
+										<div
+											v-if="
+												!selectedFriendPrimaryInfoItems.length
+											"
+											class="col-span-full rounded-xl border border-dashed border-border-default/70 dark:border-zinc-700/70 px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500"
+										>
+											暂无核心资料
+										</div>
+									</div>
+
+									<div
+										class="mt-2 rounded-xl border border-border-default bg-page-bg px-2.5 py-1.5"
+									>
+										<div
+											v-for="item in selectedFriendSecondaryInfoItems"
+											:key="`secondary-${item.label}`"
+											class="flex items-center gap-2 py-1 first:pt-0 last:pb-0"
+										>
+											<div
+												class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+												:class="item.iconBgClass"
+											>
+												<n-icon
+													:class="item.iconTextClass"
+													size="12"
+												>
+													<component
+														:is="item.icon"
+													/>
+												</n-icon>
+											</div>
+											<p
+												class="shrink-0 text-[11px] text-gray-400 dark:text-gray-500"
+											>
+												{{ item.label }}
+											</p>
+											<p
+												class="truncate text-[12px] text-text-main/80"
+											>
+												{{ item.value }}
+											</p>
+										</div>
+										<div
+											v-if="
+												!selectedFriendSecondaryInfoItems.length
+											"
+											class="py-2 text-center text-xs text-gray-400 dark:text-gray-500"
+										>
+											暂无更多资料
+										</div>
 									</div>
 								</div>
 
-								<div class="space-y-4">
+								<div class="space-y-2.5">
 									<div
 										v-if="
 											friendStore.selectedFriend.tags &&
 											friendStore.selectedFriend.tags
 												.length
 										"
-										class="rounded-2xl border border-border-default/70 bg-card-bg/90 p-4 backdrop-blur-sm"
+										class="rounded-xl border border-border-default bg-card-bg p-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm"
 									>
 										<p
-											class="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400"
+											class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-400 dark:text-gray-500"
 										>
 											个人标签
 										</p>
@@ -437,7 +501,7 @@
 												v-for="tag in friendStore
 													.selectedFriend.tags"
 												:key="tag"
-												class="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300"
+												class="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-700"
 											>
 												# {{ tag }}
 											</span>
@@ -445,7 +509,7 @@
 									</div>
 
 									<button
-										class="group w-full rounded-2xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-emerald-50 p-3 text-left transition dark:border-cyan-900/40 dark:from-cyan-900/25 dark:to-emerald-900/25"
+										class="group w-full rounded-xl border border-border-default bg-card-bg p-3 text-left shadow-[0_8px_20px_rgba(6,182,212,0.12)] transition hover:bg-page-bg hover:shadow-[0_10px_26px_rgba(6,182,212,0.16)]"
 										@click="
 											message.info('正在进入个人空间...')
 										"
@@ -455,12 +519,12 @@
 										>
 											<div>
 												<p
-													class="text-sm font-semibold text-cyan-900 dark:text-cyan-200"
+													class="text-[13px] font-semibold text-text-main"
 												>
 													个人空间
 												</p>
 												<p
-													class="mt-1 text-xs text-cyan-700/80 dark:text-cyan-300/80"
+													class="mt-0.5 text-[11px] text-gray-500"
 												>
 													查看相册、日志与动态
 												</p>
@@ -480,14 +544,18 @@
 
 				<div
 					v-else
-					class="h-full flex flex-col items-center justify-center opacity-30 select-none bg-white"
+					class="h-full flex items-center justify-center select-none px-6"
 				>
-					<n-icon size="120" class="mb-4 text-gray-300">
-						<PeopleCommunity24Regular />
-					</n-icon>
-					<span class="text-lg text-gray-400"
-						>选择一名联系人查看详情</span
+					<div
+						class="flex flex-col items-center justify-center rounded-xl border border-border-default bg-card-bg px-8 py-10 shadow-[0_10px_28px_rgba(15,23,42,0.06)] backdrop-blur-sm"
 					>
+						<n-icon size="108" class="mb-3 text-gray-300">
+							<PeopleCommunity24Regular />
+						</n-icon>
+						<span class="text-base font-medium text-text-main">
+							选择一名联系人查看详情
+						</span>
+					</div>
 				</div>
 			</Transition>
 		</div>
@@ -509,6 +577,7 @@
 			v-model:show="showAddGroupModal"
 			preset="dialog"
 			title="新建分组"
+			:mask-closable="false"
 			positive-text="确认"
 			negative-text="取消"
 			@positive-click="confirmAddGroup"
@@ -525,6 +594,7 @@
 			v-model:show="showRenameGroupModal"
 			preset="dialog"
 			title="重命名分组"
+			:mask-closable="false"
 			positive-text="确认"
 			negative-text="取消"
 			@positive-click="confirmRenameGroup"
@@ -537,9 +607,44 @@
 		</n-modal>
 
 		<n-modal
+			v-model:show="showRemarkModal"
+			preset="dialog"
+			title="修改备注"
+			:mask-closable="false"
+			positive-text="确认"
+			negative-text="取消"
+			@positive-click="confirmRemarkUpdate"
+		>
+			<n-input
+				v-model:value="remarkValue"
+				placeholder="请输入备注（留空为清空备注）"
+				maxlength="30"
+				show-count
+				class="rounded-xl"
+			/>
+		</n-modal>
+
+		<n-modal
+			v-model:show="showMoveGroupModal"
+			preset="dialog"
+			title="移动分组"
+			:mask-closable="false"
+			positive-text="确认"
+			negative-text="取消"
+			@positive-click="confirmMoveGroup"
+		>
+			<n-select
+				v-model:value="moveTargetGroupId"
+				:options="moveGroupOptions"
+				placeholder="请选择分组"
+			/>
+		</n-modal>
+
+		<n-modal
 			v-model:show="showPendingRequestsModal"
 			preset="card"
 			title="好友申请"
+			:mask-closable="false"
 			:bordered="false"
 			style="width: 520px; border-radius: 16px"
 		>
@@ -552,13 +657,13 @@
 				<n-tab-pane name="pending" tab="待处理">
 					<div
 						v-if="friendStore.isPendingLoading"
-						class="py-8 text-center text-sm text-gray-400"
+						class="py-8 text-center text-sm text-gray-400 dark:text-gray-500"
 					>
 						加载好友申请中...
 					</div>
 					<div
 						v-else-if="!friendStore.pendingRequests.length"
-						class="py-8 text-center text-sm text-gray-400"
+						class="py-8 text-center text-sm text-gray-400 dark:text-gray-500"
 					>
 						暂无待处理申请
 					</div>
@@ -569,7 +674,7 @@
 						<div
 							v-for="request in friendStore.pendingRequests"
 							:key="request.account"
-							class="rounded-xl border border-border-default/70 bg-card-bg/90 p-3"
+							class="rounded-xl border border-border-default/70 bg-white/90 dark:border-zinc-700/80 dark:bg-zinc-900/85 p-3"
 						>
 							<div class="flex items-center gap-3">
 								<n-avatar
@@ -583,7 +688,9 @@
 									>
 										{{ request.realName }}
 									</div>
-									<div class="truncate text-xs text-gray-400">
+									<div
+										class="truncate text-xs text-gray-400 dark:text-gray-500"
+									>
 										账号: {{ request.account }}
 									</div>
 								</div>
@@ -592,14 +699,16 @@
 								</n-tag>
 							</div>
 							<div
-								class="mt-2 line-clamp-2 text-xs text-gray-500"
+								class="mt-2 line-clamp-2 text-xs text-gray-500 dark:text-gray-300"
 							>
 								{{
 									request.verificationMessage ||
 									'对方未填写验证信息'
 								}}
 							</div>
-							<div class="mt-1 text-[11px] text-gray-400">
+							<div
+								class="mt-1 text-[11px] text-gray-400 dark:text-gray-500"
+							>
 								申请时间:
 								{{ formatDateTime(request.createTime) }}
 							</div>
@@ -646,12 +755,6 @@
 				<n-tab-pane name="history" tab="历史记录">
 					<div class="mb-3 flex items-center gap-2">
 						<n-select
-							v-model:value="historyDirectionFilter"
-							:options="historyDirectionOptions"
-							size="small"
-							class="w-28"
-						/>
-						<n-select
 							v-model:value="historyStatusFilter"
 							:options="historyStatusOptions"
 							size="small"
@@ -677,13 +780,13 @@
 							friendStore.isRequestHistoryLoading &&
 							!requestHistoryRecords.length
 						"
-						class="py-8 text-center text-sm text-gray-400"
+						class="py-8 text-center text-sm text-gray-400 dark:text-gray-500"
 					>
 						加载历史记录中...
 					</div>
 					<div
 						v-else-if="!requestHistoryRecords.length"
-						class="py-8 text-center text-sm text-gray-400"
+						class="py-8 text-center text-sm text-gray-400 dark:text-gray-500"
 					>
 						暂无历史记录
 					</div>
@@ -693,8 +796,8 @@
 					>
 						<div
 							v-for="record in requestHistoryRecords"
-							:key="record.requestId"
-							class="rounded-xl border border-border-default/70 bg-card-bg/90 p-3"
+							:key="record.uniqueKey"
+							class="rounded-xl border border-border-default/70 bg-white/90 dark:border-zinc-700/80 dark:bg-zinc-900/85 p-3"
 						>
 							<div class="flex items-center gap-3">
 								<n-avatar
@@ -708,12 +811,9 @@
 									>
 										{{ record.realName }}
 									</div>
-									<div class="truncate text-xs text-gray-400">
-										{{
-											requestDirectionText(
-												record.direction,
-											)
-										}}
+									<div
+										class="truncate text-xs text-gray-400 dark:text-gray-500"
+									>
 										账号: {{ record.account }}
 									</div>
 								</div>
@@ -727,18 +827,22 @@
 								</n-tag>
 							</div>
 							<div
-								class="mt-2 line-clamp-2 text-xs text-gray-500"
+								class="mt-2 line-clamp-2 text-xs text-gray-500 dark:text-gray-300"
 							>
 								{{
 									record.verificationMessage ||
 									'对方未填写验证信息'
 								}}
 							</div>
-							<div class="mt-1 text-[11px] text-gray-400">
+							<div
+								class="mt-1 text-[11px] text-gray-400 dark:text-gray-500"
+							>
 								申请时间:
 								{{ formatDateTime(record.createdTime) }}
 							</div>
-							<div class="mt-1 text-[11px] text-gray-400">
+							<div
+								class="mt-1 text-[11px] text-gray-400 dark:text-gray-500"
+							>
 								更新时间:
 								{{ formatDateTime(record.updateTime) }}
 							</div>
@@ -806,7 +910,6 @@ import {
 	Group,
 	PendingFriendRequest,
 	FriendRequestStatus,
-	FriendRequestDirection,
 	FriendRequestHistoryItem,
 } from '@renderer/stores/friend'
 import { useChatStore } from '@renderer/stores/chat'
@@ -832,29 +935,23 @@ const actionLoadingAccount = ref('')
 const actionType = ref<'accept' | 'reject' | ''>('')
 
 type RequestStatusFilter = FriendRequestStatus | 'ALL'
-type RequestDirectionFilter = FriendRequestDirection | 'ALL'
 
 interface RequestHistoryRecord {
+	uniqueKey: string
 	requestId: string
 	account: string
 	realName: string
 	avatarUrl: string
 	verificationMessage?: string | null
+	direction: 'INBOUND' | 'OUTBOUND'
 	status: FriendRequestStatus
-	direction: FriendRequestDirection
 	createdTime: string
 	updateTime: string
 }
 
 const requestHistoryRecords = ref<RequestHistoryRecord[]>([])
 const historyStatusFilter = ref<RequestStatusFilter>('ALL')
-const historyDirectionFilter = ref<RequestDirectionFilter>('ALL')
 const historyKeyword = ref('')
-const historyDirectionOptions = [
-	{ label: '全部方向', value: 'ALL' },
-	{ label: '我收到的', value: 'INBOUND' },
-	{ label: '我发出的', value: 'OUTBOUND' },
-]
 const historyStatusOptions = [
 	{ label: '全部状态', value: 'ALL' },
 	{ label: '待处理', value: 'PENDING' },
@@ -904,6 +1001,7 @@ interface FriendInfoItem {
 	icon: unknown
 	iconBgClass: string
 	iconTextClass: string
+	priority: 'primary' | 'secondary'
 }
 
 const filteredFriendsByGroup = (groupId: string): Friend[] => {
@@ -960,22 +1058,24 @@ const requestStatusTagType = (
 	return 'default'
 }
 
-const requestDirectionText = (direction: FriendRequestDirection): string => {
-	return direction === 'OUTBOUND' ? '我发出 ·' : '我收到 ·'
-}
-
 const mapHistoryRecord = (
 	item: FriendRequestHistoryItem,
 ): RequestHistoryRecord => {
 	const isOutbound = item.direction === 'OUTBOUND'
 	return {
+		uniqueKey: [
+			item.requestId || 'unknown',
+			item.createdAt || 'unknown',
+			item.direction,
+			item.status,
+		].join('|'),
 		requestId: item.requestId,
 		account: isOutbound ? item.targetAccount : item.applicantAccount,
 		realName: isOutbound ? item.targetName : item.applicantName,
 		avatarUrl: isOutbound ? item.targetAvatarUrl : item.applicantAvatarUrl,
 		verificationMessage: item.verificationMessage,
-		status: item.status,
 		direction: item.direction,
+		status: item.status,
 		createdTime: item.createdAt,
 		updateTime: item.updatedAt || item.createdAt,
 	}
@@ -989,10 +1089,6 @@ const loadHistory = async (page = 1): Promise<void> => {
 	const ok = await friendStore.fetchRequestHistory({
 		page,
 		size: 20,
-		direction:
-			historyDirectionFilter.value === 'ALL'
-				? undefined
-				: historyDirectionFilter.value,
 		statuses:
 			historyStatusFilter.value === 'ALL'
 				? undefined
@@ -1011,9 +1107,9 @@ const loadHistory = async (page = 1): Promise<void> => {
 	}
 	const merged = new Map<string, RequestHistoryRecord>()
 	requestHistoryRecords.value.forEach((item) =>
-		merged.set(item.requestId, item),
+		merged.set(item.uniqueKey, item),
 	)
-	pageRecords.forEach((item) => merged.set(item.requestId, item))
+	pageRecords.forEach((item) => merged.set(item.uniqueKey, item))
 	requestHistoryRecords.value = Array.from(merged.values()).sort((a, b) => {
 		const timeA = new Date(a.updateTime).getTime()
 		const timeB = new Date(b.updateTime).getTime()
@@ -1048,6 +1144,7 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: Tag24Regular,
 			iconBgClass: 'bg-slate-50 dark:bg-slate-900/30',
 			iconTextClass: 'text-slate-500 dark:text-slate-300',
+			priority: 'primary',
 		},
 		{
 			label: '电子邮箱',
@@ -1055,6 +1152,7 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: Mail24Regular,
 			iconBgClass: 'bg-blue-50 dark:bg-blue-900/30',
 			iconTextClass: 'text-blue-500 dark:text-blue-300',
+			priority: 'primary',
 		},
 		{
 			label: '手机号',
@@ -1062,6 +1160,7 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: Chat24Regular,
 			iconBgClass: 'bg-cyan-50 dark:bg-cyan-900/30',
 			iconTextClass: 'text-cyan-500 dark:text-cyan-300',
+			priority: 'primary',
 		},
 		{
 			label: '性别',
@@ -1069,6 +1168,7 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: Edit24Regular,
 			iconBgClass: 'bg-fuchsia-50 dark:bg-fuchsia-900/30',
 			iconTextClass: 'text-fuchsia-500 dark:text-fuchsia-300',
+			priority: 'secondary',
 		},
 		{
 			label: '年龄',
@@ -1076,6 +1176,7 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: CalendarLtr24Regular,
 			iconBgClass: 'bg-violet-50 dark:bg-violet-900/30',
 			iconTextClass: 'text-violet-500 dark:text-violet-300',
+			priority: 'secondary',
 		},
 		{
 			label: '备注姓名',
@@ -1083,6 +1184,7 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: Edit24Regular,
 			iconBgClass: 'bg-amber-50 dark:bg-amber-900/30',
 			iconTextClass: 'text-amber-500 dark:text-amber-300',
+			priority: 'secondary',
 		},
 		{
 			label: '申请附言',
@@ -1090,6 +1192,7 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: Mail24Regular,
 			iconBgClass: 'bg-orange-50 dark:bg-orange-900/30',
 			iconTextClass: 'text-orange-500 dark:text-orange-300',
+			priority: 'secondary',
 		},
 		{
 			label: '添加时间',
@@ -1097,6 +1200,7 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: CalendarLtr24Regular,
 			iconBgClass: 'bg-indigo-50 dark:bg-indigo-900/30',
 			iconTextClass: 'text-indigo-500 dark:text-indigo-300',
+			priority: 'secondary',
 		},
 		{
 			label: '所属分组',
@@ -1104,6 +1208,7 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: Tag24Regular,
 			iconBgClass: 'bg-emerald-50 dark:bg-emerald-900/30',
 			iconTextClass: 'text-emerald-500 dark:text-emerald-300',
+			priority: 'primary',
 		},
 		{
 			label: '关系状态',
@@ -1111,8 +1216,28 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			icon: PeopleCommunity24Regular,
 			iconBgClass: 'bg-teal-50 dark:bg-teal-900/30',
 			iconTextClass: 'text-teal-500 dark:text-teal-300',
+			priority: 'secondary',
 		},
 	]
+})
+
+const selectedFriendPrimaryInfoItems = computed<FriendInfoItem[]>(() => {
+	const all = selectedFriendInfoItems.value
+	if (!all.length) return []
+	const primary = all.filter((item) => item.priority === 'primary')
+	if (primary.length) return primary
+	return all.slice(0, Math.min(4, all.length))
+})
+
+const selectedFriendSecondaryInfoItems = computed<FriendInfoItem[]>(() => {
+	const all = selectedFriendInfoItems.value
+	if (!all.length) return []
+	const secondary = all.filter((item) => item.priority === 'secondary')
+	if (secondary.length) return secondary
+	const primaryLabels = new Set(
+		selectedFriendPrimaryInfoItems.value.map((item) => item.label),
+	)
+	return all.filter((item) => !primaryLabels.has(item.label))
 })
 
 const startChat = async (friend: Friend): Promise<void> => {
@@ -1156,6 +1281,10 @@ const groupContextMenuOptions = computed(() => {
 
 const showRenameGroupModal = ref(false)
 const renameGroupValue = ref('')
+const showRemarkModal = ref(false)
+const remarkValue = ref('')
+const showMoveGroupModal = ref(false)
+const moveTargetGroupId = ref<string | null>(null)
 
 const handleGroupContextMenuAction = (key: string): void => {
 	if (!contextMenuGroup.value) return
@@ -1172,7 +1301,11 @@ const handleGroupContextMenuAction = (key: string): void => {
 
 const confirmAddGroup = (): void => {
 	if (newGroupName.value.trim()) {
-		friendStore.addGroup(newGroupName.value.trim())
+		const created = friendStore.addGroup(newGroupName.value.trim())
+		if (!created) {
+			message.warning('分组名称不能为空或已存在')
+			return
+		}
 		newGroupName.value = ''
 		message.success('添加成功')
 	}
@@ -1180,10 +1313,14 @@ const confirmAddGroup = (): void => {
 
 const confirmRenameGroup = (): void => {
 	if (contextMenuGroup.value && renameGroupValue.value.trim()) {
-		friendStore.renameGroup(
+		const renamed = friendStore.renameGroup(
 			contextMenuGroup.value.id,
 			renameGroupValue.value.trim(),
 		)
+		if (!renamed) {
+			message.warning('分组名称不能为空或已存在')
+			return
+		}
 		message.success('修改成功')
 	}
 }
@@ -1198,14 +1335,40 @@ const friendActionOptions = computed(() => {
 	]
 })
 
-const handleFriendAction = (key: string): void => {
-	if (key !== 'delete') {
-		message.info(`功能开发中: ${key}`)
-		return
-	}
+const moveGroupOptions = computed(() =>
+	sortedGroups.value.map((group) => ({
+		label: group.name,
+		value: group.id,
+	})),
+)
 
+const handleFriendAction = (key: string): void => {
 	const targetFriend = friendStore.selectedFriend
 	if (!targetFriend) return
+
+	if (key === 'rename') {
+		remarkValue.value = targetFriend.remark || ''
+		showRemarkModal.value = true
+		return
+	}
+	if (key === 'move') {
+		moveTargetGroupId.value = targetFriend.groupId || 'default'
+		showMoveGroupModal.value = true
+		return
+	}
+	if (key === 'block') {
+		const moved = friendStore.moveFriendToGroup(
+			targetFriend.id,
+			'blacklist',
+		)
+		if (!moved) {
+			message.error('加入黑名单失败，请稍后重试')
+			return
+		}
+		message.success('已加入黑名单分组')
+		return
+	}
+	if (key !== 'delete') return
 
 	if (!window.confirm(`确认删除好友 ${targetFriend.name} 吗？`)) {
 		return
@@ -1219,6 +1382,37 @@ const handleFriendAction = (key: string): void => {
 		.catch(() => {
 			message.error('删除失败，请稍后再试')
 		})
+}
+
+const confirmRemarkUpdate = (): void => {
+	const targetFriend = friendStore.selectedFriend
+	if (!targetFriend) return
+	const updated = friendStore.updateFriendRemark(
+		targetFriend.id,
+		remarkValue.value,
+	)
+	if (!updated) {
+		message.error('修改备注失败，请稍后重试')
+		return
+	}
+	message.success('备注已更新')
+}
+
+const confirmMoveGroup = (): void => {
+	const targetFriend = friendStore.selectedFriend
+	if (!targetFriend || !moveTargetGroupId.value) {
+		message.warning('请先选择目标分组')
+		return
+	}
+	const moved = friendStore.moveFriendToGroup(
+		targetFriend.id,
+		moveTargetGroupId.value,
+	)
+	if (!moved) {
+		message.error('移动分组失败，请稍后重试')
+		return
+	}
+	message.success('已移动到目标分组')
 }
 
 const handleFriendApplied = async (): Promise<void> => {
@@ -1282,6 +1476,14 @@ watch(
 }
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
 	background: rgba(0, 0, 0, 0.1);
+}
+
+:deep(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.12);
+}
+
+:deep(.dark) .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.2);
 }
 
 .fade-scale-enter-active,
