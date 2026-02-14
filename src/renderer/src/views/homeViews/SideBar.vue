@@ -141,7 +141,7 @@
 						'flex items-center cursor-pointer transition-all no-drag',
 						isExpanded
 							? 'w-full px-3 h-9 gap-3 rounded-xl'
-							: 'w-12 h-12 flex-col justify-center gap-1 rounded-2xl',
+							: 'w-12 h-12 mx-auto flex-col items-center justify-center gap-1 rounded-2xl',
 						isMenuActive(item)
 							? ' bg-sidebar-select-bg text-primary-600'
 							: ' hover:bg-sidebar-select-bg/35 ',
@@ -176,7 +176,7 @@
 					</span>
 					<span
 						v-else
-						class="text-[10px] leading-none"
+						class="text-[10px] leading-none text-center"
 						:class="[
 							isMenuActive(item)
 								? ' text-sidebar-select-item'
@@ -188,11 +188,11 @@
 				</div>
 			</div>
 
-			<div v-if="slotMenus.length > 0" class="w-full py-2">
-				<div class="slot-separator w-full"></div>
-				<div
-					v-if="isExpanded"
-					class="mt-2 px-2 text-[11px] tracking-wide text-sidebar-unselect-item"
+				<div v-if="slotMenus.length > 0" class="w-full py-2">
+					<div class="slot-separator mx-auto"></div>
+					<div
+						v-if="isExpanded"
+						class="mt-2 px-2 text-[11px] tracking-wide text-sidebar-unselect-item"
 				>
 					临时插槽
 				</div>
@@ -206,7 +206,7 @@
 						'flex items-center cursor-pointer transition-all no-drag',
 						isExpanded
 							? 'w-full px-3 h-9 gap-3 rounded-xl'
-							: 'w-12 h-12 flex-col justify-center gap-1 rounded-2xl',
+							: 'w-12 h-12 mx-auto flex-col items-center justify-center gap-1 rounded-2xl',
 						isMenuActive(item)
 							? ' bg-sidebar-select-bg text-primary-600'
 							: ' hover:bg-sidebar-select-bg/35 ',
@@ -241,7 +241,7 @@
 					</span>
 					<span
 						v-else
-						class="text-[10px] leading-none"
+						class="text-[10px] leading-none text-center"
 						:class="[
 							isMenuActive(item)
 								? ' text-sidebar-select-item'
@@ -1052,12 +1052,14 @@ function isMenuActive(item: MenuItem): boolean {
 
 .slot-separator {
 	height: 1px;
-	background: linear-gradient(
-		to right,
-		transparent 0%,
-		rgba(156, 163, 175, 0.6) 20%,
-		rgba(156, 163, 175, 0.6) 80%,
-		transparent 100%
-	);
+	width: 82%;
+	border-radius: 999px;
+	background: rgba(148, 163, 184, 0.35);
+	transform: scaleY(0.7);
+	transform-origin: center;
+}
+
+.dark .slot-separator {
+	background: rgba(148, 163, 184, 0.24);
 }
 </style>

@@ -22,8 +22,21 @@
 		>
 			<div
 				v-if="activeSlotComponent"
-				class="h-full w-full rounded-[14px] overflow-hidden"
+				class="relative h-full w-full rounded-[14px] overflow-hidden"
 			>
+				<n-button
+					circle
+					quaternary
+					size="small"
+					class="absolute top-3 right-3 z-20 bg-card-bg/90 border border-border-default"
+					@click="closeActiveSlot"
+				>
+					<template #icon>
+						<n-icon :size="16">
+							<Close />
+						</n-icon>
+					</template>
+				</n-button>
 				<component :is="activeSlotComponent" />
 			</div>
 			<router-view v-else v-slot="{ Component, route }">
@@ -40,6 +53,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, provide, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { NButton, NIcon } from 'naive-ui'
+import { Close } from '@vicons/ionicons5'
 import SideBar from './SideBar.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
@@ -59,6 +74,15 @@ const activeSlotComponent = computed(() => {
 	if (!slot) return null
 	return sidebarSlotComponentMap[slot.componentKey] || null
 })
+
+const closeActiveSlot = (): void => {
+	const activeSlotKey = sidebarSlotStore.activeSlotKey
+	if (!activeSlotKey) {
+		sidebarSlotStore.clearActiveSlot()
+		return
+	}
+	sidebarSlotStore.removeSlot(activeSlotKey)
+}
 
 // 用于拖拽预览的临时宽度
 const visualWidth = ref('200px')
