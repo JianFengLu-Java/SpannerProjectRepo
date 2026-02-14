@@ -132,7 +132,7 @@
 	</div>
 	<div
 		v-if="!currentChat"
-		class="h-full w-full flex flex-col justify-center items-center bg-linear-to-br from-gray-50 to-white dark:from-zinc-900 dark:to-zinc-950 rounded-xl p-8"
+		class="h-full w-full flex flex-col justify-center items-center rounded-xl p-8"
 	>
 		<div class="flex flex-col items-center gap-4 max-w-md text-center">
 			<!-- 图标 -->
@@ -145,7 +145,7 @@
 			</div>
 
 			<!-- 标题 -->
-			<h3 class="text-2xl font-black text-gray-800 dark:text-gray-100">
+			<h3 class="text-2xl font-black text-text-main tracking-tight">
 				开始对话
 			</h3>
 

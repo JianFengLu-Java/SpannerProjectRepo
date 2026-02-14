@@ -547,7 +547,7 @@
 					class="h-full flex items-center justify-center select-none px-6"
 				>
 					<div
-						class="flex flex-col items-center justify-center rounded-xl border border-border-default bg-card-bg px-8 py-10 shadow-[0_10px_28px_rgba(15,23,42,0.06)] backdrop-blur-sm"
+						class="flex flex-col items-center justify-center rounded-xl px-8 py-10"
 					>
 						<n-icon size="108" class="mb-3 text-gray-300">
 							<PeopleCommunity24Regular />

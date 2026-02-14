@@ -206,9 +206,16 @@ const scheduleRefresh = (): void => {
 	refreshTimer = window.setTimeout(() => {
 		logTokenRefreshDebug('refresh timer fired')
 		void tokenManager.refreshAccessToken().catch(() => {
-			// 刷新失败由 refreshAccessToken 内部处理（清理并通知）
+			// 刷新失败由 refreshAccessToken 内部处理（清理/重试调度）
 		})
 	}, delay)
+}
+
+const isTerminalRefreshError = (error: unknown): boolean => {
+	if (!axios.isAxiosError(error)) return true
+	const status = error.response?.status
+	if (status === 400 || status === 401 || status === 403) return true
+	return false
 }
 
 export const tokenManager = {
@@ -324,6 +331,7 @@ export const tokenManager = {
 				return nextToken
 			})
 			.catch((error) => {
+				const terminal = isTerminalRefreshError(error)
 				logTokenRefreshDebug('refresh failed', {
 					message:
 						error instanceof Error
@@ -331,8 +339,14 @@ export const tokenManager = {
 							: typeof error === 'string'
 								? error
 								: 'unknown error',
+					terminal,
 				})
-				this.clear()
+				if (terminal) {
+					this.clear()
+				} else {
+					// 断网/超时等可恢复错误，保留 refreshToken，等待后续自动或按需重试
+					scheduleRefresh()
+				}
 				throw error
 			})
 			.finally(() => {

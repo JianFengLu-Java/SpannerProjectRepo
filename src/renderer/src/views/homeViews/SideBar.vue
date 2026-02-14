@@ -88,7 +88,10 @@
 				"
 				@click="showSearchModal = true"
 			>
-				<n-icon size="20" class="shrink-0 text-zinc-500 dark:text-zinc-300">
+				<n-icon
+					size="20"
+					class="shrink-0 text-zinc-500 dark:text-zinc-300"
+				>
 					<Search />
 				</n-icon>
 
@@ -131,7 +134,7 @@
 		</div>
 
 		<div
-			class="flex-1 w-full flex flex-col items-center gap-1 rounded-xl pt-0 p-2 overflow-y-auto"
+			class="flex-1 w-full flex flex-col items-center gap-1 rounded-xl pt-0 p-2 overflow-hidden"
 		>
 			<div class="w-full flex flex-col gap-1">
 				<div
@@ -188,34 +191,46 @@
 				</div>
 			</div>
 
-				<div v-if="slotMenus.length > 0" class="w-full py-2">
-					<div class="slot-separator mx-auto"></div>
-					<div
-						v-if="isExpanded"
-						class="mt-2 px-2 text-[11px] tracking-wide text-sidebar-unselect-item"
+			<div v-if="slotMenus.length > 0" class="w-full py-2 shrink-0">
+				<div class="slot-separator mx-auto"></div>
+				<div
+					v-if="isExpanded"
+					class="mt-2 px-2 text-[11px] tracking-wide text-sidebar-unselect-item"
 				>
-					临时插槽
+					导航
 				</div>
 			</div>
 
-			<div v-if="slotMenus.length > 0" class="w-full flex flex-col gap-1">
-				<div
-					v-for="item in slotMenus"
-					:key="item.key"
-					:class="[
-						'flex items-center cursor-pointer transition-all no-drag',
-						isExpanded
-							? 'w-full px-3 h-9 gap-3 rounded-xl'
-							: 'w-12 h-12 mx-auto flex-col items-center justify-center gap-1 rounded-2xl',
-						isMenuActive(item)
-							? ' bg-sidebar-select-bg text-primary-600'
-							: ' hover:bg-sidebar-select-bg/35 ',
-					]"
-					@click="go(item)"
-				>
-					<n-badge :dot="item.hasMessage" class="sidebar-menu-dot">
-						<div class="flex justify-center items-center">
-							<n-icon
+				<div v-if="slotMenus.length > 0" class="w-full flex-1 min-h-0">
+					<div class="slot-scroll-wrapper w-full h-full flex flex-col gap-1">
+					<n-tooltip
+						v-for="item in slotMenus"
+						:key="item.key"
+						trigger="hover"
+						placement="right"
+						:disabled="
+							isExpanded ||
+							item.icon !== 'web' ||
+							!item.label ||
+							item.label === '网页'
+						"
+					>
+						<template #trigger>
+							<div
+								:class="[
+									'flex items-center cursor-pointer transition-all no-drag relative group shrink-0',
+									isExpanded
+										? 'w-full px-3 h-9 gap-3 rounded-xl'
+										: 'w-12 h-12 mx-auto flex-col items-center justify-center gap-1 rounded-2xl',
+									isMenuActive(item)
+										? ' bg-sidebar-select-bg text-primary-600'
+										: ' hover:bg-sidebar-select-bg/35 ',
+								]"
+								@click="go(item)"
+							>
+						<n-badge :dot="item.hasMessage" class="sidebar-menu-dot">
+							<div class="flex justify-center items-center">
+								<n-icon
 								size="18"
 								:class="[
 									isMenuActive(item)
@@ -228,39 +243,50 @@
 						</div>
 					</n-badge>
 
-					<span
-						v-if="isExpanded"
-						class="text-xs whitespace-nowrap overflow-hidden flex-1"
+						<span
+							v-if="isExpanded"
+							class="text-xs whitespace-nowrap overflow-hidden flex-1"
+							:class="[
+								isMenuActive(item)
+									? ' text-sidebar-select-item'
+									: ' text-sidebar-unselect-item',
+							]"
+						>
+							{{ item.label }}
+						</span>
+						<span
+							v-else
+							class="text-[10px] leading-none text-center"
+							:class="[
+								isMenuActive(item)
+									? ' text-sidebar-select-item'
+									: ' text-sidebar-unselect-item',
+							]"
+						>
+							{{ item.icon === 'web' ? '网页' : item.label }}
+						</span>
+					<button
+						v-if="item.slotKey"
+						type="button"
 						:class="[
+							'absolute -top-1 -right-1 z-10 h-4 w-4 rounded-full bg-card-bg/95 shadow-sm flex items-center justify-center text-sidebar-unselect-item hover:text-sidebar-select-item transition-all',
 							isMenuActive(item)
-								? ' text-sidebar-select-item'
-								: ' text-sidebar-unselect-item',
+								? 'opacity-100 pointer-events-auto'
+								: 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto',
 						]"
-					>
-						{{ item.label }}
-					</span>
-					<span
-						v-else
-						class="text-[10px] leading-none text-center"
-						:class="[
-							isMenuActive(item)
-								? ' text-sidebar-select-item'
-								: ' text-sidebar-unselect-item',
-						]"
-					>
-						{{ item.label }}
-					</span>
-					<n-icon
-						v-if="isExpanded && item.slotKey"
-						size="14"
-						class="text-sidebar-unselect-item hover:text-sidebar-select-item transition-colors"
 						@click.stop="destroySlot(item.slotKey)"
 					>
-						<Close />
-					</n-icon>
+							<n-icon size="12">
+								<Close />
+							</n-icon>
+						</button>
+							</div>
+						</template>
+						{{ item.label }}
+					</n-tooltip>
+					</div>
 				</div>
 			</div>
-		</div>
 
 		<n-modal
 			v-model:show="showSearchModal"
@@ -294,9 +320,10 @@
 							<div
 								class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 mb-2"
 							></div>
-							<span class="text-xs text-gray-500 dark:text-gray-300">{{
-								item
-							}}</span>
+							<span
+								class="text-xs text-gray-500 dark:text-gray-300"
+								>{{ item }}</span
+							>
 						</div>
 					</div>
 				</div>
@@ -338,7 +365,9 @@
 						/>
 						<n-button
 							size="small"
-							:loading="isAvatarUploading || savingField.avatarUrl"
+							:loading="
+								isAvatarUploading || savingField.avatarUrl
+							"
 							@click="triggerAvatarUpload"
 						>
 							上传头像
@@ -452,6 +481,7 @@ import {
 	NSelect,
 	NInputNumber,
 	NButton,
+	NTooltip,
 	useMessage,
 } from 'naive-ui'
 import { ref, computed, onMounted, onUnmounted, h } from 'vue'
@@ -464,6 +494,7 @@ import {
 	SearchOutline as Search,
 	Add,
 	ApertureOutline,
+	GlobeOutline,
 	Close,
 } from '@vicons/ionicons5'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
@@ -472,6 +503,7 @@ import FriendApplyModal from '@renderer/components/FriendApplyModal.vue'
 import { useFriendStore } from '@renderer/stores/friend'
 import { useChatStore } from '@renderer/stores/chat'
 import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
+import { useInAppBrowserStore } from '@renderer/stores/inAppBrowser'
 import { storeToRefs } from 'pinia'
 import request from '@renderer/utils/request'
 import AvatarUploadEditor from '@renderer/components/AvatarUploadEditor.vue'
@@ -482,6 +514,7 @@ const user = useUserInfoStore()
 const friendStore = useFriendStore()
 const chatStore = useChatStore()
 const sidebarSlotStore = useSidebarSlotStore()
+const inAppBrowserStore = useInAppBrowserStore()
 const message = useMessage()
 const router = useRouter()
 const route = useRoute()
@@ -874,6 +907,7 @@ const iconMap: Record<string, Component> = {
 	user: Person,
 	moments: ApertureOutline,
 	setting: Settings,
+	web: GlobeOutline,
 }
 
 const routeMenus = computed<MenuItem[]>(() => [
@@ -942,11 +976,13 @@ function go(item: MenuItem): void {
 		return
 	}
 	if (item.slotKey) {
+		inAppBrowserStore.handleSlotActivated(item.slotKey)
 		sidebarSlotStore.activateSlot(item.slotKey)
 	}
 }
 
 function destroySlot(slotKey: string): void {
+	inAppBrowserStore.handleSlotRemoved(slotKey)
 	sidebarSlotStore.removeSlot(slotKey)
 }
 
@@ -1061,5 +1097,17 @@ function isMenuActive(item: MenuItem): boolean {
 
 .dark .slot-separator {
 	background: rgba(148, 163, 184, 0.24);
+}
+
+.slot-scroll-wrapper {
+	overflow-y: auto;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+}
+
+.slot-scroll-wrapper::-webkit-scrollbar {
+	width: 0;
+	height: 0;
+	display: none;
 }
 </style>

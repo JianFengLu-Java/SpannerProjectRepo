@@ -76,6 +76,7 @@ function createBaseWindow(
 			sandbox: false,
 			contextIsolation: true,
 			webSecurity: false,
+			webviewTag: true,
 		},
 		autoHideMenuBar: true, // 默认开启缩放
 		...options,

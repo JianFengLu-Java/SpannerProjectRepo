@@ -11,11 +11,13 @@ export const useAppSettingsStore = defineStore(
 		const messageReminderDisplayType = ref<MessageReminderDisplayType>(
 			'detail',
 		)
+		const routeLinksThroughSidebarWebview = ref(false)
 
 		return {
 			compactMode,
 			notificationsEnabled,
 			messageReminderDisplayType,
+			routeLinksThroughSidebarWebview,
 		}
 	},
 	{

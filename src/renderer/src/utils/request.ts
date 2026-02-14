@@ -60,10 +60,13 @@ server.interceptors.response.use(
 			original.headers = headers
 			return server(original)
 		} catch (refreshError) {
-			tokenManager.clear()
-			window.localStorage.removeItem('userInfo')
-			if (window.electron?.ipcRenderer) {
-				window.electron.ipcRenderer.send('logout-open-loginWindow')
+			// tokenManager 会在 refreshToken 失效时主动 clear；
+			// 对网络故障等可恢复错误，不应强制登出。
+			if (!tokenManager.getRefreshToken()) {
+				window.localStorage.removeItem('userInfo')
+				if (window.electron?.ipcRenderer) {
+					window.electron.ipcRenderer.send('logout-open-loginWindow')
+				}
 			}
 			return Promise.reject(refreshError)
 		}

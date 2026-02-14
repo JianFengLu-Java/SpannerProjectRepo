@@ -17,7 +17,11 @@
 						{{ themeStore.isDark ? '深色主题' : '浅色主题' }}
 					</span>
 					<span class="stat-chip">
-						{{ appSettings.notificationsEnabled ? '通知已开启' : '通知已关闭' }}
+						{{
+							appSettings.notificationsEnabled
+								? '通知已开启'
+								: '通知已关闭'
+						}}
 					</span>
 				</div>
 			</div>
@@ -52,9 +56,14 @@
 			</div>
 
 			<!-- Content Area -->
-			<div class="setting-content flex-1 h-full overflow-y-auto p-8 custom-scrollbar">
+			<div
+				class="setting-content flex-1 h-full overflow-y-auto p-8 custom-scrollbar"
+			>
 				<transition name="settings-panel" mode="out-in">
-					<div :key="activeKey" class="setting-panel max-w-3xl animate-fade-in">
+					<div
+						:key="activeKey"
+						class="setting-panel max-w-3xl animate-fade-in"
+					>
 						<header class="setting-section-header mb-6">
 							<h2 class="setting-section-title">
 								{{ currentMenu?.label }}
@@ -65,7 +74,10 @@
 						</header>
 
 						<!-- Appearance Settings -->
-						<div v-if="activeKey === 'appearance'" class="space-y-4 section-shell">
+						<div
+							v-if="activeKey === 'appearance'"
+							class="space-y-4 section-shell"
+						>
 							<div class="setting-item-card">
 								<div class="setting-info">
 									<span class="setting-title">深色模式</span>
@@ -74,7 +86,9 @@
 									>
 								</div>
 								<div class="setting-control">
-									<span class="setting-state">{{ themeStore.isDark ? '已开启' : '已关闭' }}</span>
+									<span class="setting-state">{{
+										themeStore.isDark ? '已开启' : '已关闭'
+									}}</span>
 									<n-switch
 										v-model:value="themeStore.isDark"
 										size="large"
@@ -90,7 +104,11 @@
 									>
 								</div>
 								<div class="setting-control">
-									<span class="setting-state">{{ appSettings.compactMode ? '已开启' : '已关闭' }}</span>
+									<span class="setting-state">{{
+										appSettings.compactMode
+											? '已开启'
+											: '已关闭'
+									}}</span>
 									<n-switch
 										v-model:value="appSettings.compactMode"
 										size="large"
@@ -101,7 +119,34 @@
 						</div>
 
 						<!-- Task Settings -->
-						<div v-else-if="activeKey === 'task'" class="space-y-4 section-shell">
+						<div
+							v-else-if="activeKey === 'task'"
+							class="space-y-4 section-shell"
+						>
+							<div class="setting-item-card">
+								<div class="setting-info">
+									<span class="setting-title"
+										>应用内链接使用侧栏网页槽</span
+									>
+									<span class="setting-desc"
+										>开启后，应用内链接将通过侧栏临时 WebView 打开</span
+									>
+								</div>
+								<div class="setting-control">
+									<span class="setting-state">{{
+										appSettings.routeLinksThroughSidebarWebview
+											? '已开启'
+											: '已关闭'
+									}}</span>
+									<n-switch
+										v-model:value="
+											appSettings.routeLinksThroughSidebarWebview
+										"
+										size="large"
+										:rail-style="railStyle"
+									/>
+								</div>
+							</div>
 							<div class="setting-item-card">
 								<div class="setting-info">
 									<span class="setting-title">开机启动</span>
@@ -110,7 +155,9 @@
 									>
 								</div>
 								<div class="setting-control">
-									<span class="setting-state">{{ settings.autoStart ? '已开启' : '已关闭' }}</span>
+									<span class="setting-state">{{
+										settings.autoStart ? '已开启' : '已关闭'
+									}}</span>
 									<n-switch
 										v-model:value="settings.autoStart"
 										size="large"
@@ -129,19 +176,28 @@
 									>
 								</div>
 								<div class="setting-control">
-									<span class="setting-state">{{ settings.minimizeToTray ? '已开启' : '已关闭' }}</span>
+									<span class="setting-state">{{
+										settings.minimizeToTray
+											? '已开启'
+											: '已关闭'
+									}}</span>
 									<n-switch
 										v-model:value="settings.minimizeToTray"
 										size="large"
 										:rail-style="railStyle"
-										@update:value="handleMinimizeToTrayToggle"
+										@update:value="
+											handleMinimizeToTrayToggle
+										"
 									/>
 								</div>
 							</div>
 						</div>
 
 						<!-- Notification Settings -->
-						<div v-else-if="activeKey === 'notify'" class="space-y-4 section-shell">
+						<div
+							v-else-if="activeKey === 'notify'"
+							class="space-y-4 section-shell"
+						>
 							<div class="setting-item-card">
 								<div class="setting-info">
 									<span class="setting-title">消息通知</span>
@@ -150,7 +206,11 @@
 									>
 								</div>
 								<div class="setting-control">
-									<span class="setting-state">{{ appSettings.notificationsEnabled ? '已开启' : '已关闭' }}</span>
+									<span class="setting-state">{{
+										appSettings.notificationsEnabled
+											? '已开启'
+											: '已关闭'
+									}}</span>
 									<n-switch
 										v-model:value="
 											appSettings.notificationsEnabled
@@ -179,17 +239,26 @@
 									"
 								>
 									<n-radio value="detail">显示正文</n-radio>
-									<n-radio value="sender">仅显示联系人</n-radio>
-									<n-radio value="summary">仅提示新消息</n-radio>
+									<n-radio value="sender"
+										>仅显示联系人</n-radio
+									>
+									<n-radio value="summary"
+										>仅提示新消息</n-radio
+									>
 								</n-radio-group>
 							</div>
 						</div>
 
 						<!-- Privacy Settings -->
-						<div v-else-if="activeKey === 'privacy'" class="space-y-4 section-shell">
+						<div
+							v-else-if="activeKey === 'privacy'"
+							class="space-y-4 section-shell"
+						>
 							<div class="setting-item-card">
 								<div class="setting-info">
-									<span class="setting-title">清除应用缓存</span>
+									<span class="setting-title"
+										>清除应用缓存</span
+									>
 									<span class="setting-desc"
 										>清除所有本地缓存文件和存储数据</span
 									>
@@ -206,7 +275,10 @@
 						</div>
 
 						<!-- About Settings -->
-						<div v-else-if="activeKey === 'about'" class="space-y-6 section-shell">
+						<div
+							v-else-if="activeKey === 'about'"
+							class="space-y-6 section-shell"
+						>
 							<div
 								class="about-card flex flex-col items-center justify-center p-8 rounded-2xl"
 							>
@@ -218,7 +290,9 @@
 									>
 								</div>
 								<h3 class="text-xl font-bold">Spanner</h3>
-								<p class="text-gray-500 dark:text-gray-300 text-sm mt-1">
+								<p
+									class="text-gray-500 dark:text-gray-300 text-sm mt-1"
+								>
 									Version {{ appVersion }}
 								</p>
 							</div>
@@ -238,13 +312,17 @@
 							<div class="setting-item-card">
 								<div class="setting-info">
 									<span class="setting-title">官方网站</span>
-									<span class="setting-desc">访问我们的主页</span>
+									<span class="setting-desc"
+										>访问我们的主页</span
+									>
 								</div>
 								<n-button
 									quaternary
 									type="info"
 									@click="
-										openExternal('https://electron-vite.org')
+										openExternal(
+											'https://electron-vite.org',
+										)
 									"
 								>
 									访问
@@ -268,16 +346,11 @@ import {
 	nextTick,
 	ComponentPublicInstance,
 } from 'vue'
-import {
-	NSwitch,
-	NButton,
-	NRadioGroup,
-	NRadio,
-	useMessage,
-} from 'naive-ui'
+import { NSwitch, NButton, NRadioGroup, NRadio, useMessage } from 'naive-ui'
 import { useTitleStore } from '@renderer/stores/title'
 import { useThemeStore } from '@renderer/stores/theme'
 import { useAppSettingsStore } from '@renderer/stores/appSettings'
+import { useInAppBrowserStore } from '@renderer/stores/inAppBrowser'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { tokenManager } from '@renderer/services/tokenManager'
 import { useRouter } from 'vue-router'
@@ -292,6 +365,7 @@ import {
 const title = useTitleStore()
 const themeStore = useThemeStore()
 const appSettings = useAppSettingsStore()
+const inAppBrowserStore = useInAppBrowserStore()
 const userInfoStore = useUserInfoStore()
 const message = useMessage()
 const router = useRouter()
@@ -469,6 +543,13 @@ const handleCheckUpdate = (): void => {
 }
 
 const openExternal = (url: string): void => {
+	if (
+		appSettings.routeLinksThroughSidebarWebview &&
+		/^https?:\/\//i.test(url)
+	) {
+		const session = inAppBrowserStore.openUrl(url)
+		if (session) return
+	}
 	window.electron.ipcRenderer.send('open-external-url', url)
 }
 
@@ -724,7 +805,9 @@ onMounted(async () => {
 
 .settings-panel-enter-active,
 .settings-panel-leave-active {
-	transition: opacity 0.22s ease, transform 0.22s ease;
+	transition:
+		opacity 0.22s ease,
+		transform 0.22s ease;
 }
 
 .settings-panel-enter-from,

@@ -25,6 +25,7 @@ function createWindow(): void {
 		webPreferences: {
 			preload: join(__dirname, '../preload/index.js'),
 			sandbox: false,
+			webviewTag: true,
 		},
 		frame: process.platform === 'darwin' ? false : true,
 		titleBarStyle: 'hidden',

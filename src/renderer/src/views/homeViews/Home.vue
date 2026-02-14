@@ -2,6 +2,7 @@
 	<div
 		class="h-full w-full flex bg-gradient-to-br from-grad-start to-grad-end gap-0 relative overflow-hidden"
 		:class="{ 'is-dragging': isDragging, 'is-compact': windowWidth < 700 }"
+		@click.capture="handleGlobalLinkClick"
 	>
 		<SideBar
 			:is-expanded="isExpanded && windowWidth >= 700"
@@ -24,19 +25,6 @@
 				v-if="activeSlotComponent"
 				class="relative h-full w-full rounded-[14px] overflow-hidden"
 			>
-				<n-button
-					circle
-					quaternary
-					size="small"
-					class="absolute top-3 right-3 z-20 bg-card-bg/90 border border-border-default"
-					@click="closeActiveSlot"
-				>
-					<template #icon>
-						<n-icon :size="16">
-							<Close />
-						</n-icon>
-					</template>
-				</n-button>
 				<component :is="activeSlotComponent" />
 			</div>
 			<router-view v-else v-slot="{ Component, route }">
@@ -53,11 +41,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, provide, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { NButton, NIcon } from 'naive-ui'
-import { Close } from '@vicons/ionicons5'
 import SideBar from './SideBar.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
+import { useAppSettingsStore } from '@renderer/stores/appSettings'
+import { useInAppBrowserStore } from '@renderer/stores/inAppBrowser'
 import { sidebarSlotComponentMap } from './sidebarSlots/slotRegistry'
 
 const isExpanded = ref(true)
@@ -69,19 +57,53 @@ const isWin = window.api.platform === 'win32'
 const userInfoStore = useUserInfoStore()
 const route = useRoute()
 const sidebarSlotStore = useSidebarSlotStore()
+const appSettingsStore = useAppSettingsStore()
+const inAppBrowserStore = useInAppBrowserStore()
 const activeSlotComponent = computed(() => {
 	const slot = sidebarSlotStore.activeSlot
 	if (!slot) return null
 	return sidebarSlotComponentMap[slot.componentKey] || null
 })
 
-const closeActiveSlot = (): void => {
-	const activeSlotKey = sidebarSlotStore.activeSlotKey
-	if (!activeSlotKey) {
-		sidebarSlotStore.clearActiveSlot()
+const handleGlobalLinkClick = (event: MouseEvent): void => {
+	const target = event.target as HTMLElement | null
+	if (!target) return
+	const anchor = target.closest('a[href]') as HTMLAnchorElement | null
+	if (!anchor) return
+	const rawHref = anchor.getAttribute('href')?.trim()
+	if (!rawHref || rawHref.startsWith('#')) return
+	if (rawHref.toLowerCase().startsWith('javascript:')) {
+		event.preventDefault()
 		return
 	}
-	sidebarSlotStore.removeSlot(activeSlotKey)
+
+	let resolvedUrl: URL
+	try {
+		resolvedUrl = new URL(rawHref, window.location.href)
+	} catch {
+		return
+	}
+
+	const protocol = resolvedUrl.protocol.toLowerCase()
+	const canHandleProtocol =
+		protocol === 'http:' ||
+		protocol === 'https:' ||
+		protocol === 'mailto:' ||
+		protocol === 'tel:'
+	if (!canHandleProtocol) return
+
+	event.preventDefault()
+	event.stopPropagation()
+
+	if (
+		(protocol === 'http:' || protocol === 'https:') &&
+		appSettingsStore.routeLinksThroughSidebarWebview
+	) {
+		const session = inAppBrowserStore.openUrl(resolvedUrl.toString())
+		if (session) return
+	}
+
+	window.electron.ipcRenderer.send('open-external-url', resolvedUrl.toString())
 }
 
 // 用于拖拽预览的临时宽度
@@ -209,10 +231,12 @@ onMounted(() => {
 	window.addEventListener('resize', handleResize)
 	// 初始化视觉宽度
 	visualWidth.value = isExpanded.value ? sideBarWidth.value + 'px' : '76px'
+	inAppBrowserStore.startLifecycleManager()
 })
 
 onUnmounted(() => {
 	window.removeEventListener('resize', handleResize)
+	inAppBrowserStore.stopLifecycleManager()
 })
 
 watch(

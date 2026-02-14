@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import {
-	computed,
-	ref,
-	watch,
-	nextTick,
-	onMounted,
-	onBeforeUnmount,
-} from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useChatStore, type Message } from '@renderer/stores/chat'
 import { storeToRefs } from 'pinia'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
@@ -212,7 +205,8 @@ const logLatestMessageTime = (): void => {
 	const rawTime = latest.sentAt?.trim() || latest.timestamp?.trim() || '-'
 	console.info('[chat-message-time]', {
 		chatId: activeChat.value?.id ?? null,
-		messageId: latest.serverMessageId || latest.clientMessageId || latest.id,
+		messageId:
+			latest.serverMessageId || latest.clientMessageId || latest.id,
 		rawTime,
 		displayTime: latest.timestamp || '-',
 	})

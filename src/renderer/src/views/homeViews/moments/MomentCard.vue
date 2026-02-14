@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="moment-card group bg-white dark:bg-zinc-900 rounded-[14px] overflow-hidden border border-gray-200 dark:border-zinc-700 transition-all duration-300 cursor-pointer"
+		class="moment-card group bg-white dark:b0g-zinc-900 rounded-[14px] overflow-hidden border border-gray-200 dark:border-zinc-700 transition-all duration-300 cursor-pointer"
 		@click="$emit('click', moment)"
 	>
 		<!-- 封面图 -->
