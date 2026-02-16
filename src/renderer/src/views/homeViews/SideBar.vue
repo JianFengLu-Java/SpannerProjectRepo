@@ -87,7 +87,7 @@
 						? 'is-expanded  bg-card-bg'
 						: 'is-collapsed bg-card-bg hover:bg-sidebar-unselect-item/30'
 				"
-				@click="showSearchModal = true"
+				@click="openGlobalSearchModal"
 			>
 				<n-icon
 					size="20"
@@ -288,41 +288,139 @@
 
 		<n-modal
 			v-model:show="showSearchModal"
-			preset="dialog"
+			preset="card"
+			class="global-search-modal"
 			title="全局搜索"
 			:show-icon="false"
-			:mask-closable="false"
+			:mask-closable="true"
 			transform-origin="center"
-			style="width: 600px; border-radius: 24px; padding: 12px"
+			style="width: 680px; max-width: calc(100vw - 24px)"
 		>
-			<div class="flex flex-col gap-4 mt-4">
+			<div class="flex flex-col gap-4">
 				<n-input
+					ref="searchInputRef"
+					v-model:value="globalSearchQuery"
 					type="text"
 					placeholder="搜索联系人、群组、聊天记录..."
 					size="large"
 					clearable
-					class="rounded-xl"
+					class="rounded-[6px]"
 				>
 					<template #prefix>
 						<n-icon><SearchOutline /></n-icon>
 					</template>
+					<template #suffix>
+						<span
+							class="text-[11px] text-gray-400 dark:text-gray-500"
+						>
+							{{ isMac ? '⌘K' : 'Ctrl+K' }}
+						</span>
+					</template>
 				</n-input>
 
-				<div class="search-content min-h-[200px]">
-					<div class="grid grid-cols-3 gap-3">
-						<div
-							v-for="item in ['联系人', '群组', '文件']"
-							:key="item"
-							class="flex flex-col items-center p-4 rounded-2xl border border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
-						>
-							<div
-								class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 mb-2"
-							></div>
-							<span
-								class="text-xs text-gray-500 dark:text-gray-300"
-								>{{ item }}</span
-							>
+				<div class="search-content min-h-[240px]">
+					<div
+						v-if="!globalSearchQuery.trim()"
+						class="space-y-3"
+					>
+						<div class="text-xs text-gray-400 dark:text-gray-500">
+							快捷入口
 						</div>
+						<div class="grid grid-cols-3 gap-2.5">
+							<button
+								v-for="item in globalSearchQuickEntries"
+								:key="item.key"
+								type="button"
+								class="flex items-center gap-2 rounded-[6px] border border-border-default bg-page-bg px-3 py-2.5 text-left hover:bg-sidebar-select-bg/30 transition-colors"
+								@click="handleGlobalSearchEntryClick(item)"
+							>
+								<div
+									class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-[#3695ff]/10 text-[#2f7fe7]"
+								>
+									<n-icon size="16">
+										<component :is="item.icon" />
+									</n-icon>
+								</div>
+								<div class="min-w-0">
+									<div class="truncate text-xs font-semibold text-text-main">
+										{{ item.label }}
+									</div>
+									<div class="truncate text-[11px] text-gray-400 dark:text-gray-500">
+										{{ item.description }}
+									</div>
+								</div>
+							</button>
+						</div>
+					</div>
+
+					<div v-else class="space-y-2">
+						<div
+							class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500"
+						>
+							<span>匹配结果 ({{ filteredGlobalSearchEntries.length }})</span>
+							<span v-if="isSearchingGlobalChatRecords">
+								正在检索聊天记录...
+							</span>
+						</div>
+						<div
+							v-if="filteredGlobalSearchEntries.length > 0"
+							class="max-h-[320px] space-y-1.5 overflow-y-auto pr-1"
+						>
+							<button
+								v-for="item in filteredGlobalSearchEntries"
+								:key="item.key"
+								type="button"
+								class="w-full flex items-center gap-3 rounded-[6px] border border-transparent bg-page-bg px-3 py-2 text-left hover:border-border-default hover:bg-sidebar-select-bg/25 transition-colors"
+								@click="handleGlobalSearchEntryClick(item)"
+							>
+								<div
+									class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-[#3695ff]/10 text-[#2f7fe7]"
+								>
+									<n-icon size="16">
+										<component :is="item.icon" />
+									</n-icon>
+								</div>
+								<div class="min-w-0 flex-1">
+									<div class="truncate text-sm font-medium text-text-main">
+										{{ item.label }}
+									</div>
+									<div class="truncate text-xs text-gray-400 dark:text-gray-500">
+										{{ item.description }}
+									</div>
+								</div>
+								<n-tag size="small" round :bordered="false">
+									{{ item.typeLabel }}
+								</n-tag>
+							</button>
+						</div>
+						<div
+							v-else
+							class="flex h-[220px] flex-col items-center justify-center rounded-[6px] border border-dashed border-border-default text-center text-gray-400 dark:text-gray-500"
+						>
+							<n-icon size="28" class="mb-2 opacity-70">
+								<SearchOutline />
+							</n-icon>
+							<p class="text-sm">没有匹配结果</p>
+							<p class="text-xs">试试其他关键词，例如“动态”或“设置”</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="flex items-center justify-between border-t border-border-default/70 pt-2 text-[11px] text-gray-400 dark:text-gray-500">
+					<div class="flex items-center gap-3">
+						<div
+							class="flex items-center gap-1"
+						>
+							<span class="rounded-[4px] bg-page-bg px-1.5 py-0.5">Enter</span>
+							<span>打开</span>
+						</div>
+						<div class="flex items-center gap-1">
+							<span class="rounded-[4px] bg-page-bg px-1.5 py-0.5">Esc</span>
+							<span>关闭</span>
+						</div>
+					</div>
+					<div>
+						当前可搜索 {{ globalSearchEntries.length }} 项
 					</div>
 				</div>
 			</div>
@@ -499,8 +597,9 @@ import {
 	NButton,
 	NTooltip,
 	useMessage,
+	type InputInst,
 } from 'naive-ui'
-import { ref, computed, onMounted, onUnmounted, h, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, h, watch, nextTick } from 'vue'
 import type { Component } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
@@ -518,7 +617,7 @@ import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { Add16Filled } from '@vicons/fluent'
 import FriendApplyModal from '@renderer/components/FriendApplyModal.vue'
 import { useFriendStore } from '@renderer/stores/friend'
-import { useChatStore } from '@renderer/stores/chat'
+import { useChatStore, type Message } from '@renderer/stores/chat'
 import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
 import { useInAppBrowserStore } from '@renderer/stores/inAppBrowser'
 import { storeToRefs } from 'pinia'
@@ -537,6 +636,16 @@ const router = useRouter()
 const route = useRoute()
 const { chatlist } = storeToRefs(chatStore)
 const showSearchModal = ref(false)
+const globalSearchQuery = ref('')
+const searchInputRef = ref<InputInst | null>(null)
+const isSearchingGlobalChatRecords = ref(false)
+const globalChatMatchedRecords = ref<
+	Array<{
+		chatId: number
+		chatName: string
+		message: Message
+	}>
+>([])
 const showAddFriendModal = ref(false)
 const showUserDropdown = ref(false)
 const showAddDropdown = ref(false)
@@ -546,6 +655,11 @@ const avatarUploadEditorRef = ref<{
 	openFileDialog: () => void
 } | null>(null)
 const platfrom = window.api.platform
+const isMac = platfrom === 'darwin'
+const GLOBAL_CHAT_SEARCH_DEBOUNCE_MS = 260
+const GLOBAL_CHAT_SEARCH_CHAT_LIMIT = 30
+let globalChatSearchTimer: ReturnType<typeof setTimeout> | null = null
+let globalChatSearchSeq = 0
 
 type EditableField =
 	| 'realName'
@@ -835,6 +949,16 @@ interface MenuItem {
 	hasMessage?: boolean
 }
 
+interface GlobalSearchEntry {
+	key: string
+	label: string
+	description: string
+	typeLabel: '页面' | '功能' | '标签页' | '联系人' | '聊天'
+	icon: Component
+	keywords: string[]
+	action: () => void | Promise<void>
+}
+
 const hasUnreadChatMessage = computed(() =>
 	chatlist.value.some((chat) => (chat.unreadCount || 0) > 0),
 )
@@ -1036,6 +1160,144 @@ const slotMenus = computed<MenuItem[]>(() =>
 	})),
 )
 
+const globalSearchEntries = computed<GlobalSearchEntry[]>(() => {
+	const routeEntries: GlobalSearchEntry[] = routeMenus.value.map((item) => ({
+		key: `route-${item.key}`,
+		label: item.label || item.key,
+		description: '跳转到对应页面',
+		typeLabel: '页面',
+		icon: iconMap[item.icon] || Search,
+		keywords: [item.key, item.label || '', item.name || ''],
+		action: () => {
+			go(item)
+			showSearchModal.value = false
+		},
+	}))
+
+	const slotEntries: GlobalSearchEntry[] = slotMenus.value.map((item) => ({
+		key: `slot-${item.slotKey || item.key}`,
+		label: item.label || '临时标签页',
+		description: '切换到已打开标签页',
+		typeLabel: '标签页',
+		icon: iconMap[item.icon] || GlobeOutline,
+		keywords: [item.label || '', item.icon, item.slotKey || ''],
+		action: () => {
+			go(item)
+			showSearchModal.value = false
+		},
+	}))
+
+	const actionEntries: GlobalSearchEntry[] = [
+		{
+			key: 'action-add-friend',
+			label: '添加好友',
+			description: '打开添加好友弹窗',
+			typeLabel: '功能',
+			icon: Add,
+			keywords: ['添加', '好友', 'friend'],
+			action: () => {
+				showSearchModal.value = false
+				showAddFriendModal.value = true
+			},
+		},
+		{
+			key: 'action-edit-profile',
+			label: '编辑个人信息',
+			description: '修改头像、签名、联系方式',
+			typeLabel: '功能',
+			icon: Person,
+			keywords: ['编辑', '个人', '资料', 'profile'],
+			action: () => {
+				showSearchModal.value = false
+				openEditProfile()
+			},
+		},
+	]
+
+	const keyword = globalSearchQuery.value.trim().toLowerCase()
+
+	const contactEntries: GlobalSearchEntry[] = keyword
+		? friendStore.friends
+				.filter((friend) => {
+					const source = [
+						friend.name,
+						friend.remark,
+						friend.uid,
+						friend.email || '',
+						friend.phone || '',
+					]
+						.join('|')
+						.toLowerCase()
+					return source.includes(keyword)
+				})
+				.slice(0, 8)
+				.map((friend) => ({
+					key: `friend-${friend.id}`,
+					label: friend.remark || friend.name,
+					description: `账号: ${friend.uid}`,
+					typeLabel: '联系人' as const,
+					icon: Person,
+					keywords: [friend.name, friend.remark, friend.uid],
+					action: async () => {
+						showSearchModal.value = false
+						friendStore.selectedFriendId = friend.id
+						await router.push({ name: 'user' })
+					},
+				}))
+		: []
+
+	const chatRecordEntries: GlobalSearchEntry[] = keyword
+		? globalChatMatchedRecords.value.map((record) => {
+					const matchedMessage = record.message
+					return {
+						key: `chat-${record.chatId}-${matchedMessage.id}`,
+						label: record.chatName,
+						description:
+							getMessageSearchText(matchedMessage) ||
+							'进入会话查看聊天记录',
+						typeLabel: '聊天' as const,
+						icon: Chatbubbles,
+						keywords: [record.chatName, getMessageSearchText(matchedMessage)],
+						action: async () => {
+							showSearchModal.value = false
+							await router.push({ name: 'chat' })
+							await chatStore.setActiveChat(record.chatId)
+							chatStore.requestMessageJump({
+								chatId: record.chatId,
+								messageId: matchedMessage.id,
+								serverMessageId: matchedMessage.serverMessageId,
+								clientMessageId: matchedMessage.clientMessageId,
+								keyword,
+							})
+						},
+					}
+				})
+		: []
+
+	return [
+		...routeEntries,
+		...slotEntries,
+		...actionEntries,
+		...contactEntries,
+		...chatRecordEntries,
+	]
+})
+
+const globalSearchQuickEntries = computed(() =>
+	globalSearchEntries.value.slice(0, 6),
+)
+
+const filteredGlobalSearchEntries = computed(() => {
+	const query = globalSearchQuery.value.trim().toLowerCase()
+	if (!query) return globalSearchEntries.value
+	return globalSearchEntries.value.filter((item) => {
+		const source = [item.label, item.description, ...item.keywords]
+			.join('|')
+			.toLowerCase()
+		return source.includes(query)
+	})
+})
+
 const isWebSlotItem = (item: MenuItem): boolean => item.icon === 'web'
 
 const isProfileCardSlotItem = (item: MenuItem): boolean =>
@@ -1054,11 +1316,92 @@ const shouldShowSlotTooltip = (item: MenuItem): boolean => {
 	return false
 }
 
+const getMessageSearchText = (message: Message): string => {
+	return (message.text || '').replace(/<[^>]*>/g, '').trim()
+}
+
+const scheduleGlobalChatSearch = (keyword: string): void => {
+	if (globalChatSearchTimer) {
+		clearTimeout(globalChatSearchTimer)
+		globalChatSearchTimer = null
+	}
+
+	const trimmed = keyword.trim()
+	if (!trimmed || !showSearchModal.value) {
+		isSearchingGlobalChatRecords.value = false
+		globalChatMatchedRecords.value = []
+		return
+	}
+
+	globalChatSearchTimer = setTimeout(() => {
+		globalChatSearchTimer = null
+		void runGlobalChatSearch(trimmed)
+	}, GLOBAL_CHAT_SEARCH_DEBOUNCE_MS)
+}
+
+const runGlobalChatSearch = async (keyword: string): Promise<void> => {
+	const trimmed = keyword.trim()
+	if (!trimmed) {
+		isSearchingGlobalChatRecords.value = false
+		globalChatMatchedRecords.value = []
+		return
+	}
+
+	const seq = ++globalChatSearchSeq
+	isSearchingGlobalChatRecords.value = true
+	try {
+		if (!chatlist.value.length) {
+			await chatStore.init()
+		}
+		const rows = await chatStore.searchLocalMessagesGlobal(
+			trimmed,
+			GLOBAL_CHAT_SEARCH_CHAT_LIMIT,
+		)
+
+		if (seq !== globalChatSearchSeq) return
+		const chatIdSet = new Set(chatlist.value.map((chat) => chat.id))
+		globalChatMatchedRecords.value = rows
+			.filter((item) => chatIdSet.has(item.chatId))
+			.sort((a, b) => {
+				const ta = new Date(
+					a.message.sentAt || a.message.timestamp || '',
+				).getTime()
+				const tb = new Date(
+					b.message.sentAt || b.message.timestamp || '',
+				).getTime()
+				return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta)
+			})
+	} finally {
+		if (seq === globalChatSearchSeq) {
+			isSearchingGlobalChatRecords.value = false
+		}
+	}
+}
+
+const openGlobalSearchModal = (): void => {
+	showSearchModal.value = true
+	void nextTick(() => {
+		searchInputRef.value?.focus()
+	})
+}
+
+const handleGlobalSearchEntryClick = (entry: GlobalSearchEntry): void => {
+	void entry.action()
+}
+
+const handleSearchShortcut = (event: KeyboardEvent): void => {
+	if (!(event.metaKey || event.ctrlKey)) return
+	if (event.key.toLowerCase() !== 'k') return
+	event.preventDefault()
+	openGlobalSearchModal()
+}
+
 onMounted(() => {
 	friendStore.startPendingRequestsAutoRefresh()
 
 	// 添加全局点击监听器
 	document.addEventListener('mousedown', handleGlobalClick)
+	document.addEventListener('keydown', handleSearchShortcut)
 })
 
 onUnmounted(() => {
@@ -1066,6 +1409,11 @@ onUnmounted(() => {
 
 	// 移除全局监听器
 	document.removeEventListener('mousedown', handleGlobalClick)
+	document.removeEventListener('keydown', handleSearchShortcut)
+	if (globalChatSearchTimer) {
+		clearTimeout(globalChatSearchTimer)
+		globalChatSearchTimer = null
+	}
 })
 
 watch(
@@ -1073,6 +1421,37 @@ watch(
 	(value) => {
 		if (!showUserDropdown.value) return
 		signatureDraft.value = value || ''
+	},
+)
+
+watch(
+	() => showSearchModal.value,
+	(show) => {
+		if (show) {
+			void nextTick(() => {
+				searchInputRef.value?.focus()
+			})
+			scheduleGlobalChatSearch(globalSearchQuery.value)
+			return
+		}
+		globalSearchQuery.value = ''
+		globalChatMatchedRecords.value = []
+		isSearchingGlobalChatRecords.value = false
+	},
+)
+
+watch(
+	() => globalSearchQuery.value,
+	(value) => {
+		scheduleGlobalChatSearch(value)
+	},
+)
+
+watch(
+	() => chatlist.value.length,
+	() => {
+		if (!showSearchModal.value || !globalSearchQuery.value.trim()) return
+		scheduleGlobalChatSearch(globalSearchQuery.value)
 	},
 )
 
@@ -1222,5 +1601,27 @@ function isMenuActive(item: MenuItem): boolean {
 	width: 0;
 	height: 0;
 	display: none;
+}
+
+:deep(.global-search-modal .n-card) {
+	border-radius: 6px;
+	border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+:deep(.global-search-modal .n-card-header) {
+	padding-bottom: 10px;
+	border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+:deep(.global-search-modal .n-card__content) {
+	padding-top: 14px;
+}
+
+:deep(.dark .global-search-modal .n-card) {
+	border-color: rgba(82, 82, 91, 0.7);
+}
+
+:deep(.dark .global-search-modal .n-card-header) {
+	border-bottom-color: rgba(82, 82, 91, 0.7);
 }
 </style>

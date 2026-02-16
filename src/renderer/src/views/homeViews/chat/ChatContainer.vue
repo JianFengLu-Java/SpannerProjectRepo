@@ -16,7 +16,7 @@ interface RenderMessage extends Message {
 
 const props = defineProps<{ messages: Message[] }>()
 const chatStore = useChatStore()
-const { activeChat } = storeToRefs(chatStore)
+const { activeChat, messageJumpTarget } = storeToRefs(chatStore)
 const userInfo = useUserInfoStore()
 
 const viewportRef = ref<HTMLElement | null>(null)
@@ -34,7 +34,9 @@ const prevLastMessageKey = ref('')
 const lastScrollTop = ref(0)
 let topLoadDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let scrollIndicatorTimer: ReturnType<typeof setTimeout> | null = null
+let jumpHighlightTimer: ReturnType<typeof setTimeout> | null = null
 const isScrolling = ref(false)
+const highlightedMessageKey = ref('')
 const SCROLL_INDICATOR_HIDE_DELAY_MS = 700
 
 // --- 统一的右键状态 ---
@@ -257,6 +259,54 @@ const scrollToLatestMessage = (behavior: ScrollBehavior = 'auto'): void => {
 	})
 }
 
+const findMessageKeyByJumpTarget = (
+	target: NonNullable<typeof messageJumpTarget.value>,
+): string => {
+	const targetServerId = target.serverMessageId?.trim() || ''
+	const targetClientId = target.clientMessageId?.trim() || ''
+	for (const item of virtualMessages.value) {
+		if (item.id === target.messageId) return item.__messageKey
+		if (
+			targetServerId &&
+			(item.serverMessageId?.trim() || '') === targetServerId
+		) {
+			return item.__messageKey
+		}
+		if (
+			targetClientId &&
+			(item.clientMessageId?.trim() || '') === targetClientId
+		) {
+			return item.__messageKey
+		}
+	}
+	return ''
+}
+
+const jumpToTargetMessage = (): void => {
+	const target = messageJumpTarget.value
+	if (!target) return
+	if (!activeChat.value || activeChat.value.id !== target.chatId) return
+
+	nextTick(() => {
+		requestAnimationFrame(() => {
+			const key = findMessageKeyByJumpTarget(target)
+			if (!key) return
+			const targetEl = messageItemRefMap.get(key)
+			if (!targetEl) return
+			targetEl.scrollIntoView({ block: 'center', behavior: 'smooth' })
+			highlightedMessageKey.value = key
+			if (jumpHighlightTimer) {
+				clearTimeout(jumpHighlightTimer)
+			}
+			jumpHighlightTimer = setTimeout(() => {
+				highlightedMessageKey.value = ''
+				jumpHighlightTimer = null
+			}, 1800)
+			chatStore.clearMessageJump()
+		})
+	})
+}
+
 const handleImageLoaded = (): void => {
 	const viewport = getViewport()
 	if (!viewport) return
@@ -400,12 +450,20 @@ watch(
 			lastScrollTop.value = 0
 			logAllMessageTimes('chat-switched')
 			scrollToLatestMessage('auto')
+			jumpToTargetMessage()
 			requestAnimationFrame(() => {
 				isSwitching.value = false
 			})
 		}
 	},
 	{ immediate: true },
+)
+
+watch(
+	() => messageJumpTarget.value?.token,
+	() => {
+		jumpToTargetMessage()
+	},
 )
 
 onMounted(() => {
@@ -420,6 +478,10 @@ onBeforeUnmount(() => {
 	if (scrollIndicatorTimer) {
 		clearTimeout(scrollIndicatorTimer)
 		scrollIndicatorTimer = null
+	}
+	if (jumpHighlightTimer) {
+		clearTimeout(jumpHighlightTimer)
+		jumpHighlightTimer = null
 	}
 })
 </script>
@@ -445,6 +507,10 @@ onBeforeUnmount(() => {
 				:key="item.__messageKey"
 				:ref="(el) => setMessageItemRef(item.__messageKey, el)"
 				class="px-4 py-2 message-row"
+				:class="{
+					'is-jump-highlight':
+						highlightedMessageKey === item.__messageKey,
+				}"
 			>
 				<chat-message
 					v-bind="item"
@@ -482,6 +548,21 @@ onBeforeUnmount(() => {
 .message-row {
 	content-visibility: auto;
 	contain-intrinsic-size: 80px;
+}
+
+.message-row.is-jump-highlight {
+	background: rgba(54, 149, 255, 0.14);
+	border-radius: 6px;
+	animation: jump-highlight-fade 1.8s ease-out forwards;
+}
+
+@keyframes jump-highlight-fade {
+	0% {
+		background: rgba(54, 149, 255, 0.22);
+	}
+	100% {
+		background: rgba(54, 149, 255, 0);
+	}
 }
 
 .message-viewport {

@@ -197,6 +197,23 @@ async function ensureUserScopedTableColumns(): Promise<void> {
 	await addColumnIfMissing('user_messages', 'serverMessageId', 'TEXT')
 	await addColumnIfMissing('user_messages', 'deliveryStatus', 'TEXT')
 	await addColumnIfMissing('user_messages', 'sentAt', 'TEXT')
+
+	// 查询性能索引：会话排序、历史分页、全局检索定位
+	await runSql(
+		'CREATE INDEX IF NOT EXISTS idx_user_chats_account_lastMessageAt ON user_chats(userAccount, lastMessageAt DESC, id DESC)',
+	)
+	await runSql(
+		'CREATE INDEX IF NOT EXISTS idx_user_messages_account_chat_sentAt_id ON user_messages(userAccount, chatId, sentAt DESC, id DESC)',
+	)
+	await runSql(
+		'CREATE INDEX IF NOT EXISTS idx_user_messages_account_sentAt_id ON user_messages(userAccount, sentAt DESC, id DESC)',
+	)
+	await runSql(
+		'CREATE INDEX IF NOT EXISTS idx_user_messages_account_serverId ON user_messages(userAccount, serverMessageId)',
+	)
+	await runSql(
+		'CREATE INDEX IF NOT EXISTS idx_user_messages_account_clientId ON user_messages(userAccount, clientMessageId)',
+	)
 }
 
 interface TableInfoWithPkRow extends TableInfoRow {

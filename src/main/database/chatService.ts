@@ -27,6 +27,10 @@ export interface DbMessage {
 	sentAt?: string
 }
 
+export interface DbMessageSearchResult extends DbMessage {
+	chatName: string
+}
+
 export const chatService = {
 	// 获取所有会话
 	getAllChats(userAccount: string): Promise<DbChatItem[]> {
@@ -209,6 +213,56 @@ export const chatService = {
 				},
 			)
 			stmt.finalize()
+		})
+	},
+
+	// 跨会话检索消息（本地落库）
+	searchMessages(
+		userAccount: string,
+		keyword: string,
+		limit = 60,
+	): Promise<DbMessageSearchResult[]> {
+		const db = getDb()
+		const safeKeyword = String(keyword || '').trim()
+		const safeLimit = Math.max(1, Math.min(200, Number(limit) || 60))
+		if (!safeKeyword) return Promise.resolve([])
+		const likeKeyword = `%${safeKeyword.replace(/[\\%_]/g, '\\$&')}%`
+
+		return new Promise((resolve, reject) => {
+			db.all(
+				`
+				SELECT
+					m.id,
+					m.chatId,
+					m.senderId,
+					m.text,
+					m.timestamp,
+					m.type,
+					m.hasResult,
+					m.result,
+					m.clientMessageId,
+					m.serverMessageId,
+					m.deliveryStatus,
+					m.sentAt,
+					c.name AS chatName
+				FROM user_messages m
+				INNER JOIN user_chats c
+					ON c.userAccount = m.userAccount
+					AND c.id = m.chatId
+				WHERE m.userAccount = ?
+					AND LOWER(COALESCE(m.text, '')) LIKE LOWER(?) ESCAPE '\\'
+				ORDER BY
+					CASE WHEN m.sentAt IS NULL OR m.sentAt = '' THEN 1 ELSE 0 END ASC,
+					m.sentAt DESC,
+					m.id DESC
+				LIMIT ?
+				`,
+				[userAccount, likeKeyword, safeLimit],
+				(err, rows) => {
+					if (err) reject(err)
+					else resolve(rows as DbMessageSearchResult[])
+				},
+			)
 		})
 	},
 }

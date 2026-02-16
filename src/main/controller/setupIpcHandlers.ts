@@ -9,7 +9,11 @@ import {
 	openChatWindow,
 	windowRegistry,
 } from '../windowState/windowManage'
-import { chatService, DbChatItem, DbMessage } from '../database/chatService'
+import {
+	chatService,
+	DbChatItem,
+	DbMessage,
+} from '../database/chatService'
 import { initDatabase, purgeDatabaseFiles } from '../database/db'
 import { join } from 'path'
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
@@ -120,6 +124,13 @@ export function setupIpcHandlers(): void {
 				limit,
 				offsetFromLatest,
 			)
+		},
+	)
+
+	ipcMain.handle(
+		'db-search-messages',
+		(_, userAccount: string, keyword: string, limit: number) => {
+			return chatService.searchMessages(userAccount, keyword, limit)
 		},
 	)
 

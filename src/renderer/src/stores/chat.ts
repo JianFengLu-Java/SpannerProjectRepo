@@ -108,6 +108,16 @@ interface QueryChatHistoryResult {
 	totalMatched: number
 }
 
+interface LocalMessageSearchResult extends DbMessage {
+	chatName: string
+}
+
+export interface GlobalMessageSearchHit {
+	chatId: number
+	chatName: string
+	message: Message
+}
+
 type MessageTypeFilter = 'all' | Message['type']
 
 interface HydrateStorePayload {
@@ -151,6 +161,7 @@ export const useChatStore = defineStore('chat', () => {
 	const chatlist = ref<ChatItem[]>([])
 	const pinnedChats = ref<ChatItem[]>([])
 	const messages = ref<Record<number, Message[]>>({})
+	const messageJumpTarget = ref<MessageJumpTarget | null>(null)
 	const isDbInitialized = ref(false)
 	const initializedAccount = ref('')
 	const isWsBound = ref(false)
@@ -177,6 +188,7 @@ export const useChatStore = defineStore('chat', () => {
 	const hydratedHistoryChatIds = ref(new Set<number>())
 	const LOCAL_HISTORY_INITIAL_CHUNK_SIZE = 40
 	let loadingFriendsPromise: Promise<boolean> | null = null
+	let messageJumpToken = 0
 	const shouldLogChatMergeDebug = (): boolean => {
 		if (!import.meta.env.DEV) return false
 		try {
@@ -210,6 +222,24 @@ export const useChatStore = defineStore('chat', () => {
 	const createLocalMessageId = (): number => {
 		localMessageIdCursor += 1
 		return localMessageIdCursor
+	}
+
+	const requestMessageJump = (payload: {
+		chatId: number
+		messageId: number
+		serverMessageId?: string
+		clientMessageId?: string
+		keyword?: string
+	}): void => {
+		messageJumpToken += 1
+		messageJumpTarget.value = {
+			...payload,
+			token: messageJumpToken,
+		}
+	}
+
+	const clearMessageJump = (): void => {
+		messageJumpTarget.value = null
 	}
 
 	const pad2 = (value: number): string => String(value).padStart(2, '0')
@@ -730,6 +760,18 @@ export const useChatStore = defineStore('chat', () => {
 						hasResult: !!m.hasResult,
 					}) as Message,
 			)
+		},
+		async searchMessages(
+			keyword: string,
+			limit = 60,
+		): Promise<LocalMessageSearchResult[]> {
+			const account = getCurrentAccount()
+			return (await window.electron.ipcRenderer.invoke(
+				'db-search-messages',
+				account,
+				keyword,
+				limit,
+			)) as LocalMessageSearchResult[]
 		},
 		saveChat(chat: ChatItem): void {
 			const account = getCurrentAccount()
@@ -1299,32 +1341,74 @@ export const useChatStore = defineStore('chat', () => {
 		const filterType = options.type || 'all'
 
 		const matched: Message[] = []
+		const seen = new Set<string>()
 		let page = 1
 		let hasMore = true
 		let pagesScanned = 0
 
-		while (hasMore && pagesScanned < maxPages) {
-			const data = await pullChatHistory(chatId, {
-				page,
-				size: pageSize,
-				// 查询只返回结果，避免本地写入失败影响查询弹窗展示
-				appendToStore: false,
-				startDate,
-				endDate,
-				type: filterType,
-				keyword,
-			})
-			const rows = Array.isArray(data.messages) ? data.messages : []
-			let currentAccount = ''
-			try {
-				currentAccount = getCurrentAccount()
-			} catch {
-				currentAccount = ''
+		const getSearchDedupKey = (item: Message): string => {
+			const serverId = item.serverMessageId?.trim() || ''
+			if (serverId) return `s:${serverId}`
+			const clientId = item.clientMessageId?.trim() || ''
+			if (clientId) return `c:${clientId}`
+			return `f:${item.chatId}|${item.senderId}|${item.sentAt || item.timestamp}|${item.text || ''}`
+		}
+
+		const pushFilteredRows = (rows: Message[]): void => {
+			for (const message of rows) {
+				const key = getSearchDedupKey(message)
+				if (seen.has(key)) continue
+				seen.add(key)
+				matched.push(message)
 			}
-			const mapped = rows.map((item) =>
-				createLocalMessageFromServer(item, chatId, currentAccount),
-			)
-			const filtered = mapped.filter((message) =>
+		}
+
+		// 优先尝试远端查询，兼容分页历史。
+		try {
+			while (hasMore && pagesScanned < maxPages) {
+				const data = await pullChatHistory(chatId, {
+					page,
+					size: pageSize,
+					// 查询只返回结果，避免本地写入失败影响查询弹窗展示
+					appendToStore: false,
+					startDate,
+					endDate,
+					type: filterType,
+					keyword,
+				})
+				const rows = Array.isArray(data.messages) ? data.messages : []
+				let currentAccount = ''
+				try {
+					currentAccount = getCurrentAccount()
+				} catch {
+					currentAccount = ''
+				}
+				const mapped = rows.map((item) =>
+					createLocalMessageFromServer(item, chatId, currentAccount),
+				)
+				const filtered = mapped.filter((message) =>
+					matchesMessageFilters(message, {
+						startDate,
+						endDate,
+						type: filterType,
+						keyword,
+					}),
+				)
+				pushFilteredRows(filtered)
+
+				page += 1
+				pagesScanned += 1
+				hasMore = !!data.hasMore
+			}
+		} catch (error) {
+			console.warn('远端查询聊天记录失败，回退本地检索:', error)
+			hasMore = false
+		}
+
+		// 追加本地落库检索，确保未同步远端或离线消息也可命中。
+		try {
+			const localRows = await db.getMessages(chatId)
+			const filteredLocalRows = localRows.filter((message) =>
 				matchesMessageFilters(message, {
 					startDate,
 					endDate,
@@ -1332,12 +1416,16 @@ export const useChatStore = defineStore('chat', () => {
 					keyword,
 				}),
 			)
-			matched.push(...filtered)
-
-			page += 1
-			pagesScanned += 1
-			hasMore = !!data.hasMore
+			pushFilteredRows(filteredLocalRows)
+		} catch (error) {
+			console.warn('本地检索聊天记录失败:', error)
 		}
+
+		matched.sort((a, b) => {
+			const ta = new Date(a.sentAt || a.timestamp || '').getTime()
+			const tb = new Date(b.sentAt || b.timestamp || '').getTime()
+			return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta)
+		})
 
 		return {
 			messages: matched,
@@ -1345,6 +1433,35 @@ export const useChatStore = defineStore('chat', () => {
 			hasMore,
 			totalMatched: matched.length,
 		}
+	}
+
+	const searchLocalMessagesGlobal = async (
+		keyword: string,
+		limit = 60,
+	): Promise<GlobalMessageSearchHit[]> => {
+		const normalized = keyword.trim()
+		if (!normalized) return []
+		const rows = await db.searchMessages(normalized, limit)
+		return rows.map((row) => ({
+			chatId: row.chatId,
+			chatName: row.chatName || '未知会话',
+			message: {
+				id: row.id,
+				chatId: row.chatId,
+				senderId: row.senderId,
+				text: row.text,
+				timestamp: row.sentAt
+					? formatTimeFromIso(row.sentAt)
+					: row.timestamp,
+				type: inferMessageType(row.text, row.type),
+				hasResult: !!row.hasResult,
+				result: row.result,
+				clientMessageId: row.clientMessageId,
+				serverMessageId: row.serverMessageId,
+				deliveryStatus: row.deliveryStatus,
+				sentAt: row.sentAt,
+			} as Message,
+		}))
 	}
 
 	const handleWsAck = (payload: PrivateChatAckFrame): void => {
@@ -1881,8 +1998,11 @@ export const useChatStore = defineStore('chat', () => {
 		chatlist,
 		pinnedChats,
 		messages,
+		messageJumpTarget,
 		activeChatMessages,
 		setActiveChat,
+		requestMessageJump,
+		clearMessageJump,
 		saveDraft,
 		getDraft,
 		sendMessage,
@@ -1896,6 +2016,7 @@ export const useChatStore = defineStore('chat', () => {
 		pullChatHistory,
 		loadMoreChatHistory,
 		queryChatHistory,
+		searchLocalMessagesGlobal,
 	}
 })
 
@@ -1925,4 +2046,13 @@ export interface Message {
 	serverMessageId?: string
 	deliveryStatus?: 'sending' | 'sent' | 'failed'
 	sentAt?: string
+}
+
+export interface MessageJumpTarget {
+	chatId: number
+	messageId: number
+	serverMessageId?: string
+	clientMessageId?: string
+	keyword?: string
+	token: number
 }
