@@ -1,6 +1,5 @@
 import { BrowserWindow, Tray, Menu, app, nativeImage } from 'electron'
 import { join } from 'path'
-import crypto from 'crypto'
 import iconPath from '../../../resources/icon.png?asset'
 
 // 定义窗口类型，方便维护
@@ -139,10 +138,14 @@ function getOrCreateWindow(
 export function openLoginWindow(): void {
 	// 1. 获取或创建登录窗口
 	const loginWin = getOrCreateWindow('login', {
-		width: 420,
-		height: 640,
-		resizable: false,
+		width: 1120,
+		height: 760,
+		minWidth: 860,
+		minHeight: 620,
+		resizable: true,
 	})
+	loginWin.setResizable(true)
+	loginWin.setMinimumSize(860, 620)
 	loadPage(loginWin, 'login')
 
 	// 2. 关键：关闭注册窗口
@@ -160,10 +163,14 @@ export function openLoginWindow(): void {
 
 export function openRegisterWindow(): void {
 	const regWin = getOrCreateWindow('register', {
-		width: 620,
-		height: 840,
-		resizable: false,
+		width: 980,
+		height: 800,
+		minWidth: 760,
+		minHeight: 620,
+		resizable: true,
 	})
+	regWin.setResizable(true)
+	regWin.setMinimumSize(760, 620)
 	loadPage(regWin, 'register')
 
 	windowRegistry.get('login')?.destroy()
@@ -188,36 +195,20 @@ export function openHomeWindow(): void {
 }
 
 export function viewIMGWindow(imgURL: string): void {
-	// 1. 对 URL 进行 MD5 哈希处理，生成唯一的固定长度 ID
-	const hash = crypto.createHash('md5').update(imgURL).digest('hex')
-	const winKey = `view-img-${hash}`
-
-	// 2. 检查该图片的窗口是否已经打开
-	const existingWin = windowRegistry.get(winKey)
-
-	if (existingWin && !existingWin.isDestroyed()) {
-		// 如果窗口存在，聚焦并置顶
-		existingWin.focus()
-		return
-	}
-
-	// 3. 如果不存在，则创建新窗口
-	const win = createBaseWindow('view-img', {
-		width: 600,
-		height: 600,
+	// IM 预览器：使用单实例窗口，后续点击图片时复用并更新内容，减少窗口抖动
+	const win = getOrCreateWindow('view-img', {
+		width: 1200,
+		height: 820,
+		minWidth: 860,
+		minHeight: 560,
+		resizable: true,
+		backgroundColor: '#0b1020',
 	})
-
-	// 注意：加载页面仍需使用原始 imgURL
+	win.setMinimumSize(860, 560)
 	const page = `view-img?url=${encodeURIComponent(imgURL)}`
 	loadPage(win, page)
-
-	// 4. 将新窗口存入 Registry
-	windowRegistry.set(winKey, win)
-
-	// 5. 监听窗口关闭，清理 Registry
-	win.on('closed', () => {
-		windowRegistry.delete(winKey)
-	})
+	if (win.isMinimized()) win.restore()
+	win.focus()
 }
 export function openChatWindow(chatId: number, chatName: string): void {
 	const winKey = `chat-${chatId}`

@@ -61,7 +61,7 @@
 					v-model:value="searchQuery"
 					placeholder="搜索聊天或记录..."
 					size="small"
-					class="rounded-xl bg-gray-100/50 dark:bg-zinc-800/60 border-none mb-1"
+					class="bg-gray-100/50 dark:bg-zinc-800/60 border-none mb-1"
 				>
 					<template #prefix>
 						<n-icon class="text-gray-400">
@@ -88,7 +88,7 @@
 					<div
 						v-for="chat in filteredPinnedChats"
 						:key="chat.id"
-						class="flex flex-col items-center gap-1.5 p-2 rounded-2xl cursor-copy transition-all duration-200 relative shrink-0 w-[68px]"
+						class="flex flex-col items-center gap-1.5 p-2 rounded-[6px] cursor-copy transition-all duration-200 relative shrink-0 w-[68px]"
 						:class="[
 							activeChatId === chat.id
 								? 'bg-primary/10'
@@ -115,7 +115,7 @@
 								/>
 								<div
 									v-if="chat.online"
-									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700 bg-green-500"
+									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700 bg-blue-500"
 								></div>
 							</div>
 						</n-badge>
@@ -149,7 +149,7 @@
 					<template #default="{ item: chat }">
 						<div
 							:key="chat.id"
-							class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-2xl transition-all duration-200 group relative"
+							class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-[6px] transition-all duration-200 group relative"
 							:class="[
 								activeChatId === chat.id
 									? 'bg-primary/10'
@@ -178,7 +178,7 @@
 								</n-badge>
 								<div
 									v-if="chat.online"
-									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700 bg-green-500"
+									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700 bg-blue-500"
 								></div>
 							</div>
 
@@ -715,4 +715,5 @@ onUnmounted(() => {})
 :deep(.n-virtual-list):hover::-webkit-scrollbar-thumb {
 	background-color: rgba(0, 0, 0, 0.1);
 }
+
 </style>

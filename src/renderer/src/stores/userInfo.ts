@@ -27,6 +27,7 @@ export const useUserInfoStore = defineStore(
 		const avatarUrl = ref('')
 		const phone = ref('')
 		const address = ref('')
+		const signature = ref('')
 		const age = ref<number | null>(null)
 		const userToken = ref('')
 
@@ -38,23 +39,40 @@ export const useUserInfoStore = defineStore(
 			avatarUrl?: string
 			phone?: string
 			address?: string
+			signature?: string
 			age?: number | null
+			userInfo?: {
+				account?: string
+				realName?: string
+				gender?: string
+				email?: string
+				avatarUrl?: string
+				phone?: string
+				address?: string
+				signature?: string
+				age?: number | null
+			}
 		}
 
 		function setUserInfo(
 			info: UserInfoPayload,
 			token: string,
 		): void {
-			account.value = info.account || resolveAccountFromToken(token)
-			userName.value = info.realName || ''
-			gender.value = info.gender || ''
-			email.value = info.email || ''
-			avatarUrl.value = info.avatarUrl || ''
-			phone.value = info.phone || ''
-			address.value = info.address || ''
+			const profile = info.userInfo || info
+			account.value =
+				profile.account || info.account || resolveAccountFromToken(token)
+			userName.value = profile.realName || info.realName || ''
+			gender.value = profile.gender || info.gender || ''
+			email.value = profile.email || info.email || ''
+			avatarUrl.value = profile.avatarUrl || info.avatarUrl || ''
+			phone.value = profile.phone || info.phone || ''
+			address.value = profile.address || info.address || ''
+			signature.value = profile.signature || info.signature || ''
 			age.value =
-				typeof info.age === 'number' && Number.isFinite(info.age)
-					? info.age
+				typeof profile.age === 'number' && Number.isFinite(profile.age)
+					? profile.age
+					: typeof info.age === 'number' && Number.isFinite(info.age)
+						? info.age
 					: null
 			userToken.value = token
 			window.localStorage.setItem('token', token)
@@ -82,6 +100,9 @@ export const useUserInfoStore = defineStore(
 			if (typeof patch.address === 'string') {
 				address.value = patch.address
 			}
+			if (typeof patch.signature === 'string') {
+				signature.value = patch.signature
+			}
 			if (
 				patch.age === null ||
 				(typeof patch.age === 'number' && Number.isFinite(patch.age))
@@ -98,6 +119,7 @@ export const useUserInfoStore = defineStore(
 			avatarUrl.value = ''
 			phone.value = ''
 			address.value = ''
+			signature.value = ''
 			age.value = null
 			userToken.value = ''
 			tokenManager.clear()
@@ -111,6 +133,7 @@ export const useUserInfoStore = defineStore(
 			avatarUrl,
 			phone,
 			address,
+			signature,
 			age,
 			userToken,
 			setUserInfo,

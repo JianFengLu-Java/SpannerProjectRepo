@@ -12,7 +12,74 @@ import {
 import { chatService, DbChatItem, DbMessage } from '../database/chatService'
 import { initDatabase, purgeDatabaseFiles } from '../database/db'
 import { join } from 'path'
-import { existsSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
+import { createHash } from 'crypto'
+import { fileURLToPath } from 'url'
+
+const NOTIFICATION_ICON_CACHE_DIR = join(
+	app.getPath('userData'),
+	'notification-icons',
+)
+
+const ensureNotificationIconCacheDir = (): void => {
+	if (!existsSync(NOTIFICATION_ICON_CACHE_DIR)) {
+		mkdirSync(NOTIFICATION_ICON_CACHE_DIR, { recursive: true })
+	}
+}
+
+const toCachedIconPath = (key: string, ext = 'png'): string => {
+	const digest = createHash('sha1').update(key).digest('hex')
+	return join(NOTIFICATION_ICON_CACHE_DIR, `${digest}.${ext}`)
+}
+
+const resolveNotificationIcon = async (
+	rawIcon?: string,
+): Promise<string | undefined> => {
+	const icon = String(rawIcon || '').trim()
+	if (!icon) return undefined
+
+	try {
+		if (icon.startsWith('file://')) {
+			return fileURLToPath(icon)
+		}
+	} catch {
+		// ignore malformed file url
+	}
+
+	// absolute local path
+	if (icon.startsWith('/') || /^[A-Za-z]:[\\/]/.test(icon)) {
+		return existsSync(icon) ? icon : undefined
+	}
+
+	// data:image/*;base64,...
+	if (icon.startsWith('data:image/')) {
+		const matched = icon.match(
+			/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/,
+		)
+		if (!matched) return undefined
+		const ext = matched[1] === 'jpeg' ? 'jpg' : matched[1]
+		const cached = toCachedIconPath(icon, ext)
+		if (existsSync(cached)) return cached
+		ensureNotificationIconCacheDir()
+		const binary = Buffer.from(matched[2], 'base64')
+		writeFileSync(cached, binary)
+		return cached
+	}
+
+	// remote url
+	if (/^https?:\/\//i.test(icon)) {
+		const cached = toCachedIconPath(icon, 'png')
+		if (existsSync(cached)) return cached
+		ensureNotificationIconCacheDir()
+		const response = await fetch(icon)
+		if (!response.ok) return undefined
+		const bytes = Buffer.from(await response.arrayBuffer())
+		writeFileSync(cached, bytes)
+		return cached
+	}
+
+	return undefined
+}
 
 export function setupIpcHandlers(): void {
 	// --- 数据库相关 IPC ---
@@ -202,17 +269,22 @@ export function setupIpcHandlers(): void {
 			payload: {
 				title?: string
 				body?: string
+				icon?: string
 			},
 		) => {
-			if (!Notification.isSupported()) return
-			const title = String(payload?.title || '新消息提醒').trim()
-			const body = String(payload?.body || '').trim()
-			const notification = new Notification({
-				title,
-				body,
-				silent: false,
-			})
-			notification.show()
+			void (async () => {
+				if (!Notification.isSupported()) return
+				const title = String(payload?.title || '新消息提醒').trim()
+				const body = String(payload?.body || '').trim()
+				const icon = await resolveNotificationIcon(payload?.icon)
+				const notification = new Notification({
+					title,
+					body,
+					icon,
+					silent: false,
+				})
+				notification.show()
+			})()
 		},
 	)
 

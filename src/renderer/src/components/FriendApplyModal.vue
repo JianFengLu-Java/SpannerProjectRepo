@@ -47,6 +47,13 @@
 						<p class="text-xs text-gray-400 m-0">
 							账号: {{ searchedUser.account }}
 						</p>
+						<p class="text-xs text-gray-500 m-0 mt-1 truncate">
+							签名:
+							{{
+								searchedUser.signature?.trim() ||
+								'这个人太神秘了，还没有个性签名。'
+							}}
+						</p>
 					</div>
 				</div>
 

@@ -11,6 +11,7 @@
 		<n-modal
 			v-model:show="showCropper"
 			preset="card"
+			class="avatar-editor-modal"
 			:title="title"
 			style="width: 600px"
 			:segmented="{ content: 'soft', footer: 'soft' }"
@@ -207,6 +208,10 @@ defineExpose({
 <style scoped>
 .hidden {
 	display: none;
+}
+
+:deep(.avatar-editor-modal .n-card) {
+	border-radius: 6px;
 }
 
 .preview-container {

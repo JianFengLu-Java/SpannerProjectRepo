@@ -54,6 +54,12 @@ const routes = [
 					import('../views/homeViews/moments/DynamicsView.vue'),
 			},
 			{
+				path: 'wallet', // 对应 /home/wallet
+				name: 'wallet',
+				component: () =>
+					import('../views/homeViews/wallet/WalletView.vue'),
+			},
+			{
 				path: 'setting', // 对应 /home/setting
 				name: 'setting',
 				component: () =>

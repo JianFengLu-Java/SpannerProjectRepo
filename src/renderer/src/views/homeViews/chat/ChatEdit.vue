@@ -489,7 +489,7 @@ onUnmounted(() => {
 <template>
 	<div class="relative">
 		<div
-			class="w-full rounded-xl border h-fit bg-sidebar-select-bg transition-all duration-200 p-1.5"
+			class="w-full rounded-2xl border h-fit bg-sidebar-select-bg transition-all duration-200 p-1.5 composer-shell"
 			:class="[
 				isFocus
 					? 'border-border-default ring-2 ring-border-main'
@@ -541,9 +541,9 @@ onUnmounted(() => {
 							<button
 								type="button"
 								title="加粗 (Ctrl+B)"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-emerald-900/30 hover:text-green-600 dark:hover:text-emerald-300 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
-									'text-green-600 bg-green-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50 shadow-inner':
 										editor.isActive('bold'),
 								}"
 								@click="
@@ -556,9 +556,9 @@ onUnmounted(() => {
 							<button
 								type="button"
 								title="斜体 (Ctrl+I)"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-emerald-900/30 hover:text-green-600 dark:hover:text-emerald-300 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
-									'text-green-600 bg-green-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50 shadow-inner':
 										editor.isActive('italic'),
 								}"
 								@click="
@@ -573,9 +573,9 @@ onUnmounted(() => {
 							<button
 								type="button"
 								title="下划线 (Ctrl+U)"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-emerald-900/30 hover:text-green-600 dark:hover:text-emerald-300 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
-									'text-green-600 bg-green-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50 shadow-inner':
 										editor.isActive('underline'),
 								}"
 								@click="
@@ -594,9 +594,9 @@ onUnmounted(() => {
 							<button
 								type="button"
 								title="删除线"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-green-50 dark:hover:bg-emerald-900/30 hover:text-green-600 dark:hover:text-emerald-300 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
-									'text-green-600 bg-green-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50 shadow-inner':
 										editor.isActive('strike'),
 								}"
 								@click="
@@ -613,9 +613,9 @@ onUnmounted(() => {
 							<button
 								type="button"
 								title="代码"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
 								:class="{
-									'text-green-600 bg-green-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50 shadow-inner':
 										editor.isActive('code'),
 								}"
 								@click="
@@ -628,9 +628,9 @@ onUnmounted(() => {
 							<button
 								type="button"
 								title="链接 (Ctrl+K)"
-								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-green-50 hover:text-green-600 active:scale-95"
+								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
 								:class="{
-									'text-green-600 bg-green-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50 shadow-inner':
 										editor.isActive('link'),
 								}"
 								@click="setLink"
@@ -677,15 +677,14 @@ onUnmounted(() => {
 					class="flex items-center gap-1 shrink-0 h-fit transition-all duration-200"
 					:class="[isMultiline ? 'w-full justify-end mt-2' : 'mt-0']"
 				>
-					<div
-						class="rounded-xl flex bg-gray-100/30 gap-1 p-1 items-center"
-					>
-						<div
+					<div class="composer-toolbar">
+						<button
+							type="button"
 							title="插入图片"
-							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
+							class="composer-action-btn"
 							@click="fileInput?.click()"
 						>
-							<n-icon size="20"><ImageOutline /></n-icon>
+							<n-icon size="18"><ImageOutline /></n-icon>
 							<input
 								ref="fileInput"
 								type="file"
@@ -696,17 +695,16 @@ onUnmounted(() => {
 										insertImageFile(e.target.files[0])
 								"
 							/>
-						</div>
+						</button>
 
-						<div
-							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
+						<button
+							type="button"
+							class="composer-action-btn"
 							title="@提及"
 						>
-							<n-icon size="20"><At /></n-icon>
-						</div>
-						<div
-							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
-						>
+							<n-icon size="18"><At /></n-icon>
+						</button>
+						<div class="composer-action-btn">
 							<n-popover
 								v-model:show="showEmoji"
 								trigger="click"
@@ -715,7 +713,7 @@ onUnmounted(() => {
 								style="padding: 0"
 							>
 								<template #trigger>
-									<n-icon title="表情" size="20"
+									<n-icon title="表情" size="18"
 										><HappyOutline
 									/></n-icon>
 								</template>
@@ -725,41 +723,38 @@ onUnmounted(() => {
 								/>
 							</n-popover>
 						</div>
-						<div
-							class="flex items-center justify-center p-1 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors text-text-main/70 hover:text-green-600"
+						<button
+							type="button"
+							class="composer-action-btn"
 							title="字体大小"
 						>
-							<n-icon size="20"><FontDecrease24Regular /></n-icon>
-						</div>
+							<n-icon size="18"><FontDecrease24Regular /></n-icon>
+						</button>
 
-						<n-button
-							type="primary"
-							size="small"
+						<button
+							type="button"
 							:disabled="!canSend"
-							color="#10b981"
-							class="transition-all duration-200 hover:shadow-md"
+							class="composer-send-btn"
 							@click="handleSendMessage"
 						>
-							<template #icon>
-								<n-icon size="16" color="#fff">
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke-width="2"
-										stroke="currentColor"
-										class="w-4 h-4"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-										/>
-									</svg>
-								</n-icon>
-							</template>
-							<p class="text-white font-medium">发送</p>
-						</n-button>
+							<n-icon size="16">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke-width="2"
+									stroke="currentColor"
+									class="w-4 h-4"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+									/>
+								</svg>
+							</n-icon>
+							<span>发送</span>
+						</button>
 					</div>
 				</div>
 			</div>
@@ -818,12 +813,12 @@ onUnmounted(() => {
 
 :deep(.ProseMirror) {
 	cursor: text;
-	caret-color: #10b981;
+	caret-color: #3695ff;
 }
 
 :deep(.ProseMirror-focused) {
 	outline: none;
-	caret-color: #10b981;
+	caret-color: #3695ff;
 }
 
 .editor-fake-caret {
@@ -833,7 +828,7 @@ onUnmounted(() => {
 	transform: translateY(-50%);
 	width: 2px;
 	height: 1.1em;
-	background: #10b981;
+	background: #3695ff;
 	border-radius: 1px;
 	animation: editorCaretBlink 1s steps(2, start) infinite;
 }
@@ -906,5 +901,95 @@ onUnmounted(() => {
 /* 确保链接输入框在正确层级 */
 .link-input {
 	z-index: 10000;
+}
+
+.composer-shell {
+	box-shadow:
+		0 1px 0 rgba(15, 23, 42, 0.04),
+		0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.composer-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px;
+	border-radius: 12px;
+	background: linear-gradient(
+		180deg,
+		rgba(248, 250, 252, 0.9) 0%,
+		rgba(241, 245, 249, 0.9) 100%
+	);
+	border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+:deep(.dark) .composer-toolbar {
+	background: linear-gradient(
+		180deg,
+		rgba(39, 39, 42, 0.88) 0%,
+		rgba(24, 24, 27, 0.88) 100%
+	);
+	border-color: rgba(82, 82, 91, 0.55);
+}
+
+.composer-action-btn {
+	width: 28px;
+	height: 28px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 8px;
+	color: rgb(100 116 139);
+	transition: all 0.18s ease;
+}
+
+.composer-action-btn:hover {
+	background: rgba(59, 130, 246, 0.12);
+	color: rgb(37 99 235);
+	transform: translateY(-1px);
+}
+
+.composer-action-btn:active {
+	transform: translateY(0);
+}
+
+:deep(.dark) .composer-action-btn {
+	color: rgb(161 161 170);
+}
+
+:deep(.dark) .composer-action-btn:hover {
+	background: rgba(56, 189, 248, 0.16);
+	color: rgb(125 211 252);
+}
+
+.composer-send-btn {
+	height: 28px;
+	padding: 0 10px;
+	border-radius: 8px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+	font-weight: 600;
+	color: #fff;
+	background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+	box-shadow: 0 6px 16px rgba(37, 99, 235, 0.32);
+	transition: all 0.18s ease;
+}
+
+.composer-send-btn:hover:not(:disabled) {
+	transform: translateY(-1px);
+	filter: brightness(1.03);
+	box-shadow: 0 8px 18px rgba(37, 99, 235, 0.38);
+}
+
+.composer-send-btn:active:not(:disabled) {
+	transform: translateY(0);
+}
+
+.composer-send-btn:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+	box-shadow: none;
 }
 </style>

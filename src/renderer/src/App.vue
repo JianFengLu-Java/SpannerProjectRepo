@@ -95,4 +95,12 @@ textarea {
 .dark ::-webkit-scrollbar-thumb {
 	background: rgba(255, 255, 255, 0.2);
 }
+
+.n-modal {
+	border-radius: 6px !important;
+}
+
+.n-modal .n-card {
+	border-radius: 6px !important;
+}
 </style>

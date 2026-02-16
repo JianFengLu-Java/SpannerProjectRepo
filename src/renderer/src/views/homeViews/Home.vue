@@ -1,12 +1,13 @@
 <template>
 	<div
-		class="h-full w-full flex bg-gradient-to-br from-grad-start to-grad-end gap-0 relative overflow-hidden"
+		class="h-full w-full flex bg-gradient-to-br from-[#f5f9ff] via-[#edf4ff] to-[#e4efff] gap-0 relative overflow-hidden"
 		:class="{ 'is-dragging': isDragging, 'is-compact': windowWidth < 700 }"
 		@click.capture="handleGlobalLinkClick"
 	>
 		<SideBar
 			:is-expanded="isExpanded && windowWidth >= 700"
 			:width="sideBarWidth"
+			:is-dragging="isDragging"
 			@toggle="toggleSidebar"
 		/>
 
@@ -25,7 +26,13 @@
 				v-if="activeSlotComponent"
 				class="relative h-full w-full rounded-[14px] overflow-hidden"
 			>
-				<component :is="activeSlotComponent" />
+				<keep-alive :max="8">
+					<component
+						:is="activeSlotComponent"
+						:key="activeSlotRenderKey"
+						class="h-full w-full"
+					/>
+				</keep-alive>
 			</div>
 			<router-view v-else v-slot="{ Component, route }">
 				<keep-alive>
@@ -35,6 +42,8 @@
 				</keep-alive>
 			</router-view>
 		</div>
+
+		<div v-if="isDragging" class="drag-mask" />
 	</div>
 </template>
 
@@ -64,6 +73,15 @@ const activeSlotComponent = computed(() => {
 	if (!slot) return null
 	return sidebarSlotComponentMap[slot.componentKey] || null
 })
+const activeSlotRenderKey = computed(() => {
+	const slot = sidebarSlotStore.activeSlot
+	if (!slot) return 'slot-empty'
+	return `${slot.componentKey}:${slot.slotKey}`
+})
+let dragAnimationFrameId: number | null = null
+let dragStartX = 0
+let dragInitialWidth = 200
+let layoutPersistTimer: ReturnType<typeof setTimeout> | null = null
 
 const handleGlobalLinkClick = (event: MouseEvent): void => {
 	const target = event.target as HTMLElement | null
@@ -158,6 +176,11 @@ const loadLayout = (account: string): void => {
 	}
 }
 
+const persistLayoutForCurrentAccount = (): void => {
+	const account = userInfoStore.account || ''
+	persistLayout(account)
+}
+
 // 提供布局相关状态给子组件
 provide('windowWidth', windowWidth)
 provide('sideBarWidth', sideBarWidth)
@@ -180,48 +203,50 @@ const handleResize = (): void => {
 	}
 }
 
+const doDrag = (moveEvent: MouseEvent): void => {
+	if (!isDragging.value) return
+	if (dragAnimationFrameId) cancelAnimationFrame(dragAnimationFrameId)
+
+	dragAnimationFrameId = requestAnimationFrame(() => {
+		const delta = moveEvent.clientX - dragStartX
+		const rawWidth = dragInitialWidth + delta
+
+		// 引入滞后（Hysteresis）逻辑，避免临界点抖动
+		if (isExpanded.value) {
+			// 展开状态下：只有当宽度小于 120px 时才收起
+			if (rawWidth < 120) {
+				isExpanded.value = false
+			} else {
+				sideBarWidth.value = Math.min(280, Math.max(160, rawWidth))
+			}
+		} else {
+			// 收起状态下：只有当拖拽出的虚拟宽度超过 160px 时才展开
+			if (rawWidth > 160) {
+				isExpanded.value = true
+				sideBarWidth.value = Math.min(280, Math.max(160, rawWidth))
+			}
+		}
+	})
+}
+
+const stopDrag = (): void => {
+	if (!isDragging.value) return
+	isDragging.value = false
+	if (dragAnimationFrameId) {
+		cancelAnimationFrame(dragAnimationFrameId)
+		dragAnimationFrameId = null
+	}
+	document.removeEventListener('mousemove', doDrag)
+	document.removeEventListener('mouseup', stopDrag)
+	document.body.style.cursor = 'default'
+	persistLayoutForCurrentAccount()
+}
+
 // 优化后的拖拽逻辑
 const initDrag = (e: MouseEvent): void => {
 	isDragging.value = true
-	const startX = e.clientX
-	const initialWidth = isExpanded.value ? sideBarWidth.value : 76
-	let animationFrameId: number | null = null
-
-	const doDrag = (moveEvent: MouseEvent): void => {
-		if (animationFrameId) cancelAnimationFrame(animationFrameId)
-
-		animationFrameId = requestAnimationFrame(() => {
-			const delta = moveEvent.clientX - startX
-			const rawWidth = initialWidth + delta
-
-			// 引入滞后（Hysteresis）逻辑，避免临界点抖动
-			if (isExpanded.value) {
-				// 展开状态下：只有当宽度小于 120px 时才收起
-				if (rawWidth < 120) {
-					isExpanded.value = false
-				} else {
-					// 限制展开宽度的合理区间
-					sideBarWidth.value = Math.min(280, Math.max(160, rawWidth))
-				}
-			} else {
-				// 收起状态下：只有当拖拽出的虚拟宽度超过 160px 时才展开
-				if (rawWidth > 160) {
-					isExpanded.value = true
-					sideBarWidth.value = Math.min(280, Math.max(160, rawWidth))
-				}
-			}
-		})
-	}
-
-	const stopDrag = (): void => {
-		isDragging.value = false
-		if (animationFrameId) cancelAnimationFrame(animationFrameId)
-
-		document.removeEventListener('mousemove', doDrag)
-		document.removeEventListener('mouseup', stopDrag)
-		document.body.style.cursor = 'default'
-	}
-
+	dragStartX = e.clientX
+	dragInitialWidth = isExpanded.value ? sideBarWidth.value : 76
 	document.addEventListener('mousemove', doDrag)
 	document.addEventListener('mouseup', stopDrag)
 	document.body.style.cursor = 'col-resize'
@@ -236,6 +261,11 @@ onMounted(() => {
 
 onUnmounted(() => {
 	window.removeEventListener('resize', handleResize)
+	stopDrag()
+	if (layoutPersistTimer) {
+		clearTimeout(layoutPersistTimer)
+		layoutPersistTimer = null
+	}
 	inAppBrowserStore.stopLifecycleManager()
 })
 
@@ -248,12 +278,16 @@ watch(
 )
 
 watch([sideBarWidth, isExpanded], () => {
-	const account = userInfoStore.account || ''
-	persistLayout(account)
+	if (isDragging.value) return
+	if (layoutPersistTimer) clearTimeout(layoutPersistTimer)
+	layoutPersistTimer = setTimeout(() => {
+		persistLayoutForCurrentAccount()
+		layoutPersistTimer = null
+	}, 120)
 })
 
 watch(
-	() => route.fullPath,
+	() => route.name,
 	() => {
 		sidebarSlotStore.clearActiveSlot()
 	},
@@ -298,7 +332,19 @@ watch(
 	user-select: none !important;
 }
 
+.is-dragging :deep(webview) {
+	pointer-events: none;
+}
+
+.drag-mask {
+	position: fixed;
+	inset: 0;
+	z-index: 150;
+	cursor: col-resize;
+	background: transparent;
+}
+
 .resizer:hover {
-	background: rgba(16, 185, 129, 0.4);
+	background: rgba(54, 149, 255, 0.4);
 }
 </style>

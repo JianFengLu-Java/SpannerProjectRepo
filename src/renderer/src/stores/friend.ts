@@ -52,6 +52,12 @@ interface FriendRelationDto {
 	account: string
 	realName: string
 	avatarUrl: string
+	signature?: string | null
+	userInfo?: {
+		signature?: string | null
+		realName?: string | null
+		avatarUrl?: string | null
+	} | null
 	online?: boolean | number | string | null
 	region?: string | null
 	email?: string | null
@@ -118,9 +124,15 @@ export interface FriendSearchUser {
 	account: string
 	realName: string
 	avatarUrl: string
+	signature?: string
 	isSelf?: boolean
 	relationType?: 'PENDING' | 'ACCEPTED' | 'BLOCKED' | null
 	verificationMessage?: string | null
+	userInfo?: {
+		realName?: string | null
+		avatarUrl?: string | null
+		signature?: string | null
+	} | null
 }
 
 const normalizeGender = (
@@ -145,14 +157,24 @@ const normalizeOnlineStatus = (
 }
 
 const mapFriendRelationToFriend = (relation: FriendRelationDto): Friend => {
+	const profile = relation.userInfo || null
+	const resolvedName =
+		profile?.realName?.trim() || relation.realName || relation.account
+	const resolvedAvatarUrl = profile?.avatarUrl || relation.avatarUrl
+	const resolvedSignature = (
+		profile?.signature ??
+		relation.signature ??
+		''
+	).trim()
+
 	return {
 		id: relation.account,
 		uid: relation.account,
-		name: relation.realName || relation.account,
+		name: resolvedName,
 		remark: '',
-		avatar: resolveAvatarUrl(relation.avatarUrl),
+		avatar: resolveAvatarUrl(resolvedAvatarUrl),
 		status: normalizeOnlineStatus(relation.online),
-		signature: '',
+		signature: resolvedSignature,
 		groupId: 'default',
 		gender: normalizeGender(relation.gender),
 		age:
@@ -689,10 +711,19 @@ export const useFriendStore = defineStore(
 			if (!data || !data.account) {
 				return null
 			}
+			const profile = data.userInfo || null
 			return {
 				account: data.account,
-				realName: data.realName || data.account,
-				avatarUrl: resolveAvatarUrl(data.avatarUrl),
+				realName:
+					profile?.realName?.trim() || data.realName || data.account,
+				avatarUrl: resolveAvatarUrl(
+					profile?.avatarUrl || data.avatarUrl,
+				),
+				signature: (
+					profile?.signature ??
+					data.signature ??
+					''
+				).trim(),
 				isSelf: Boolean(data.isSelf),
 				relationType: data.relationType ?? null,
 				verificationMessage: data.verificationMessage ?? null,

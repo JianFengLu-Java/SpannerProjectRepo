@@ -12,7 +12,7 @@
 				class="px-3 py-1.5 cursor-pointer transition-all duration-200 rounded-t-lg text-xs font-medium relative group"
 				:class="[
 					activeTab === tab.id
-						? 'text-green-600 bg-white dark:bg-zinc-800 shadow-[0_-2px_10px_rgba(0,0,0,0.02)]'
+						? 'text-blue-600 bg-white dark:bg-zinc-800 shadow-[0_-2px_10px_rgba(0,0,0,0.02)]'
 						: 'text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 hover:bg-gray-100/50 dark:hover:bg-zinc-700/50',
 				]"
 				@click="activeTab = tab.id"
@@ -20,7 +20,7 @@
 				{{ tab.name }}
 				<div
 					v-if="activeTab === tab.id"
-					class="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500 rounded-full mx-2"
+					class="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full mx-2"
 				></div>
 			</div>
 		</div>
@@ -50,7 +50,7 @@
 						<div
 							v-for="(item, index) in category.items"
 							:key="index"
-							class="aspect-square flex items-center justify-center p-1.5 rounded-xl hover:bg-green-50/50 dark:hover:bg-emerald-900/25 cursor-pointer transition-all duration-200 group active:scale-90"
+							class="aspect-square flex items-center justify-center p-1.5 rounded-xl hover:bg-blue-50/50 dark:hover:bg-blue-900/25 cursor-pointer transition-all duration-200 group active:scale-90"
 							@click="handleSelectCustom(item)"
 						>
 							<img
@@ -74,7 +74,7 @@
 						<div
 							v-for="(item, index) in stickers"
 							:key="index"
-							class="aspect-square flex items-center justify-center p-2 rounded-xl border border-transparent hover:border-green-100 dark:hover:border-emerald-900/50 hover:bg-green-50/30 dark:hover:bg-emerald-900/20 cursor-pointer transition-all duration-300 group overflow-hidden"
+							class="aspect-square flex items-center justify-center p-2 rounded-xl border border-transparent hover:border-blue-100 dark:hover:border-blue-900/50 hover:bg-blue-50/30 dark:hover:bg-blue-900/20 cursor-pointer transition-all duration-300 group overflow-hidden"
 							@click="handleSelectCustom(item, true)"
 						>
 							<img
@@ -95,17 +95,17 @@
 			<div class="flex gap-2 text-[10px] text-gray-400 dark:text-gray-500">
 				<span>快选:</span>
 				<span
-					class="hover:text-green-500 cursor-pointer transition-colors"
+					class="hover:text-blue-500 cursor-pointer transition-colors"
 					@click="quickInsert('😊')"
 					>😊</span
 				>
 				<span
-					class="hover:text-green-500 cursor-pointer transition-colors"
+					class="hover:text-blue-500 cursor-pointer transition-colors"
 					@click="quickInsert('👍')"
 					>👍</span
 				>
 				<span
-					class="hover:text-green-500 cursor-pointer transition-colors"
+					class="hover:text-blue-500 cursor-pointer transition-colors"
 					@click="quickInsert('❤️')"
 					>❤️</span
 				>

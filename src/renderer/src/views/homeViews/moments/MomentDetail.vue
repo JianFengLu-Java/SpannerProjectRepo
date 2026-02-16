@@ -78,6 +78,10 @@
 
 				<!-- 图片展示（左右滑动） -->
 				<div
+					v-if="
+						(moment.images && moment.images.length > 0) ||
+						(moment.cover && moment.cover.trim())
+					"
 					class="mb-6 rounded-[24px] overflow-hidden border border-gray-100 dark:border-zinc-700"
 				>
 					<div
@@ -99,7 +103,7 @@
 							</div>
 						</n-carousel>
 					</div>
-					<div v-else class="moment-image-slide">
+					<div v-else-if="moment.cover && moment.cover.trim()" class="moment-image-slide">
 						<img :src="moment.cover" class="moment-image" />
 					</div>
 				</div>

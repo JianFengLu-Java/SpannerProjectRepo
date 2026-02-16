@@ -20,7 +20,7 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
+									class="w-7 h-7 no-drag flex items-center justify-center rounded-[6px] hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
 									@click="openPendingRequestsModal"
 								>
 									<n-badge
@@ -43,7 +43,7 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
+									class="w-7 h-7 no-drag flex items-center justify-center rounded-[6px] hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
 									@click="showAddFriendModal = true"
 								>
 									<n-icon
@@ -59,7 +59,7 @@
 						<n-tooltip trigger="hover">
 							<template #trigger>
 								<div
-									class="w-7 h-7 no-drag flex items-center justify-center rounded-xl hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
+									class="w-7 h-7 no-drag flex items-center justify-center rounded-[6px] hover:bg-gray-200/50 dark:hover:bg-zinc-700/40 cursor-pointer transition-colors"
 									@click="showAddGroupModal = true"
 								>
 									<n-icon
@@ -80,7 +80,7 @@
 					v-model:value="searchQuery"
 					placeholder="搜索联系人..."
 					size="small"
-					class="rounded-xl bg-gray-100/50 dark:bg-zinc-800/60 border-none"
+					class="rounded-[6px] bg-gray-100/50 dark:bg-zinc-800/60 border-none"
 				>
 					<template #prefix>
 						<n-icon class="text-gray-400 dark:text-gray-500">
@@ -93,13 +93,19 @@
 			<!-- 联系人列表内容 -->
 			<div class="flex-1 overflow-y-auto custom-scrollbar p-2 pt-0">
 				<div
-					v-if="friendStore.isLoading"
+					v-if="
+						friendStore.isLoading &&
+						!isInitializingFriends &&
+						!friendStore.friends.length
+					"
 					class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
 				>
 					加载好友列表中...
 				</div>
 				<div
-					v-else-if="!friendStore.friends.length"
+					v-else-if="
+						!isInitializingFriends && !friendStore.friends.length
+					"
 					class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
 				>
 					暂无好友，点击右上角添加
@@ -112,7 +118,7 @@
 				>
 					<!-- 分组头部 -->
 					<div
-						class="group-header flex items-center gap-1 h-9 px-2 rounded-xl cursor-pointer hover:bg-black/5 dark:hover:bg-white/6 transition-colors select-none"
+						class="group-header flex items-center gap-1 h-9 px-2 rounded-[6px] cursor-pointer hover:bg-black/5 dark:hover:bg-white/6 transition-colors select-none"
 						@click="friendStore.toggleGroupExpand(group.id)"
 						@contextmenu.prevent="onGroupContextMenu($event, group)"
 					>
@@ -146,7 +152,7 @@
 						<div
 							v-for="friend in filteredFriendsByGroup(group.id)"
 							:key="friend.id"
-							class="flex items-center gap-3 px-3 py-2 rounded-2xl cursor-copy transition-all duration-200 relative group"
+							class="flex items-center gap-3 px-3 py-2 rounded-[6px] cursor-copy transition-all duration-200 relative group"
 							:class="[
 								friendStore.selectedFriendId === friend.id
 									? 'bg-primary/10'
@@ -168,7 +174,7 @@
 									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700"
 									:class="[
 										friend.status === 'online'
-											? 'bg-green-500'
+											? 'bg-blue-500'
 											: 'bg-gray-400',
 									]"
 								></div>
@@ -229,7 +235,7 @@
 							class="relative mx-auto w-full max-w-5xl space-y-3"
 						>
 							<section
-								class="rounded-xl border border-border-default bg-card-bg p-3 shadow-[0_10px_30px_rgba(16,24,40,0.08)] backdrop-blur-md sm:p-4"
+								class="rounded-[6px] border border-border-default bg-card-bg p-3 backdrop-blur-md sm:p-4"
 							>
 								<div
 									class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
@@ -256,7 +262,7 @@
 												:class="[
 													friendStore.selectedFriend
 														.status === 'online'
-														? 'bg-emerald-500'
+														? 'bg-blue-500'
 														: 'bg-gray-400',
 												]"
 											></div>
@@ -301,7 +307,7 @@
 														friendStore
 															.selectedFriend
 															.status === 'online'
-															? 'bg-emerald-500/15 text-emerald-600'
+															? 'bg-blue-500/15 text-blue-600'
 															: 'bg-page-bg text-text-main/70 border border-border-default'
 													"
 												>
@@ -352,7 +358,7 @@
 									<div class="flex items-center gap-2">
 										<n-button
 											type="primary"
-											class="h-10 flex-1 rounded-xl px-4 text-sm font-semibold sm:flex-none"
+											class="h-10 flex-1 rounded-[6px] px-4 text-sm font-semibold sm:flex-none"
 											@click="
 												startChat(
 													friendStore.selectedFriend!,
@@ -373,7 +379,7 @@
 										>
 											<n-button
 												secondary
-												class="h-10 w-10 rounded-xl px-0"
+												class="h-10 w-10 rounded-[6px] px-0"
 											>
 												<n-icon size="20">
 													<MoreHorizontal24Regular />
@@ -388,7 +394,7 @@
 								class="grid grid-cols-1 gap-3 lg:grid-cols-3"
 							>
 								<div
-									class="rounded-xl border border-border-default bg-card-bg p-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm lg:col-span-2"
+									class="rounded-[6px] border border-border-default bg-card-bg p-3 backdrop-blur-sm lg:col-span-2"
 								>
 									<p
 										class="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-400 dark:text-gray-500"
@@ -401,7 +407,7 @@
 										<div
 											v-for="item in selectedFriendPrimaryInfoItems"
 											:key="item.label"
-											class="flex items-center gap-2 rounded-xl border border-border-default bg-page-bg p-2"
+											class="flex items-center gap-2 rounded-[6px] border border-border-default bg-page-bg p-2"
 										>
 											<div
 												class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
@@ -433,14 +439,14 @@
 											v-if="
 												!selectedFriendPrimaryInfoItems.length
 											"
-											class="col-span-full rounded-xl border border-dashed border-border-default/70 dark:border-zinc-700/70 px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500"
+											class="col-span-full rounded-[6px] border border-dashed border-border-default/70 dark:border-zinc-700/70 px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500"
 										>
 											暂无核心资料
 										</div>
 									</div>
 
 									<div
-										class="mt-2 rounded-xl border border-border-default bg-page-bg px-2.5 py-1.5"
+										class="mt-2 rounded-[6px] border border-border-default bg-page-bg px-2.5 py-1.5"
 									>
 										<div
 											v-for="item in selectedFriendSecondaryInfoItems"
@@ -489,7 +495,7 @@
 											friendStore.selectedFriend.tags
 												.length
 										"
-										class="rounded-xl border border-border-default bg-card-bg p-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)] backdrop-blur-sm"
+										class="rounded-[6px] border border-border-default bg-card-bg p-3 backdrop-blur-sm"
 									>
 										<p
 											class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-400 dark:text-gray-500"
@@ -501,7 +507,7 @@
 												v-for="tag in friendStore
 													.selectedFriend.tags"
 												:key="tag"
-												class="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-700"
+												class="rounded-full bg-blue-500/10 px-3 py-1 text-[11px] font-medium text-blue-700"
 											>
 												# {{ tag }}
 											</span>
@@ -509,7 +515,7 @@
 									</div>
 
 									<button
-										class="group w-full rounded-xl border border-border-default bg-card-bg p-3 text-left shadow-[0_8px_20px_rgba(6,182,212,0.12)] transition hover:bg-page-bg hover:shadow-[0_10px_26px_rgba(6,182,212,0.16)]"
+										class="group w-full rounded-[6px] border border-border-default bg-card-bg p-3 text-left transition hover:bg-page-bg"
 										@click="
 											message.info('正在进入个人空间...')
 										"
@@ -547,7 +553,7 @@
 					class="h-full flex items-center justify-center select-none px-6"
 				>
 					<div
-						class="flex flex-col items-center justify-center rounded-xl px-8 py-10"
+						class="flex flex-col items-center justify-center rounded-[6px] px-8 py-10"
 					>
 						<n-icon size="108" class="mb-3 text-gray-300">
 							<PeopleCommunity24Regular />
@@ -585,7 +591,7 @@
 			<n-input
 				v-model:value="newGroupName"
 				placeholder="请输入分组名称"
-				class="rounded-xl"
+				class="rounded-[6px]"
 			/>
 		</n-modal>
 
@@ -602,7 +608,7 @@
 			<n-input
 				v-model:value="renameGroupValue"
 				placeholder="请输入新名称"
-				class="rounded-xl"
+				class="rounded-[6px]"
 			/>
 		</n-modal>
 
@@ -620,7 +626,7 @@
 				placeholder="请输入备注（留空为清空备注）"
 				maxlength="30"
 				show-count
-				class="rounded-xl"
+				class="rounded-[6px]"
 			/>
 		</n-modal>
 
@@ -646,7 +652,7 @@
 			title="好友申请"
 			:mask-closable="false"
 			:bordered="false"
-			style="width: 520px; border-radius: 16px"
+			style="width: 520px; border-radius: 6px"
 		>
 			<n-tabs
 				v-model:value="requestModalTab"
@@ -674,7 +680,7 @@
 						<div
 							v-for="request in friendStore.pendingRequests"
 							:key="request.account"
-							class="rounded-xl border border-border-default/70 bg-white/90 dark:border-zinc-700/80 dark:bg-zinc-900/85 p-3"
+							class="rounded-[6px] border border-border-default/70 bg-white/90 dark:border-zinc-700/80 dark:bg-zinc-900/85 p-3"
 						>
 							<div class="flex items-center gap-3">
 								<n-avatar
@@ -797,7 +803,7 @@
 						<div
 							v-for="record in requestHistoryRecords"
 							:key="record.uniqueKey"
-							class="rounded-xl border border-border-default/70 bg-white/90 dark:border-zinc-700/80 dark:bg-zinc-900/85 p-3"
+							class="rounded-[6px] border border-border-default/70 bg-white/90 dark:border-zinc-700/80 dark:bg-zinc-900/85 p-3"
 						>
 							<div class="flex items-center gap-3">
 								<n-avatar
@@ -929,6 +935,7 @@ const searchQuery = ref('')
 const showAddFriendModal = ref(false)
 const showAddGroupModal = ref(false)
 const showPendingRequestsModal = ref(false)
+const isInitializingFriends = ref(true)
 const requestModalTab = ref<'pending' | 'history'>('pending')
 const newGroupName = ref('')
 const actionLoadingAccount = ref('')
@@ -961,21 +968,27 @@ const historyStatusOptions = [
 	{ label: '已过期', value: 'EXPIRED' },
 ]
 
-const loadFriends = async (): Promise<void> => {
+const loadFriends = async ({
+	silent = false,
+}: {
+	silent?: boolean
+} = {}): Promise<void> => {
 	const [friendsOk, pendingOk] = await Promise.all([
 		friendStore.fetchFriends(),
 		friendStore.fetchPendingRequests(),
 	])
-	if (!friendsOk) {
+	if (!silent && !friendsOk) {
 		message.error('好友列表加载失败，请稍后重试')
 	}
-	if (!pendingOk) {
+	if (!silent && !pendingOk) {
 		message.error('好友请求加载失败，请稍后重试')
 	}
 }
 
 onMounted(() => {
-	void loadFriends()
+	void loadFriends({ silent: true }).finally(() => {
+		isInitializingFriends.value = false
+	})
 })
 
 // 分组排序逻辑：默认分组排第一，黑名单排最后
@@ -1179,6 +1192,16 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			priority: 'secondary',
 		},
 		{
+			label: '个性签名',
+			value:
+				selectedFriend.signature?.trim() ||
+				'这个人太神秘了，还没有个性签名。',
+			icon: Edit24Regular,
+			iconBgClass: 'bg-rose-50 dark:bg-rose-900/30',
+			iconTextClass: 'text-rose-500 dark:text-rose-300',
+			priority: 'secondary',
+		},
+		{
 			label: '备注姓名',
 			value: selectedFriend.remark || '无备注',
 			icon: Edit24Regular,
@@ -1206,8 +1229,8 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			label: '所属分组',
 			value: groupName,
 			icon: Tag24Regular,
-			iconBgClass: 'bg-emerald-50 dark:bg-emerald-900/30',
-			iconTextClass: 'text-emerald-500 dark:text-emerald-300',
+			iconBgClass: 'bg-blue-50 dark:bg-blue-900/30',
+			iconTextClass: 'text-blue-500 dark:text-blue-300',
 			priority: 'primary',
 		},
 		{

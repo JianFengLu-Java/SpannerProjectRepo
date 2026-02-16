@@ -1,6 +1,7 @@
 <template>
 	<div
-		class="main-sidebar gap-3 h-full flex flex-col items-center justify-between rounded-[24px] transition-all duration-300 ease-in-out relative"
+		class="main-sidebar gap-3 h-full flex flex-col items-center justify-between rounded-[24px] relative"
+		:class="{ 'sidebar-dragging': isDragging }"
 		:style="{ width: isExpanded ? width + 'px' : '76px' }"
 	>
 		<div
@@ -157,8 +158,8 @@
 								size="18"
 								:class="[
 									isMenuActive(item)
-										? ' text-sidebar-select-item'
-										: ' text-sidebar-unselect-item',
+										? ' text-[#3695ff] dark:text-[#56a7ff]'
+										: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
 								]"
 							>
 								<component :is="iconMap[item.icon]" />
@@ -172,7 +173,7 @@
 						:class="[
 							isMenuActive(item)
 								? ' text-sidebar-select-item'
-								: ' text-sidebar-unselect-item',
+								: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
 						]"
 					>
 						{{ item.label }}
@@ -183,7 +184,7 @@
 						:class="[
 							isMenuActive(item)
 								? ' text-sidebar-select-item'
-								: ' text-sidebar-unselect-item',
+								: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
 						]"
 					>
 						{{ item.label }}
@@ -195,7 +196,7 @@
 				<div class="slot-separator mx-auto"></div>
 				<div
 					v-if="isExpanded"
-					class="mt-2 px-2 text-[11px] tracking-wide text-sidebar-unselect-item"
+					class="mt-2 px-2 text-[11px] tracking-wide text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]"
 				>
 					导航
 				</div>
@@ -208,12 +209,7 @@
 						:key="item.key"
 						trigger="hover"
 						placement="right"
-						:disabled="
-							isExpanded ||
-							item.icon !== 'web' ||
-							!item.label ||
-							item.label === '网页'
-						"
+						:disabled="isExpanded || !shouldShowSlotTooltip(item)"
 					>
 						<template #trigger>
 							<div
@@ -234,8 +230,8 @@
 								size="18"
 								:class="[
 									isMenuActive(item)
-										? ' text-sidebar-select-item'
-										: ' text-sidebar-unselect-item',
+										? ' text-[#3695ff] dark:text-[#56a7ff]'
+										: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
 								]"
 							>
 								<component :is="iconMap[item.icon]" />
@@ -246,13 +242,18 @@
 						<span
 							v-if="isExpanded"
 							class="text-xs whitespace-nowrap overflow-hidden flex-1"
-							:class="[
-								isMenuActive(item)
-									? ' text-sidebar-select-item'
-									: ' text-sidebar-unselect-item',
-							]"
+							:class="{ 'pr-5': !!item.slotKey }"
 						>
-							{{ item.label }}
+							<span
+								class="block truncate"
+								:class="[
+									isMenuActive(item)
+										? ' text-sidebar-select-item'
+										: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
+								]"
+							>
+								{{ item.label }}
+							</span>
 						</span>
 						<span
 							v-else
@@ -260,19 +261,16 @@
 							:class="[
 								isMenuActive(item)
 									? ' text-sidebar-select-item'
-									: ' text-sidebar-unselect-item',
+									: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
 							]"
 						>
-							{{ item.icon === 'web' ? '网页' : item.label }}
+							{{ getCollapsedSlotLabel(item) }}
 						</span>
 					<button
 						v-if="item.slotKey"
 						type="button"
 						:class="[
-							'absolute -top-1 -right-1 z-10 h-4 w-4 rounded-full bg-card-bg/95 shadow-sm flex items-center justify-center text-sidebar-unselect-item hover:text-sidebar-select-item transition-all',
-							isMenuActive(item)
-								? 'opacity-100 pointer-events-auto'
-								: 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto',
+							'absolute top-1 right-1 z-10 h-4 w-4 rounded-full bg-card-bg/92 border border-border-default/70 shadow-sm flex items-center justify-center text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)] hover:text-sidebar-select-item transition-colors opacity-100',
 						]"
 						@click.stop="destroySlot(item.slotKey)"
 					>
@@ -318,7 +316,7 @@
 							class="flex flex-col items-center p-4 rounded-2xl border border-gray-100 dark:border-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer transition-colors"
 						>
 							<div
-								class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 mb-2"
+								class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 mb-2"
 							></div>
 							<span
 								class="text-xs text-gray-500 dark:text-gray-300"
@@ -436,6 +434,24 @@
 						>
 					</div>
 				</n-form-item>
+				<n-form-item label="个性签名">
+					<div class="w-full flex items-center gap-2">
+						<n-input
+							v-model:value="editProfile.signature"
+							type="textarea"
+							placeholder="请输入个性签名"
+							autosize
+							maxlength="80"
+							show-count
+							@blur="saveField('signature')"
+						/>
+						<span
+							v-if="savingField.signature"
+							class="text-xs text-gray-400 shrink-0"
+							>保存中...</span
+						>
+					</div>
+				</n-form-item>
 				<n-form-item label="年龄">
 					<div class="w-full flex items-center gap-2">
 						<n-input-number
@@ -484,7 +500,7 @@ import {
 	NTooltip,
 	useMessage,
 } from 'naive-ui'
-import { ref, computed, onMounted, onUnmounted, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, h, watch } from 'vue'
 import type { Component } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
@@ -496,6 +512,7 @@ import {
 	ApertureOutline,
 	GlobeOutline,
 	Close,
+	WalletOutline,
 } from '@vicons/ionicons5'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { Add16Filled } from '@vicons/fluent'
@@ -508,7 +525,7 @@ import { storeToRefs } from 'pinia'
 import request from '@renderer/utils/request'
 import AvatarUploadEditor from '@renderer/components/AvatarUploadEditor.vue'
 
-defineProps<{ isExpanded: boolean; width: number }>()
+defineProps<{ isExpanded: boolean; width: number; isDragging?: boolean }>()
 
 const user = useUserInfoStore()
 const friendStore = useFriendStore()
@@ -537,6 +554,7 @@ type EditableField =
 	| 'email'
 	| 'phone'
 	| 'address'
+	| 'signature'
 	| 'age'
 
 interface EditableProfile {
@@ -546,6 +564,7 @@ interface EditableProfile {
 	email: string
 	phone: string
 	address: string
+	signature: string
 	age: number | null
 }
 
@@ -564,6 +583,7 @@ const createEditableProfile = (): EditableProfile => ({
 	email: user.email || '',
 	phone: user.phone || '',
 	address: user.address || '',
+	signature: user.signature || '',
 	age:
 		typeof user.age === 'number' && Number.isFinite(user.age)
 			? user.age
@@ -579,6 +599,7 @@ const savingField = ref<Record<EditableField, boolean>>({
 	email: false,
 	phone: false,
 	address: false,
+	signature: false,
 	age: false,
 })
 
@@ -599,6 +620,8 @@ const getProfileFieldValue = (
 			return profile.phone
 		case 'address':
 			return profile.address
+		case 'signature':
+			return profile.signature
 		case 'age':
 			return profile.age
 	}
@@ -628,6 +651,9 @@ const setProfileFieldValue = (
 		case 'address':
 			profile.address = String(value ?? '')
 			return
+		case 'signature':
+			profile.signature = String(value ?? '')
+			return
 		case 'age':
 			profile.age =
 				typeof value === 'number' && Number.isFinite(value)
@@ -649,6 +675,10 @@ const normalizeFieldValue = (
 		return value === 'male' || value === 'female' || value === 'unknown'
 			? value
 			: 'unknown'
+	}
+	if (field === 'signature') {
+		const normalized = typeof value === 'string' ? value.trim() : ''
+		return normalized.slice(0, 80)
 	}
 	return typeof value === 'string' ? value.trim() : value
 }
@@ -717,6 +747,8 @@ const saveFieldValue = async (
 			user.patchUserInfo({ phone: String(normalizedValue ?? '') })
 		} else if (field === 'address') {
 			user.patchUserInfo({ address: String(normalizedValue ?? '') })
+		} else if (field === 'signature') {
+			user.patchUserInfo({ signature: String(normalizedValue ?? '') })
 		}
 	} catch (error) {
 		console.error(`更新字段 ${field} 失败`, error)
@@ -743,10 +775,18 @@ const handleAvatarUploadingChange = (uploading: boolean): void => {
 	isAvatarUploading.value = uploading
 }
 
+const signatureDraft = ref('')
+
+const saveDropdownSignature = async (): Promise<void> => {
+	await saveFieldValue('signature', signatureDraft.value)
+	signatureDraft.value = user.signature || ''
+}
+
 // Dropdown 控制函数
 const toggleUserDropdown = (): void => {
 	showUserDropdown.value = !showUserDropdown.value
 	if (showUserDropdown.value) {
+		signatureDraft.value = user.signature || ''
 		showAddDropdown.value = false
 	}
 }
@@ -865,6 +905,41 @@ const userMenuOptions = [
 							{ class: 'text-xs text-gray-500' },
 							user.email,
 						),
+						h('div', { class: 'mt-2' }, [
+							h(
+								'div',
+								{ class: 'text-[11px] text-gray-400 mb-1' },
+								'个性签名',
+							),
+							h(NInput, {
+								value: signatureDraft.value,
+								size: 'small',
+								clearable: true,
+								placeholder: '编辑签名（回车/失焦保存）',
+								maxlength: 80,
+								'onUpdate:value': (value: string) => {
+									signatureDraft.value = value
+								},
+								onBlur: () => {
+									void saveDropdownSignature()
+								},
+								onKeydown: (event: KeyboardEvent) => {
+									if (event.key === 'Enter') {
+										event.preventDefault()
+										void saveDropdownSignature()
+									}
+								},
+							}),
+							savingField.value.signature
+								? h(
+										'div',
+										{
+											class: 'text-[10px] text-gray-400 mt-1',
+										},
+										'签名保存中...',
+									)
+								: null,
+						]),
 					]),
 				]),
 			]),
@@ -906,6 +981,7 @@ const iconMap: Record<string, Component> = {
 	chat: Chatbubbles,
 	user: Person,
 	moments: ApertureOutline,
+	wallet: WalletOutline,
 	setting: Settings,
 	web: GlobeOutline,
 }
@@ -935,6 +1011,13 @@ const routeMenus = computed<MenuItem[]>(() => [
 		label: '动态',
 	},
 	{
+		key: 'wallet',
+		type: 'route',
+		name: 'wallet',
+		icon: 'wallet',
+		label: '钱包',
+	},
+	{
 		key: 'setting',
 		type: 'route',
 		name: 'setting',
@@ -953,6 +1036,24 @@ const slotMenus = computed<MenuItem[]>(() =>
 	})),
 )
 
+const isWebSlotItem = (item: MenuItem): boolean => item.icon === 'web'
+
+const isProfileCardSlotItem = (item: MenuItem): boolean =>
+	item.slotKey === 'my-profile-card'
+
+const getCollapsedSlotLabel = (item: MenuItem): string => {
+	if (isWebSlotItem(item)) return '网页'
+	if (isProfileCardSlotItem(item)) return '名片'
+	return item.label || ''
+}
+
+const shouldShowSlotTooltip = (item: MenuItem): boolean => {
+	if (!item.label) return false
+	if (isWebSlotItem(item)) return item.label !== '网页'
+	if (isProfileCardSlotItem(item)) return item.label !== '我的名片'
+	return false
+}
+
 onMounted(() => {
 	friendStore.startPendingRequestsAutoRefresh()
 
@@ -966,6 +1067,14 @@ onUnmounted(() => {
 	// 移除全局监听器
 	document.removeEventListener('mousedown', handleGlobalClick)
 })
+
+watch(
+	() => user.signature,
+	(value) => {
+		if (!showUserDropdown.value) return
+		signatureDraft.value = value || ''
+	},
+)
 
 function go(item: MenuItem): void {
 	if (item.type === 'route') {
@@ -1006,6 +1115,10 @@ function isMenuActive(item: MenuItem): boolean {
 /* 基础过渡曲线 */
 .main-sidebar {
 	transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.main-sidebar.sidebar-dragging {
+	transition: none;
 }
 
 /* 头像层不闪烁优化 */

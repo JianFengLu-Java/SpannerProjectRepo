@@ -4,9 +4,11 @@ import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
+import Underline from '@tiptap/extension-underline'
 import {
 	TextBold24Regular,
 	TextItalic24Regular,
+	TextUnderline24Regular,
 	TextStrikethrough24Regular,
 	Link24Regular,
 	List24Regular,
@@ -20,6 +22,8 @@ interface PublishPayload {
 	contentText: string
 	images: string[]
 }
+
+const CONTENT_TEXT_LIMIT = 5000
 
 const props = withDefaults(
 	defineProps<{
@@ -46,6 +50,7 @@ const emit = defineEmits<{
 const title = ref(props.initialTitle)
 const isUploadingImages = ref(false)
 const uploadedImages = ref<string[]>([...props.initialImages])
+const contentTextLength = ref(0)
 const imageUploaderRef = ref<{
 	openFileDialog: () => void
 	addFiles: (files: File[]) => Promise<void>
@@ -59,6 +64,7 @@ const editor = useEditor({
 			placeholder:
 				'分享你的动态内容... 支持粘贴图片、拖拽图片或点击下方上传',
 		}),
+		Underline,
 		Link.configure({
 			openOnClick: false,
 			HTMLAttributes: {
@@ -98,6 +104,12 @@ const editor = useEditor({
 			return false
 		},
 	},
+	onCreate: ({ editor }) => {
+		contentTextLength.value = editor.getText().trim().length
+	},
+	onUpdate: ({ editor }) => {
+		contentTextLength.value = editor.getText().trim().length
+	},
 })
 
 watch(
@@ -122,31 +134,47 @@ watch(
 		const nextHtml = value || ''
 		if (editor.value.getHTML() === nextHtml) return
 		editor.value.commands.setContent(nextHtml)
+		contentTextLength.value = editor.value.getText().trim().length
 	},
 )
 
 const hasContent = computed(() => {
-	if (!editor.value) return false
-	const text = editor.value.getText().trim()
 	const hasImage = uploadedImages.value.length > 0
-	return text.length > 0 || hasImage
+	return contentTextLength.value > 0 || hasImage
+})
+
+const isContentTooLong = computed(() => {
+	return contentTextLength.value > CONTENT_TEXT_LIMIT
 })
 
 const canSubmit = computed(() => {
 	return (
 		title.value.trim().length > 0 &&
 		hasContent.value &&
+		!isContentTooLong.value &&
 		!props.submitting &&
 		!isUploadingImages.value
 	)
 })
+
+const normalizeLinkUrl = (value: string): string => {
+	const url = value.trim()
+	if (!url) return ''
+	if (/^(https?:\/\/|mailto:|tel:)/i.test(url)) {
+		return url
+	}
+	if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+		return url
+	}
+	return `https://${url}`
+}
 
 const setLink = (): void => {
 	if (!editor.value) return
 	const previous = editor.value.getAttributes('link').href
 	const value = window.prompt('输入链接地址', previous || 'https://')
 	if (value === null) return
-	const url = value.trim()
+	const url = normalizeLinkUrl(value)
 	if (!url) {
 		editor.value.chain().focus().unsetLink().run()
 		return
@@ -157,6 +185,10 @@ const setLink = (): void => {
 		.extendMarkRange('link')
 		.setLink({ href: url })
 		.run()
+}
+
+const clearMarks = (): void => {
+	editor.value?.chain().focus().unsetAllMarks().run()
 }
 
 const handleSubmit = (): void => {
@@ -179,13 +211,28 @@ onUnmounted(() => {
 <template>
 	<div class="publish-editor-wrap">
 		<div class="publish-editor-title">
-			<n-input
-				v-model:value="title"
-				placeholder="输入标题（必填）"
-				size="large"
-				maxlength="80"
-				show-count
-			/>
+			<div class="publish-editor-title-main">
+				<n-input
+					v-model:value="title"
+					placeholder="输入标题（必填）"
+					size="large"
+					maxlength="80"
+					show-count
+				/>
+			</div>
+			<div class="publish-editor-title-actions">
+				<n-button :disabled="submitting" @click="emit('cancel')">
+					取消
+				</n-button>
+				<n-button
+					type="primary"
+					:loading="submitting"
+					:disabled="!canSubmit"
+					@click="handleSubmit"
+				>
+					{{ submitText }}
+				</n-button>
+			</div>
 		</div>
 
 		<div class="publish-editor-toolbar">
@@ -210,11 +257,59 @@ onUnmounted(() => {
 			<button
 				type="button"
 				class="toolbar-btn"
+				:class="{ 'toolbar-btn-active': editor?.isActive('underline') }"
+				aria-label="下划线"
+				@click="editor?.chain().focus().toggleUnderline().run()"
+			>
+				<n-icon size="18"><TextUnderline24Regular /></n-icon>
+			</button>
+			<button
+				type="button"
+				class="toolbar-btn"
 				:class="{ 'toolbar-btn-active': editor?.isActive('strike') }"
 				aria-label="删除线"
 				@click="editor?.chain().focus().toggleStrike().run()"
 			>
 				<n-icon size="18"><TextStrikethrough24Regular /></n-icon>
+			</button>
+			<div class="toolbar-divider"></div>
+			<button
+				type="button"
+				class="toolbar-btn toolbar-btn-label"
+				:class="{
+					'toolbar-btn-active': editor?.isActive('heading', {
+						level: 2,
+					}),
+				}"
+				aria-label="二级标题"
+				@click="
+					editor
+						?.chain()
+						.focus()
+						.toggleHeading({ level: 2 })
+						.run()
+				"
+			>
+				H2
+			</button>
+			<button
+				type="button"
+				class="toolbar-btn toolbar-btn-label"
+				:class="{
+					'toolbar-btn-active': editor?.isActive('heading', {
+						level: 3,
+					}),
+				}"
+				aria-label="三级标题"
+				@click="
+					editor
+						?.chain()
+						.focus()
+						.toggleHeading({ level: 3 })
+						.run()
+				"
+			>
+				H3
 			</button>
 			<button
 				type="button"
@@ -236,12 +331,65 @@ onUnmounted(() => {
 			</button>
 			<button
 				type="button"
+				class="toolbar-btn toolbar-btn-label"
+				:class="{ 'toolbar-btn-active': editor?.isActive('blockquote') }"
+				aria-label="引用"
+				@click="editor?.chain().focus().toggleBlockquote().run()"
+			>
+				❝
+			</button>
+			<button
+				type="button"
+				class="toolbar-btn toolbar-btn-label"
+				:class="{ 'toolbar-btn-active': editor?.isActive('codeBlock') }"
+				aria-label="代码块"
+				@click="editor?.chain().focus().toggleCodeBlock().run()"
+			>
+				&lt;/&gt;
+			</button>
+			<button
+				type="button"
+				class="toolbar-btn toolbar-btn-label"
+				aria-label="分割线"
+				@click="editor?.chain().focus().setHorizontalRule().run()"
+			>
+				—
+			</button>
+			<div class="toolbar-divider"></div>
+			<button
+				type="button"
 				class="toolbar-btn"
 				:class="{ 'toolbar-btn-active': editor?.isActive('link') }"
 				aria-label="设置链接"
 				@click="setLink"
 			>
 				<n-icon size="18"><Link24Regular /></n-icon>
+			</button>
+			<button
+				type="button"
+				class="toolbar-btn toolbar-btn-label"
+				aria-label="清除格式"
+				@click="clearMarks"
+			>
+				Clear
+			</button>
+			<button
+				type="button"
+				class="toolbar-btn toolbar-btn-label"
+				:disabled="!editor?.can().undo()"
+				aria-label="撤销"
+				@click="editor?.chain().focus().undo().run()"
+			>
+				↶
+			</button>
+			<button
+				type="button"
+				class="toolbar-btn toolbar-btn-label"
+				:disabled="!editor?.can().redo()"
+				aria-label="重做"
+				@click="editor?.chain().focus().redo().run()"
+			>
+				↷
 			</button>
 		</div>
 
@@ -262,20 +410,12 @@ onUnmounted(() => {
 		<div class="publish-editor-footer">
 			<div class="publish-editor-actions-left">
 				<span class="publish-editor-hint">支持粘贴、拖拽、排序</span>
-			</div>
-
-			<div class="publish-editor-actions-right">
-				<n-button :disabled="submitting" @click="emit('cancel')">
-					取消
-				</n-button>
-				<n-button
-					type="primary"
-					:loading="submitting"
-					:disabled="!canSubmit"
-					@click="handleSubmit"
+				<span
+					class="publish-editor-counter"
+					:class="{ 'publish-editor-counter-danger': isContentTooLong }"
 				>
-					{{ submitText }}
-				</n-button>
+					{{ contentTextLength }}/{{ CONTENT_TEXT_LIMIT }}
+				</span>
 			</div>
 		</div>
 	</div>
@@ -292,7 +432,22 @@ onUnmounted(() => {
 }
 
 .publish-editor-title {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
 	margin-bottom: 12px;
+}
+
+.publish-editor-title-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.publish-editor-title-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
 }
 
 .publish-editor-toolbar {
@@ -323,21 +478,43 @@ onUnmounted(() => {
 	border-radius: 8px;
 	color: #4b5563;
 	transition: all 0.2s ease;
+	font-size: 12px;
+	font-weight: 700;
+	padding: 0 6px;
+}
+
+.toolbar-btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.toolbar-btn-label {
+	width: auto;
+	min-width: 32px;
+}
+
+.toolbar-divider {
+	width: 1px;
+	height: 20px;
+	background: rgba(0, 0, 0, 0.08);
 }
 
 .toolbar-btn-active {
-	background: rgba(16, 185, 129, 0.16);
+	background: rgba(54, 149, 255, 0.16);
 	color: #047857;
 }
 
 .toolbar-btn:hover {
-	background: rgba(16, 185, 129, 0.12);
-	color: #059669;
+	background: rgba(54, 149, 255, 0.12);
+	color: #2f7fe7;
 }
 
 .publish-editor-content-wrap {
 	flex: 1;
-	min-height: clamp(120px, 24vh, 220px);
+	display: flex;
+	flex-direction: column;
+	min-height: 120px;
+	max-height: min(42vh, 360px);
 	border: 1px solid rgba(0, 0, 0, 0.06);
 	border-radius: 0 0 12px 12px;
 	padding: 12px;
@@ -345,8 +522,11 @@ onUnmounted(() => {
 }
 
 .publish-editor-content {
+	flex: 1;
 	height: 100%;
-	overflow-y: auto;
+	min-height: 0;
+	overflow: hidden;
+	overflow-x: hidden;
 }
 
 .publish-editor-footer {
@@ -371,11 +551,25 @@ onUnmounted(() => {
 	white-space: nowrap;
 }
 
+.publish-editor-counter {
+	font-size: 12px;
+	color: #6b7280;
+}
+
+.publish-editor-counter-danger {
+	color: #ef4444;
+}
+
 :deep(.post-editor-content) {
 	outline: none;
-	min-height: clamp(90px, 18vh, 180px);
+	height: 100%;
+	max-height: 100%;
+	min-height: 100%;
 	line-height: 1.7;
 	word-break: break-word;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-right: 2px;
 }
 
 :deep(.post-editor-content p) {
@@ -384,6 +578,46 @@ onUnmounted(() => {
 
 :deep(.post-editor-content p + p) {
 	margin-top: 0.45rem;
+}
+
+:deep(.post-editor-content h2) {
+	font-size: 1.25rem;
+	font-weight: 700;
+	line-height: 1.4;
+	margin: 0.8rem 0 0.4rem;
+}
+
+:deep(.post-editor-content h3) {
+	font-size: 1.05rem;
+	font-weight: 700;
+	line-height: 1.5;
+	margin: 0.7rem 0 0.35rem;
+}
+
+:deep(.post-editor-content blockquote) {
+	margin: 0.75rem 0;
+	padding: 0.4rem 0.8rem;
+	border-left: 3px solid rgba(54, 149, 255, 0.6);
+	color: #4b5563;
+	background: rgba(54, 149, 255, 0.08);
+	border-radius: 8px;
+}
+
+:deep(.post-editor-content pre) {
+	margin: 0.75rem 0;
+	padding: 0.65rem 0.8rem;
+	background: #0f172a;
+	color: #e2e8f0;
+	border-radius: 8px;
+	font-size: 12px;
+	line-height: 1.6;
+	overflow-x: auto;
+}
+
+:deep(.post-editor-content hr) {
+	border: 0;
+	border-top: 1px solid rgba(0, 0, 0, 0.12);
+	margin: 0.8rem 0;
 }
 
 :deep(.post-editor-content .is-editor-empty:first-child::before) {
@@ -405,11 +639,18 @@ onUnmounted(() => {
 @media (max-width: 768px) {
 	.publish-editor-title {
 		margin-bottom: 10px;
+		flex-wrap: wrap;
+	}
+
+	.publish-editor-title-actions {
+		width: 100%;
+		justify-content: flex-end;
 	}
 
 	.publish-editor-content-wrap {
 		padding: 10px;
-		min-height: clamp(96px, 20vh, 160px);
+		min-height: 100px;
+		max-height: min(36vh, 280px);
 	}
 
 	.publish-editor-actions-left {
@@ -429,11 +670,12 @@ onUnmounted(() => {
 
 	.publish-editor-content-wrap {
 		min-height: 88px;
+		max-height: min(32vh, 220px);
 		padding: 8px;
 	}
 
 	:deep(.post-editor-content) {
-		min-height: 72px;
+		min-height: 100%;
 	}
 
 	.publish-editor-footer {
@@ -453,6 +695,10 @@ onUnmounted(() => {
 		height: 30px;
 	}
 
+	.toolbar-btn-label {
+		min-width: 30px;
+	}
+
 	.publish-editor-footer {
 		flex-direction: column;
 		align-items: stretch;
@@ -461,11 +707,6 @@ onUnmounted(() => {
 	.publish-editor-actions-left {
 		justify-content: space-between;
 		width: 100%;
-	}
-
-	.publish-editor-actions-right {
-		width: 100%;
-		justify-content: flex-end;
 	}
 }
 </style>

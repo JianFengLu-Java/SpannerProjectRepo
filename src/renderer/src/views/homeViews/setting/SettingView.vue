@@ -463,7 +463,7 @@ const onMenuKeydown = (event: KeyboardEvent, index: number): void => {
 }
 
 const railStyle = ({ checked }: { checked: boolean }): CSSProperties => {
-	return checked ? { background: '#10b981' } : {}
+	return checked ? { background: '#3695ff' } : {}
 }
 
 // API 调用
@@ -576,15 +576,25 @@ onMounted(async () => {
 	background:
 		radial-gradient(
 			circle at 100% 0%,
-			rgba(16, 185, 129, 0.14),
-			transparent 40%
+			rgba(98, 164, 255, 0.11),
+			transparent 46%
 		),
 		linear-gradient(
-			160deg,
-			var(--color-grad-start),
-			var(--color-page-bg) 42%,
-			var(--color-grad-end)
+			158deg,
+			#f8fbff 0%,
+			#f1f6ff 45%,
+			#e8f1ff 100%
 		);
+}
+
+.dark .setting-page {
+	background:
+		radial-gradient(
+			circle at 100% 0%,
+			rgba(74, 134, 255, 0.16),
+			transparent 48%
+		),
+		linear-gradient(160deg, #111827 0%, #111b2e 48%, #15223a 100%);
 }
 
 .setting-header,
@@ -635,13 +645,13 @@ onMounted(async () => {
 	font-size: 0.75rem;
 	font-weight: 500;
 	color: rgb(15, 118, 110);
-	background: rgba(16, 185, 129, 0.15);
-	border: 1px solid rgba(16, 185, 129, 0.2);
+	background: rgba(54, 149, 255, 0.15);
+	border: 1px solid rgba(54, 149, 255, 0.2);
 }
 
 .dark .stat-chip {
 	color: rgb(167, 243, 208);
-	background: rgba(16, 185, 129, 0.16);
+	background: rgba(54, 149, 255, 0.16);
 	border-color: rgba(52, 211, 153, 0.2);
 }
 
@@ -651,20 +661,19 @@ onMounted(async () => {
 }
 
 .menu-item-active {
-	color: #059669;
-	background: rgba(16, 185, 129, 0.14);
-	box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.2);
+	color: #2f7fe7;
+	background: rgba(54, 149, 255, 0.14);
+	border: 1px solid rgba(54, 149, 255, 0.2);
 }
 
 .dark .menu-item-active {
 	color: #6ee7b7;
-	background: rgba(16, 185, 129, 0.18);
+	background: rgba(54, 149, 255, 0.18);
 }
 
 .menu-item:focus-visible {
-	box-shadow:
-		0 0 0 2px rgba(16, 185, 129, 0.35),
-		inset 0 0 0 1px rgba(16, 185, 129, 0.35);
+	outline: 2px solid rgba(54, 149, 255, 0.35);
+	outline-offset: 0;
 }
 
 .section-shell {
@@ -695,9 +704,8 @@ onMounted(async () => {
 }
 
 .setting-item-card:hover {
-	border-color: rgba(16, 185, 129, 0.32);
+	border-color: rgba(54, 149, 255, 0.32);
 	background-color: #ffffff;
-	box-shadow: 0 10px 26px rgba(2, 132, 199, 0.08);
 }
 
 .dark .setting-item-card {
@@ -708,7 +716,6 @@ onMounted(async () => {
 .dark .setting-item-card:hover {
 	border-color: rgba(52, 211, 153, 0.34);
 	background-color: rgba(255, 255, 255, 0.06);
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .setting-info {
@@ -740,8 +747,8 @@ onMounted(async () => {
 	border-radius: 999px;
 	font-size: 0.75rem;
 	color: #0f766e;
-	background-color: rgba(16, 185, 129, 0.12);
-	border: 1px solid rgba(16, 185, 129, 0.22);
+	background-color: rgba(54, 149, 255, 0.12);
+	border: 1px solid rgba(54, 149, 255, 0.22);
 }
 
 .dark .setting-state {
@@ -754,10 +761,10 @@ onMounted(async () => {
 	background:
 		radial-gradient(
 			1200px circle at 10% 0%,
-			rgba(16, 185, 129, 0.16),
+			rgba(112, 176, 255, 0.14),
 			transparent 55%
 		),
-		rgba(255, 255, 255, 0.42);
+		rgba(255, 255, 255, 0.5);
 	border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
@@ -765,16 +772,15 @@ onMounted(async () => {
 	background:
 		radial-gradient(
 			1200px circle at 10% 0%,
-			rgba(16, 185, 129, 0.2),
+			rgba(82, 146, 255, 0.18),
 			transparent 55%
 		),
-		rgba(255, 255, 255, 0.04);
+		rgba(255, 255, 255, 0.05);
 	border-color: rgba(255, 255, 255, 0.08);
 }
 
 .app-logo-box {
-	background: linear-gradient(135deg, #10b981, #14b8a6);
-	box-shadow: 0 14px 30px rgba(15, 118, 110, 0.28);
+	background: linear-gradient(135deg, #5fa9ff, #7abaff);
 }
 
 .animate-fade-in {

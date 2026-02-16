@@ -2,8 +2,13 @@ import { GlobalThemeOverrides } from 'naive-ui'
 
 export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 	// --- 动态色彩变量 ---
-	const primaryColor = '#10b981' // LinkR 品牌绿
-	const primaryHover = '#34d399'
+	const primaryColor = '#3695ff' // LinkR 品牌绿
+	const primaryHover = '#56a7ff'
+	const inputAccent = '#3695ff'
+	const inputAccentHover = '#56a7ff'
+	const inputAccentFocusRing = isDark
+		? 'rgba(54, 149, 255, 0.26)'
+		: 'rgba(54, 149, 255, 0.16)'
 
 	// 背景色系
 	const inputBg = isDark ? '#2c2c2e' : '#f8fafc'
@@ -19,7 +24,7 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 		common: {
 			primaryColor,
 			primaryColorHover: primaryHover,
-			primaryColorPressed: '#059669',
+			primaryColorPressed: '#2f7fe7',
 			borderRadius: '16px',
 		},
 		Form: {
@@ -48,31 +53,31 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 			borderRadius: '100%',
 		},
 		Input: {
-			borderRadius: '14px',
-			heightMedium: '42px',
+			borderRadius: '8px',
+			heightMedium: '38px',
 			fontSizeMedium: '14px',
 			color: inputBg,
 			colorFocus: isDark ? '#1a1a1a' : '#ffffff',
 			border: `1px solid ${borderColor}`,
-			borderHover: `1px solid ${primaryHover}`,
-			borderFocus: `1px solid ${primaryColor}`,
-			boxShadowFocus: `0 0 0 4px ${isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)'}`,
+			borderHover: `1px solid ${inputAccentHover}`,
+			borderFocus: `1px solid ${inputAccent}`,
+			boxShadowFocus: `0 0 0 4px ${inputAccentFocusRing}`,
 			textColor: textColor,
 			placeholderColor: placeholderColor,
 			iconColor: placeholderColor,
-			iconColorHover: primaryHover,
+			iconColorHover: inputAccent,
 			paddingMedium: '0 16px',
 		},
 		Select: {
 			peers: {
 				InternalSelection: {
 					borderRadius: '14px',
-					heightMedium: '42px',
+					heightMedium: '36px',
 					color: inputBg,
 					border: `1px solid ${borderColor}`,
 					borderHover: `1px solid ${primaryHover}`,
 					borderFocus: `1px solid ${primaryColor}`,
-					boxShadowFocus: `0 0 0 4px ${isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)'}`,
+					boxShadowFocus: `0 0 0 4px ${isDark ? 'rgba(54, 149, 255, 0.2)' : 'rgba(54, 149, 255, 0.16)'}`,
 					textColor: textColor,
 					placeholderColor: placeholderColor,
 				},
@@ -80,8 +85,8 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 					borderRadius: '10px',
 					color: modalBg,
 					optionColorActive: isDark
-						? 'rgba(16, 185, 129, 0.2)'
-						: 'rgba(16, 185, 129, 0.1)',
+						? 'rgba(54, 149, 255, 0.2)'
+						: 'rgba(54, 149, 255, 0.16)',
 					optionTextColorActive: primaryColor,
 					optionTextColor: textColor,
 					actionDividerColor: isDark ? '#333' : '#f1f5f9',
@@ -92,18 +97,18 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 			peers: {
 				InternalSelection: {
 					borderRadius: '14px',
-					heightMedium: '42px',
+					heightMedium: '36px',
 					color: inputBg,
 					border: `1px solid ${borderColor}`,
 					textColor: textColor,
-					boxShadowFocus: `0 0 0 4px ${isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)'}`,
+					boxShadowFocus: `0 0 0 4px ${isDark ? 'rgba(54, 149, 255, 0.2)' : 'rgba(54, 149, 255, 0.16)'}`,
 				},
 				InternalSelectMenu: {
 					borderRadius: '10px',
 					color: modalBg,
 					optionColorActive: isDark
-						? 'rgba(16, 185, 129, 0.2)'
-						: 'rgba(16, 185, 129, 0.1)',
+						? 'rgba(54, 149, 255, 0.2)'
+						: 'rgba(54, 149, 255, 0.16)',
 					optionTextColorActive: primaryColor,
 				},
 			},
@@ -126,13 +131,13 @@ export const getThemeOverrides = (isDark: boolean): GlobalThemeOverrides => {
 			color: '#FF0004FF',
 		},
 		Tabs: {
-			tabBorderRadius: '12px',
+			tabBorderRadius: '8px',
 			tabTextColorActiveLine: primaryColor,
 			tabTextColorHoverLine: primaryHover,
 			barColor: primaryColor,
 		},
 		Modal: {
-			borderRadius: '24px',
+			borderRadius: '6px',
 			color: modalBg,
 			textColor: textColor,
 		},

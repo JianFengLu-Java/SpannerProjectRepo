@@ -33,6 +33,9 @@ const prevFirstMessageKey = ref('')
 const prevLastMessageKey = ref('')
 const lastScrollTop = ref(0)
 let topLoadDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let scrollIndicatorTimer: ReturnType<typeof setTimeout> | null = null
+const isScrolling = ref(false)
+const SCROLL_INDICATOR_HIDE_DELAY_MS = 700
 
 // --- 统一的右键状态 ---
 const showDropdown = ref(false)
@@ -315,6 +318,14 @@ const onViewportScroll = (): void => {
 	if (isSwitching.value) return
 	const viewport = getViewport()
 	if (!viewport) return
+	isScrolling.value = true
+	if (scrollIndicatorTimer) {
+		clearTimeout(scrollIndicatorTimer)
+	}
+	scrollIndicatorTimer = setTimeout(() => {
+		isScrolling.value = false
+		scrollIndicatorTimer = null
+	}, SCROLL_INDICATOR_HIDE_DELAY_MS)
 	const currentTop = viewport.scrollTop
 	const isScrollingUp = currentTop <= lastScrollTop.value
 
@@ -406,6 +417,10 @@ onBeforeUnmount(() => {
 		clearTimeout(topLoadDebounceTimer)
 		topLoadDebounceTimer = null
 	}
+	if (scrollIndicatorTimer) {
+		clearTimeout(scrollIndicatorTimer)
+		scrollIndicatorTimer = null
+	}
 })
 </script>
 
@@ -415,7 +430,8 @@ onBeforeUnmount(() => {
 
 		<div
 			ref="viewportRef"
-			class="h-full overflow-y-auto"
+			class="h-full overflow-y-auto message-viewport"
+			:class="{ 'is-scrolling': isScrolling }"
 			@scroll.passive="onViewportScroll"
 		>
 			<div
@@ -466,5 +482,33 @@ onBeforeUnmount(() => {
 .message-row {
 	content-visibility: auto;
 	contain-intrinsic-size: 80px;
+}
+
+.message-viewport {
+	scrollbar-width: thin;
+	scrollbar-color: transparent transparent;
+}
+
+.message-viewport::-webkit-scrollbar {
+	width: 6px;
+}
+
+.message-viewport::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.message-viewport::-webkit-scrollbar-thumb {
+	background-color: transparent;
+	border-radius: 999px;
+}
+
+.message-viewport:hover,
+.message-viewport.is-scrolling {
+	scrollbar-color: rgba(148, 163, 184, 0.65) transparent;
+}
+
+.message-viewport:hover::-webkit-scrollbar-thumb,
+.message-viewport.is-scrolling::-webkit-scrollbar-thumb {
+	background-color: rgba(148, 163, 184, 0.65);
 }
 </style>
