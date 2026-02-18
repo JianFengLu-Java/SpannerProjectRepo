@@ -87,6 +87,13 @@ function createTables(): Promise<void> {
 							CREATE TABLE IF NOT EXISTS user_chats (
 								userAccount TEXT NOT NULL,
 								id INTEGER NOT NULL,
+								chatType TEXT DEFAULT 'PRIVATE',
+								peerAccount TEXT,
+								groupNo TEXT,
+								myRole TEXT,
+								maxMembers INTEGER,
+								memberCount INTEGER,
+								announcement TEXT,
 								name TEXT,
 								avatar TEXT,
 								lastMessage TEXT,
@@ -186,6 +193,13 @@ async function ensureUserScopedTableColumns(): Promise<void> {
 
 	// 兼容旧库：旧表可能缺少这些列，缺失时补列，避免消息只在内存存在。
 	await addColumnIfMissing('user_chats', 'userAccount', 'TEXT')
+	await addColumnIfMissing('user_chats', 'chatType', "TEXT DEFAULT 'PRIVATE'")
+	await addColumnIfMissing('user_chats', 'peerAccount', 'TEXT')
+	await addColumnIfMissing('user_chats', 'groupNo', 'TEXT')
+	await addColumnIfMissing('user_chats', 'myRole', 'TEXT')
+	await addColumnIfMissing('user_chats', 'maxMembers', 'INTEGER')
+	await addColumnIfMissing('user_chats', 'memberCount', 'INTEGER')
+	await addColumnIfMissing('user_chats', 'announcement', 'TEXT')
 	await addColumnIfMissing('user_chats', 'unreadCount', 'INTEGER DEFAULT 0')
 	await addColumnIfMissing('user_chats', 'isPinned', 'INTEGER DEFAULT 0')
 	await addColumnIfMissing('user_chats', 'lastMessageAt', 'TEXT')

@@ -16,28 +16,30 @@
 						class="text-[16px] no-drag font-medium w-fit text-text-main"
 						>{{ currentChat?.name }}</span
 					>
-					<span class="text-[11px] text-gray-400">{{
-						currentChatEmail
-					}}</span>
+					<span class="text-[11px] text-gray-400">{{ currentChatSubtitle }}</span>
 				</div>
 			</div>
-			<div class="w-40 h-13 grid grid-cols-5 gap-1 no-drag">
-				<div
-					v-for="item in menus"
-					:key="item.key"
-					class="no-drag grid-cols-1 flex items-center justify-center rounded-md h-8 hover:bg-gray-100 dark:hover:bg-zinc-700/40 cursor-pointer"
-					@click="handleMenuAction(item.key)"
-				>
-					<n-icon size="15" class="text-gray-600 dark:text-gray-300">
-						<component :is="iconMap[item.icon]" />
-					</n-icon>
-				</div>
-			</div>
-		</div>
-
-		<div class="border-b border-border-main px-4">
-			<div v-for="lab in labs" :key="lab.key" class="">
-				<n-icon><component :is="iconMap[lab.icon]" /></n-icon>
+			<div class="h-13 flex items-center gap-1 no-drag">
+				<n-tooltip v-for="item in menus" :key="item.key" trigger="hover">
+					<template #trigger>
+						<button
+							type="button"
+							class="no-drag w-8 h-8 flex items-center justify-center rounded-md transition-colors"
+							:class="
+								item.disabled
+									? 'opacity-45 cursor-not-allowed'
+									: 'hover:bg-gray-100 dark:hover:bg-zinc-700/40 cursor-pointer'
+							"
+							:disabled="item.disabled"
+							@click="handleMenuAction(item.key)"
+						>
+							<n-icon size="15" class="text-gray-600 dark:text-gray-300">
+								<component :is="iconMap[item.icon]" />
+							</n-icon>
+						</button>
+					</template>
+					{{ item.label }}
+				</n-tooltip>
 			</div>
 		</div>
 
@@ -173,24 +175,18 @@
 <script setup lang="ts">
 import ChatEdit from './ChatEdit.vue'
 import { useChatStore, type Message } from '@renderer/stores/chat'
-import {
-	Calendar,
-	Call,
-	EllipsisHorizontal,
-	FileTray,
-	PersonAddSharp,
-	Search,
-} from '@vicons/ionicons5'
+import { Call, EllipsisHorizontal, PersonAddSharp, Search } from '@vicons/ionicons5'
 import { Chat24Regular, ArrowLeft24Regular } from '@vicons/fluent'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Component } from 'vue'
 import ChatContainer from './ChatContainer.vue'
-import { NIcon } from 'naive-ui'
+import { NIcon, useMessage } from 'naive-ui'
 import { useFriendStore } from '@renderer/stores/friend'
 
 const chatStore = useChatStore()
 const friendStore = useFriendStore()
+const message = useMessage()
 const emit = defineEmits<{
 	(e: 'toggle-friend-setting'): void
 }>()
@@ -206,8 +202,11 @@ const currentChatMessages = computed(() => {
 	return activeChatMessages.value
 })
 
-const currentChatEmail = computed(() => {
-	if (!currentChat.value) return '未填写邮箱'
+const currentChatSubtitle = computed(() => {
+	if (!currentChat.value) return ''
+	if (currentChat.value.chatType === 'GROUP') {
+		return `群号：${currentChat.value.groupNo || '-'}`
+	}
 	const friend = friends.value.find(
 		(item) => Number(item.id) === currentChat.value?.id,
 	)
@@ -239,6 +238,7 @@ interface menusItem {
 	key: string
 	label: string
 	icon: string
+	disabled?: boolean
 }
 
 // 图标映射
@@ -246,47 +246,48 @@ const iconMap: Record<string, Component> = {
 	search: Search,
 	call: Call,
 	userAdd: PersonAddSharp,
-	calendar: Calendar,
 	more: EllipsisHorizontal,
-	file: FileTray,
 }
 
-const labs = ref<menusItem[]>([
-	{
-		key: 'fileList',
-		label: '文件',
-		icon: 'file',
-	},
-])
-
-// 菜单配置
-const menus = ref<menusItem[]>([
-	{
-		key: 'search',
-		label: '搜索更多会话',
-		icon: 'search',
-	},
-	{
-		key: 'call',
-		label: '通话',
-		icon: 'call',
-	},
-	{
-		key: 'userAdd',
-		label: 'userAdd',
-		icon: 'userAdd',
-	},
-	{
-		key: 'calendar',
-		label: 'calendar',
-		icon: 'calendar',
-	},
-	{
-		key: 'more',
-		label: 'more',
-		icon: 'more',
-	},
-])
+const menus = computed<menusItem[]>(() => {
+	if (currentChat.value?.chatType === 'GROUP') {
+		return [
+			{
+				key: 'search',
+				label: '搜索聊天记录',
+				icon: 'search',
+			},
+			{
+				key: 'userAdd',
+				label: '邀请好友入群',
+				icon: 'userAdd',
+			},
+			{
+				key: 'more',
+				label: '群聊设置',
+				icon: 'more',
+			},
+		]
+	}
+	return [
+		{
+			key: 'search',
+			label: '搜索聊天记录',
+			icon: 'search',
+		},
+		{
+			key: 'call',
+			label: '语音通话（开发中）',
+			icon: 'call',
+			disabled: true,
+		},
+		{
+			key: 'more',
+			label: '聊天设置',
+			icon: 'more',
+		},
+	]
+})
 
 const getMessagePlainText = (item: Message): string => {
 	const plain = (item.text || '').replace(/<[^>]*>/g, '').trim()
@@ -320,6 +321,14 @@ const handleMenuAction = (key: string): void => {
 	if (!activeChatId.value) return
 	if (key === 'search') {
 		showHistorySearchModal.value = true
+		return
+	}
+	if (key === 'call') {
+		message.info('语音通话功能开发中')
+		return
+	}
+	if (key === 'userAdd') {
+		emit('toggle-friend-setting')
 		return
 	}
 	if (key === 'more') {

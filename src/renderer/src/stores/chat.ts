@@ -19,9 +19,30 @@ import {
 	type PrivateChatErrorFrame,
 	type PrivateChatMessageFrame,
 } from '@renderer/services/privateChatWs'
+import {
+	groupChatApi,
+	type GroupDetail,
+	type GroupHistoryMessageDto,
+	type GroupHistoryPageData,
+	type GroupMember,
+	type GroupRole,
+} from '@renderer/services/groupChatApi'
+import {
+	groupChatWs,
+	type GroupChatAckFrame,
+	type GroupChatErrorFrame,
+	type GroupChatMessageFrame,
+} from '@renderer/services/groupChatWs'
 
 interface DbChatItem {
 	id: number
+	chatType?: 'PRIVATE' | 'GROUP'
+	peerAccount?: string
+	groupNo?: string
+	myRole?: GroupRole
+	maxMembers?: number
+	memberCount?: number
+	announcement?: string
 	name: string
 	avatar: string
 	lastMessage: string
@@ -83,6 +104,7 @@ interface ChatHistoryPageData {
 }
 
 interface PullChatHistoryOptions {
+	groupNo?: string
 	page?: number
 	size?: number
 	appendToStore?: boolean
@@ -93,6 +115,7 @@ interface PullChatHistoryOptions {
 }
 
 interface QueryChatHistoryOptions {
+	groupNo?: string
 	pageSize?: number
 	maxPages?: number
 	startDate?: string
@@ -164,9 +187,12 @@ export const useChatStore = defineStore('chat', () => {
 	const messageJumpTarget = ref<MessageJumpTarget | null>(null)
 	const isDbInitialized = ref(false)
 	const initializedAccount = ref('')
-	const isWsBound = ref(false)
-	const wsBoundAccount = ref('')
-	const wsBoundToken = ref('')
+	const isPrivateWsBound = ref(false)
+	const privateWsBoundAccount = ref('')
+	const privateWsBoundToken = ref('')
+	const isGroupWsBound = ref(false)
+	const groupWsBoundAccount = ref('')
+	const groupWsBoundToken = ref('')
 	const offlinePulledAccount = ref('')
 	const friendsLoadedAccount = ref('')
 	const pendingMessageMap = ref(
@@ -222,6 +248,27 @@ export const useChatStore = defineStore('chat', () => {
 	const createLocalMessageId = (): number => {
 		localMessageIdCursor += 1
 		return localMessageIdCursor
+	}
+
+	const getChatType = (chat?: ChatItem | null): 'PRIVATE' | 'GROUP' => {
+		return chat?.chatType === 'GROUP' ? 'GROUP' : 'PRIVATE'
+	}
+
+	const deriveGroupChatId = (groupNo: string): number | null => {
+		const normalized = groupNo.trim()
+		if (!normalized) return null
+		const numeric = Number(normalized)
+		if (!Number.isFinite(numeric) || numeric <= 0) return null
+		return -Math.floor(numeric)
+	}
+
+	const findGroupChatByNo = (groupNo: string): ChatItem | undefined => {
+		const normalized = groupNo.trim()
+		if (!normalized) return undefined
+		return chatlist.value.find(
+			(item) =>
+				item.chatType === 'GROUP' && item.groupNo?.trim() === normalized,
+		)
 	}
 
 	const requestMessageJump = (payload: {
@@ -370,6 +417,30 @@ export const useChatStore = defineStore('chat', () => {
 		return plainText || '[图片]'
 	}
 
+	const getMessagePreview = (message: {
+		text: string
+		type: Message['type']
+		senderId: Message['senderId']
+	}): string => {
+		if (message.type === 'transfer') {
+			if (/\bchat-transfer-receipt-card\b/i.test(message.text || '')) {
+				return '[已收款]'
+			}
+			if (/\bchat-transfer-refund-card\b/i.test(message.text || '')) {
+				return '[已退还]'
+			}
+			const amountMatched = (message.text || '').match(
+				/金额\s*[：:]\s*([^<\n]+)/i,
+			)
+			const amountText = amountMatched?.[1]?.trim() || ''
+			if (message.senderId === 'other') {
+				return amountText ? `[转账] ${amountText}` : '[转账]'
+			}
+			return amountText ? `转账给对方 ${amountText}` : '转账给对方'
+		}
+		return getTextPreview(message.text || '')
+	}
+
 	const inferMessageType = (
 		content: string,
 		type?: string,
@@ -378,9 +449,17 @@ export const useChatStore = defineStore('chat', () => {
 		if (
 			normalizedType === 'image' ||
 			normalizedType === 'file' ||
-			normalizedType === 'text'
+			normalizedType === 'text' ||
+			normalizedType === 'transfer'
 		) {
 			return normalizedType
+		}
+		if (
+			/\bchat-transfer-card\b/i.test(content) ||
+			/\bchat-transfer-receipt-card\b/i.test(content) ||
+			/\bchat-transfer-refund-card\b/i.test(content)
+		) {
+			return 'transfer'
 		}
 		if (/<img\b[^>]*>/i.test(content)) {
 			return 'image'
@@ -486,7 +565,11 @@ export const useChatStore = defineStore('chat', () => {
 	}
 
 	const createLocalMessageFromServer = (
-		payload: HistoryMessageDto | PrivateChatMessageFrame,
+		payload:
+			| HistoryMessageDto
+			| PrivateChatMessageFrame
+			| GroupChatMessageFrame
+			| GroupHistoryMessageDto,
 		chatId: number,
 		currentAccount: string,
 	): Message => {
@@ -506,12 +589,22 @@ export const useChatStore = defineStore('chat', () => {
 			id: createLocalMessageId(),
 			chatId,
 			senderId: payload.from === currentAccount ? 'me' : 'other',
+			senderAccount: normalizeId(payload.from),
 			text: payload.content || '',
 			timestamp: timeIdentity ? formatTimeFromIso(timeIdentity) : '',
 			type: inferMessageType(
 				payload.content || '',
 				'type' in payload ? payload.type : undefined,
 			),
+			senderName:
+				normalizeId(source.fromName) ||
+				normalizeId(source.senderName) ||
+				normalizeId(source.name),
+			senderAvatar:
+				normalizeId(source.fromAvatarUrl) ||
+				normalizeId(source.senderAvatar) ||
+				normalizeId(source.avatarUrl) ||
+				normalizeId(source.avatar),
 			clientMessageId: normalizeId(payload.clientMessageId),
 			serverMessageId: normalizeId(payload.messageId),
 			deliveryStatus: 'sent',
@@ -523,7 +616,7 @@ export const useChatStore = defineStore('chat', () => {
 		const sentAt = item.sentAt?.trim() || ''
 		const timestamp = item.timestamp?.trim() || ''
 		const timeKey = sentAt || timestamp || 'no-time'
-		return `${item.senderId}|${item.type}|${timeKey}|${item.text || ''}`
+		return `${item.senderId}|${item.senderAccount || ''}|${item.type}|${timeKey}|${item.text || ''}`
 	}
 
 	const compactDuplicateMessages = (rows: Message[]): Message[] => {
@@ -632,6 +725,11 @@ export const useChatStore = defineStore('chat', () => {
 				duplicated.deliveryStatus = item.deliveryStatus || 'sent'
 				duplicated.hasResult = !!item.hasResult
 				duplicated.result = item.result
+				duplicated.senderAccount =
+					duplicated.senderAccount || item.senderAccount
+				duplicated.senderName = duplicated.senderName || item.senderName
+				duplicated.senderAvatar =
+					duplicated.senderAvatar || item.senderAvatar
 				db.saveMessage(duplicated)
 				continue
 			}
@@ -712,6 +810,15 @@ export const useChatStore = defineStore('chat', () => {
 			)
 			return (rawChats as DbChatItem[]).map((c) => ({
 				...c,
+				chatType: c.chatType === 'GROUP' ? 'GROUP' : 'PRIVATE',
+				peerAccount: c.peerAccount || undefined,
+				groupNo: c.groupNo || undefined,
+				myRole: c.myRole || undefined,
+				maxMembers:
+					typeof c.maxMembers === 'number' ? c.maxMembers : undefined,
+				memberCount:
+					typeof c.memberCount === 'number' ? c.memberCount : undefined,
+				announcement: c.announcement || undefined,
 				timestamp: c.lastMessageAt
 					? formatTimeFromIso(c.lastMessageAt)
 					: c.timestamp,
@@ -832,7 +939,11 @@ export const useChatStore = defineStore('chat', () => {
 			const latestSegment = await db.getMessagesSegment(chat.id, 1, 0)
 			if (!latestSegment.length) return false
 			const latest = latestSegment[latestSegment.length - 1]
-			const preview = getTextPreview(latest.text || '')
+			const preview = getMessagePreview({
+				text: latest.text || '',
+				type: latest.type,
+				senderId: latest.senderId,
+			})
 			const latestSentAt = latest.sentAt?.trim() || ''
 			const latestTimeLabel =
 				latest.timestamp ||
@@ -869,7 +980,11 @@ export const useChatStore = defineStore('chat', () => {
 				const latest = latestSegment[latestSegment.length - 1]
 				const sentAt = latest.sentAt?.trim() || undefined
 				return {
-					preview: getTextPreview(latest.text || ''),
+					preview: getMessagePreview({
+						text: latest.text || '',
+						type: latest.type,
+						senderId: latest.senderId,
+					}),
 					timeLabel:
 						latest.timestamp ||
 						(sentAt ? formatTimeFromIso(sentAt) : ''),
@@ -907,7 +1022,11 @@ export const useChatStore = defineStore('chat', () => {
 			const latest = mapped[mapped.length - 1]
 			const sentAt = latest.sentAt?.trim() || undefined
 			return {
-				preview: getTextPreview(latest.text || ''),
+				preview: getMessagePreview({
+					text: latest.text || '',
+					type: latest.type,
+					senderId: latest.senderId,
+				}),
 				timeLabel: latest.timestamp || (sentAt ? formatTimeFromIso(sentAt) : ''),
 				sentAt,
 			}
@@ -954,6 +1073,7 @@ export const useChatStore = defineStore('chat', () => {
 		initializedAccount.value = account
 		isDbInitialized.value = true
 		bindPrivateChatWs()
+		bindGroupChatWs()
 		await pullOfflineMessages()
 	}
 
@@ -1020,7 +1140,8 @@ export const useChatStore = defineStore('chat', () => {
 		)
 
 		for (const chat of chatlist.value) {
-			const friend = friendMap.get(String(chat.id))
+			if (chat.chatType === 'GROUP') continue
+			const friend = friendMap.get(chat.peerAccount || String(chat.id))
 			if (!friend) continue
 
 			const friendAvatar = resolveAvatarUrl(friend.avatar)
@@ -1064,6 +1185,8 @@ export const useChatStore = defineStore('chat', () => {
 		const friend = friendStore.friends.find((item) => item.id === account)
 		const newChat: ChatItem = {
 			id: chatId,
+			chatType: 'PRIVATE',
+			peerAccount: account,
 			name: friend?.name || account,
 			avatar: resolveAvatarUrl(friend?.avatar),
 			lastMessage: '',
@@ -1109,7 +1232,7 @@ export const useChatStore = defineStore('chat', () => {
 				(!!incomingServerMessageId &&
 					item.serverMessageId === incomingServerMessageId),
 		)
-		if (!!duplicatedByIdentity) {
+		if (duplicatedByIdentity) {
 			// 发送方回显或重复消息，合并服务器返回字段并标记 sent，避免消息被“覆盖感知”
 			if (duplicatedByIdentity) {
 				duplicatedByIdentity.serverMessageId =
@@ -1140,7 +1263,7 @@ export const useChatStore = defineStore('chat', () => {
 		messages.value[chatId].push(newMessage)
 		db.saveMessage(newMessage)
 
-		const preview = getTextPreview(newMessage.text)
+		const preview = getMessagePreview(newMessage)
 		updateLastMessageLocal(
 			chatId,
 			preview,
@@ -1157,6 +1280,154 @@ export const useChatStore = defineStore('chat', () => {
 			db.saveChat(chat)
 			triggerSystemMessageReminder({
 				chatName: chat.name || '联系人',
+				messageText: preview,
+			})
+		}
+	}
+
+	const upsertGroupSession = async (detail: GroupDetail): Promise<number | null> => {
+		const groupNo = detail.groupNo?.trim() || ''
+		if (!groupNo) return null
+		const existing = findGroupChatByNo(groupNo)
+		const derivedId = deriveGroupChatId(groupNo)
+		const chatId = existing?.id ?? derivedId
+		if (!chatId) return null
+
+		const nextChat: ChatItem = {
+			id: chatId,
+			chatType: 'GROUP',
+			groupNo,
+			myRole: detail.myRole,
+			maxMembers: detail.maxMembers,
+			memberCount: detail.memberCount,
+			announcement: detail.announcement,
+			name: detail.groupName || existing?.name || `群聊 ${groupNo}`,
+			avatar:
+				existing?.avatar ||
+				`https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(`group-${groupNo}`)}`,
+			lastMessage: existing?.lastMessage || '',
+			timestamp: existing?.timestamp || formatTimeFromIso(),
+			lastMessageAt:
+				existing?.lastMessageAt || detail.updatedAt || detail.createdAt,
+			online: true,
+			unreadCount: existing?.unreadCount || 0,
+			isPinned: existing?.isPinned || false,
+		}
+
+		if (existing) {
+			Object.assign(existing, nextChat)
+			db.saveChat(existing)
+			return existing.id
+		}
+
+		chatlist.value.unshift(nextChat)
+		db.saveChat(nextChat)
+		return nextChat.id
+	}
+
+	const ensureGroupSession = async (groupNo: string): Promise<number | null> => {
+		const normalized = groupNo.trim()
+		if (!normalized) return null
+		const existing = findGroupChatByNo(normalized)
+		if (existing) {
+			await hydrateSingleChatPreviewFromLatestMessage(existing)
+			return existing.id
+		}
+		try {
+			const response = await groupChatApi.getGroup(normalized)
+			const detail = response.data?.data
+			if (detail) {
+				return await upsertGroupSession(detail)
+			}
+		} catch (error) {
+			console.warn('拉取群信息失败，使用兜底会话创建:', normalized, error)
+		}
+		const fallbackId = deriveGroupChatId(normalized)
+		if (!fallbackId) return null
+		const fallbackChat: ChatItem = {
+			id: fallbackId,
+			chatType: 'GROUP',
+			groupNo: normalized,
+			name: `群聊 ${normalized}`,
+			avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(`group-${normalized}`)}`,
+			lastMessage: '',
+			timestamp: formatTimeFromIso(),
+			lastMessageAt: new Date().toISOString(),
+			online: true,
+			unreadCount: 0,
+			isPinned: false,
+		}
+		chatlist.value.unshift(fallbackChat)
+		db.saveChat(fallbackChat)
+		return fallbackChat.id
+	}
+
+	const handleIncomingGroupWsMessage = async (
+		payload: GroupChatMessageFrame,
+	): Promise<void> => {
+		let currentAccount = ''
+		try {
+			currentAccount = getCurrentAccount()
+		} catch {
+			return
+		}
+		const chatId = await ensureGroupSession(payload.groupNo)
+		if (!chatId) return
+		const incomingClientMessageId = payload.clientMessageId?.trim() || ''
+		const incomingServerMessageId = payload.messageId?.trim() || ''
+		const existingList = messages.value[chatId] || []
+		const duplicatedByIdentity = existingList.find(
+			(item) =>
+				(!!incomingClientMessageId &&
+					item.clientMessageId === incomingClientMessageId) ||
+				(!!incomingServerMessageId &&
+					item.serverMessageId === incomingServerMessageId),
+		)
+		if (duplicatedByIdentity) {
+			duplicatedByIdentity.serverMessageId =
+				duplicatedByIdentity.serverMessageId ||
+				incomingServerMessageId ||
+				undefined
+			duplicatedByIdentity.sentAt =
+				duplicatedByIdentity.sentAt || payload.sentAt || undefined
+			duplicatedByIdentity.deliveryStatus = 'sent'
+			duplicatedByIdentity.hasResult = false
+			duplicatedByIdentity.result = undefined
+			db.saveMessage(duplicatedByIdentity)
+			if (incomingClientMessageId) {
+				pendingMessageMap.value.delete(incomingClientMessageId)
+			}
+			return
+		}
+
+		const newMessage = createLocalMessageFromServer(
+			payload,
+			chatId,
+			currentAccount,
+		)
+		if (!messages.value[chatId]) {
+			messages.value[chatId] = []
+		}
+		messages.value[chatId].push(newMessage)
+		db.saveMessage(newMessage)
+
+		const preview = getMessagePreview(newMessage)
+		updateLastMessageLocal(
+			chatId,
+			preview,
+			newMessage.timestamp,
+			true,
+			newMessage.sentAt,
+		)
+
+		const chat = chatlist.value.find((item) => item.id === chatId)
+		const isReadingCurrentChat =
+			isChatViewActive() && activeChatId.value === chatId
+		if (chat && newMessage.senderId === 'other' && !isReadingCurrentChat) {
+			chat.unreadCount = (chat.unreadCount || 0) + 1
+			db.saveChat(chat)
+			triggerSystemMessageReminder({
+				chatName: chat.name || '群聊',
 				messageText: preview,
 			})
 		}
@@ -1200,23 +1471,37 @@ export const useChatStore = defineStore('chat', () => {
 		const keyword = options.keyword?.trim() || undefined
 		const messageType =
 			options.type && options.type !== 'all' ? options.type : undefined
-
-		const response = await request.get<ApiResponse<ChatHistoryPageData>>(
-			`/messages/history/${chatId}`,
-			{
-				params: {
-					page,
-					size,
-					startDate,
-					endDate,
-					type: messageType,
-					keyword,
+		const currentChat = chatlist.value.find((item) => item.id === chatId)
+		const groupNo = options.groupNo || currentChat?.groupNo || ''
+		const isGroupChat =
+			currentChat?.chatType === 'GROUP' && !!groupNo.trim()
+		let data: ChatHistoryPageData | GroupHistoryPageData = {}
+		let rawMessages: (HistoryMessageDto | GroupHistoryMessageDto)[] = []
+		if (isGroupChat) {
+			const response = await groupChatApi.getGroupMessageHistory(
+				groupNo,
+				page,
+				size,
+			)
+			data = response.data?.data || {}
+			rawMessages = Array.isArray(data.messages) ? data.messages : []
+		} else {
+			const response = await request.get<ApiResponse<ChatHistoryPageData>>(
+				`/messages/history/${chatId}`,
+				{
+					params: {
+						page,
+						size,
+						startDate,
+						endDate,
+						type: messageType,
+						keyword,
+					},
 				},
-			},
-		)
-
-		const data = response.data?.data || {}
-		const rawMessages = Array.isArray(data.messages) ? data.messages : []
+			)
+			data = response.data?.data || {}
+			rawMessages = Array.isArray(data.messages) ? data.messages : []
+		}
 		let currentAccount = ''
 		try {
 			currentAccount = getCurrentAccount()
@@ -1260,7 +1545,7 @@ export const useChatStore = defineStore('chat', () => {
 
 		return {
 			...data,
-			messages: rawMessages,
+			messages: rawMessages as HistoryMessageDto[],
 		}
 	}
 
@@ -1367,6 +1652,7 @@ export const useChatStore = defineStore('chat', () => {
 		try {
 			while (hasMore && pagesScanned < maxPages) {
 				const data = await pullChatHistory(chatId, {
+					groupNo: options.groupNo,
 					page,
 					size: pageSize,
 					// 查询只返回结果，避免本地写入失败影响查询弹窗展示
@@ -1478,7 +1764,41 @@ export const useChatStore = defineStore('chat', () => {
 		})
 	}
 
+	const handleGroupWsAck = (payload: GroupChatAckFrame): void => {
+		const clientMessageId = payload.clientMessageId || ''
+		if (!clientMessageId) return
+		const pending = pendingMessageMap.value.get(clientMessageId)
+		if (!pending) return
+		updateMessageStatusLocal(pending.chatId, clientMessageId, 'sent')
+		pendingMessageMap.value.delete(clientMessageId)
+		syncAction('updateMessageStatus', {
+			chatId: pending.chatId,
+			clientMessageId,
+			status: 'sent',
+		})
+	}
+
 	const handleWsError = (payload: PrivateChatErrorFrame): void => {
+		const clientMessageId = payload.clientMessageId || ''
+		if (!clientMessageId) return
+		const pending = pendingMessageMap.value.get(clientMessageId)
+		if (!pending) return
+		updateMessageStatusLocal(
+			pending.chatId,
+			clientMessageId,
+			'failed',
+			payload.message || payload.code || '发送失败',
+		)
+		pendingMessageMap.value.delete(clientMessageId)
+		syncAction('updateMessageStatus', {
+			chatId: pending.chatId,
+			clientMessageId,
+			status: 'failed',
+			result: payload.message || payload.code || '发送失败',
+		})
+	}
+
+	const handleGroupWsError = (payload: GroupChatErrorFrame): void => {
 		const clientMessageId = payload.clientMessageId || ''
 		if (!clientMessageId) return
 		const pending = pendingMessageMap.value.get(clientMessageId)
@@ -1509,9 +1829,9 @@ export const useChatStore = defineStore('chat', () => {
 		if (!token) return
 		const normalizedToken = token.trim().replace(/^Bearer\s+/i, '')
 		if (
-			isWsBound.value &&
-			wsBoundAccount.value === account &&
-			wsBoundToken.value === normalizedToken
+			isPrivateWsBound.value &&
+			privateWsBoundAccount.value === account &&
+			privateWsBoundToken.value === normalizedToken
 		) {
 			return
 		}
@@ -1523,25 +1843,62 @@ export const useChatStore = defineStore('chat', () => {
 			onAck: handleWsAck,
 			onError: handleWsError,
 		})
-		isWsBound.value = true
-		wsBoundAccount.value = account
-		wsBoundToken.value = normalizedToken
+		isPrivateWsBound.value = true
+		privateWsBoundAccount.value = account
+		privateWsBoundToken.value = normalizedToken
+	}
+
+	const bindGroupChatWs = (): void => {
+		let account = ''
+		try {
+			account = getCurrentAccount()
+		} catch {
+			return
+		}
+		const token = getCurrentToken()
+		if (!token) return
+		const normalizedToken = token.trim().replace(/^Bearer\s+/i, '')
+		if (
+			isGroupWsBound.value &&
+			groupWsBoundAccount.value === account &&
+			groupWsBoundToken.value === normalizedToken
+		) {
+			return
+		}
+
+		groupChatWs.connect(token, {
+			onMessage: (payload) => {
+				void handleIncomingGroupWsMessage(payload)
+			},
+			onAck: handleGroupWsAck,
+			onError: handleGroupWsError,
+		})
+		isGroupWsBound.value = true
+		groupWsBoundAccount.value = account
+		groupWsBoundToken.value = normalizedToken
 	}
 
 	tokenManager.onTokenUpdated(() => {
-		isWsBound.value = false
-		wsBoundToken.value = ''
+		isPrivateWsBound.value = false
+		privateWsBoundToken.value = ''
+		isGroupWsBound.value = false
+		groupWsBoundToken.value = ''
 		offlinePulledAccount.value = ''
 		friendsLoadedAccount.value = ''
 		bindPrivateChatWs()
+		bindGroupChatWs()
 		void pullOfflineMessages()
 	})
 
 	tokenManager.onTokenCleared(() => {
 		privateChatWs.disconnect()
-		isWsBound.value = false
-		wsBoundAccount.value = ''
-		wsBoundToken.value = ''
+		groupChatWs.disconnect()
+		isPrivateWsBound.value = false
+		privateWsBoundAccount.value = ''
+		privateWsBoundToken.value = ''
+		isGroupWsBound.value = false
+		groupWsBoundAccount.value = ''
+		groupWsBoundToken.value = ''
 		offlinePulledAccount.value = ''
 		friendsLoadedAccount.value = ''
 		pendingMessageMap.value.clear()
@@ -1837,7 +2194,9 @@ export const useChatStore = defineStore('chat', () => {
 		}
 		if (hydratedHistoryChatIds.value.has(id)) return
 		try {
+			const targetChat = chatlist.value.find((item) => item.id === id)
 			await pullChatHistory(id, {
+				groupNo: targetChat?.groupNo,
 				page: 1,
 				size: 20,
 				appendToStore: true,
@@ -1866,18 +2225,32 @@ export const useChatStore = defineStore('chat', () => {
 
 	const sendMessage = (
 		content: string,
-		type: 'text' | 'image' | 'rich-text' = 'text',
+		type: 'text' | 'image' | 'rich-text' | 'transfer' = 'text',
 	): void => {
 		if (!activeChatId.value || !content) return
-
-		bindPrivateChatWs()
 		const chatId = activeChatId.value
+		const currentChat = chatlist.value.find((item) => item.id === chatId)
+		let currentAccount = ''
+		try {
+			currentAccount = getCurrentAccount()
+		} catch {
+			currentAccount = userInfoStore.account?.trim() || ''
+		}
+		const chatType = getChatType(currentChat)
+		if (chatType === 'GROUP') {
+			bindGroupChatWs()
+		} else {
+			bindPrivateChatWs()
+		}
 		const clientMessageId = createClientMessageId()
 		const sentAt = new Date().toISOString()
 		const newMessage: Message = {
 			id: createLocalMessageId(),
 			chatId,
 			senderId: 'me',
+			senderAccount: currentAccount || undefined,
+			senderName: userInfoStore.userName?.trim() || undefined,
+			senderAvatar: userInfoStore.avatarUrl?.trim() || undefined,
 			text: content,
 			timestamp: formatTimeFromIso(sentAt),
 			type: inferMessageType(content, type),
@@ -1892,7 +2265,7 @@ export const useChatStore = defineStore('chat', () => {
 		messages.value[chatId].push(newMessage)
 		db.saveMessage(newMessage) // 保存到 DB
 
-		const textPreview = getTextPreview(content)
+		const textPreview = getMessagePreview(newMessage)
 		updateLastMessageLocal(
 			chatId,
 			textPreview,
@@ -1909,11 +2282,23 @@ export const useChatStore = defineStore('chat', () => {
 			moveToTop: true,
 		})
 
-		const sent = privateChatWs.sendPrivate(
-			String(chatId),
-			content,
-			clientMessageId,
-		)
+		let sent = false
+		if (chatType === 'GROUP') {
+			const groupNo = currentChat?.groupNo?.trim() || ''
+			if (!groupNo) {
+				updateMessageStatusLocal(
+					chatId,
+					clientMessageId,
+					'failed',
+					'群号缺失，消息未发送',
+				)
+				return
+			}
+			sent = groupChatWs.sendGroup(groupNo, content, clientMessageId)
+		} else {
+			const to = currentChat?.peerAccount?.trim() || String(chatId)
+			sent = privateChatWs.sendPrivate(to, content, clientMessageId)
+		}
 		if (sent) {
 			pendingMessageMap.value.set(clientMessageId, {
 				chatId,
@@ -1975,6 +2360,8 @@ export const useChatStore = defineStore('chat', () => {
 		// 创建新会话
 		const newChat: ChatItem = {
 			id,
+			chatType: 'PRIVATE',
+			peerAccount: friend.id,
 			name: friend.name,
 			avatar: resolveAvatarUrl(friend.avatar),
 			lastMessage: latestPreview?.preview || '',
@@ -1990,6 +2377,150 @@ export const useChatStore = defineStore('chat', () => {
 			void hydrateSingleChatPreviewFromLatestMessage(newChat)
 		}
 		return id
+	}
+
+	const createGroupChat = async (payload: {
+		groupName: string
+		announcement?: string
+	}): Promise<ChatItem> => {
+		const groupName = payload.groupName?.trim()
+		if (!groupName) {
+			throw new Error('群名称不能为空')
+		}
+		const response = await groupChatApi.createGroup({
+			groupName,
+			announcement: payload.announcement,
+		})
+		const detail = response.data?.data
+		if (!detail?.groupNo) {
+			throw new Error('创建群聊成功但群号缺失')
+		}
+		const chatId = await upsertGroupSession(detail)
+		if (!chatId) {
+			throw new Error('创建群聊后写入本地会话失败')
+		}
+		const chat = chatlist.value.find((item) => item.id === chatId)
+		if (!chat) {
+			throw new Error('创建群聊后会话不存在')
+		}
+		return chat
+	}
+
+	const getGroupInfo = async (groupNo: string): Promise<GroupDetail> => {
+		const normalized = groupNo.trim()
+		if (!normalized) {
+			throw new Error('群号不能为空')
+		}
+		const response = await groupChatApi.getGroup(normalized)
+		const detail = response.data?.data
+		if (!detail) {
+			throw new Error('查询群信息失败')
+		}
+		await upsertGroupSession(detail)
+		return detail
+	}
+
+	const getGroupMembers = async (groupNo: string): Promise<GroupMember[]> => {
+		const normalized = groupNo.trim()
+		if (!normalized) return []
+		const response = await groupChatApi.getGroupMembers(normalized)
+		const payload = response.data?.data
+		return Array.isArray(payload?.members) ? payload.members : []
+	}
+
+	const joinGroupChat = async (groupNo: string): Promise<ChatItem | null> => {
+		const normalized = groupNo.trim()
+		if (!normalized) {
+			throw new Error('群号不能为空')
+		}
+		const response = await groupChatApi.joinGroup(normalized)
+		const detail = response.data?.data
+		if (!detail?.groupNo) {
+			throw new Error('入群成功但群信息缺失')
+		}
+		const chatId = await upsertGroupSession(detail)
+		if (!chatId) return null
+		return chatlist.value.find((item) => item.id === chatId) || null
+	}
+
+	const quitGroupChat = async (groupNo: string): Promise<void> => {
+		const normalized = groupNo.trim()
+		if (!normalized) {
+			throw new Error('群号不能为空')
+		}
+		await groupChatApi.quitGroup(normalized)
+		const chat = findGroupChatByNo(normalized)
+		if (chat) {
+			deleteChat(chat.id)
+		}
+	}
+
+	const inviteGroupFriend = async (
+		groupNo: string,
+		friendAccount: string,
+	): Promise<void> => {
+		const normalizedGroupNo = groupNo.trim()
+		const normalizedFriendAccount = friendAccount.trim()
+		if (!normalizedGroupNo || !normalizedFriendAccount) {
+			throw new Error('群号和好友账号不能为空')
+		}
+		await groupChatApi.inviteFriend(normalizedGroupNo, normalizedFriendAccount)
+	}
+
+	const updateGroupAnnouncement = async (
+		groupNo: string,
+		announcement: string,
+	): Promise<GroupDetail> => {
+		const normalized = groupNo.trim()
+		if (!normalized) {
+			throw new Error('群号不能为空')
+		}
+		const response = await groupChatApi.updateAnnouncement(
+			normalized,
+			announcement,
+		)
+		const detail = response.data?.data
+		if (!detail) {
+			throw new Error('更新群公告失败')
+		}
+		await upsertGroupSession(detail)
+		return detail
+	}
+
+	const setGroupAdmin = async (
+		groupNo: string,
+		account: string,
+	): Promise<void> => {
+		const normalizedGroupNo = groupNo.trim()
+		const normalizedAccount = account.trim()
+		if (!normalizedGroupNo || !normalizedAccount) {
+			throw new Error('群号和账号不能为空')
+		}
+		await groupChatApi.setAdmin(normalizedGroupNo, normalizedAccount)
+	}
+
+	const removeGroupAdmin = async (
+		groupNo: string,
+		account: string,
+	): Promise<void> => {
+		const normalizedGroupNo = groupNo.trim()
+		const normalizedAccount = account.trim()
+		if (!normalizedGroupNo || !normalizedAccount) {
+			throw new Error('群号和账号不能为空')
+		}
+		await groupChatApi.removeAdmin(normalizedGroupNo, normalizedAccount)
+	}
+
+	const kickGroupMember = async (
+		groupNo: string,
+		account: string,
+	): Promise<void> => {
+		const normalizedGroupNo = groupNo.trim()
+		const normalizedAccount = account.trim()
+		if (!normalizedGroupNo || !normalizedAccount) {
+			throw new Error('群号和账号不能为空')
+		}
+		await groupChatApi.kickMember(normalizedGroupNo, normalizedAccount)
 	}
 
 	return {
@@ -2013,6 +2544,16 @@ export const useChatStore = defineStore('chat', () => {
 		requestFullState,
 		init,
 		getOrCreateChat,
+		createGroupChat,
+		getGroupInfo,
+		getGroupMembers,
+		joinGroupChat,
+		quitGroupChat,
+		inviteGroupFriend,
+		updateGroupAnnouncement,
+		setGroupAdmin,
+		removeGroupAdmin,
+		kickGroupMember,
 		pullChatHistory,
 		loadMoreChatHistory,
 		queryChatHistory,
@@ -2023,6 +2564,13 @@ export const useChatStore = defineStore('chat', () => {
 // --- 类型定义 ---
 export interface ChatItem {
 	id: number
+	chatType?: 'PRIVATE' | 'GROUP'
+	peerAccount?: string
+	groupNo?: string
+	myRole?: GroupRole
+	maxMembers?: number
+	memberCount?: number
+	announcement?: string
 	name: string
 	avatar: string
 	lastMessage: string
@@ -2037,9 +2585,12 @@ export interface Message {
 	id: number
 	chatId: number
 	senderId: 'me' | 'other'
+	senderAccount?: string
+	senderName?: string
+	senderAvatar?: string
 	text: string
 	timestamp: string
-	type: 'text' | 'image' | 'file'
+	type: 'text' | 'image' | 'file' | 'transfer'
 	hasResult?: boolean
 	result?: string
 	clientMessageId?: string

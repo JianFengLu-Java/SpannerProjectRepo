@@ -3,7 +3,11 @@ import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useChatStore, type Message } from '@renderer/stores/chat'
 import { storeToRefs } from 'pinia'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
+import { useFriendStore } from '@renderer/stores/friend'
+import { useWalletStore } from '@renderer/stores/wallet'
+import { useMessage } from 'naive-ui'
 import ChatMessage from './ChatMessage.vue'
+import { resolveAvatarUrl } from '@renderer/utils/avatar'
 
 interface MenuContextExtra {
 	text?: string
@@ -18,6 +22,13 @@ const props = defineProps<{ messages: Message[] }>()
 const chatStore = useChatStore()
 const { activeChat, messageJumpTarget } = storeToRefs(chatStore)
 const userInfo = useUserInfoStore()
+const friendStore = useFriendStore()
+const { friends } = storeToRefs(friendStore)
+const walletStore = useWalletStore()
+const message = useMessage()
+const groupMemberProfileMap = ref<
+	Record<string, { name?: string; avatar?: string }>
+>({})
 
 const viewportRef = ref<HTMLElement | null>(null)
 const messageItemRefMap = new Map<string, HTMLElement>()
@@ -39,6 +50,105 @@ const isScrolling = ref(false)
 const highlightedMessageKey = ref('')
 const SCROLL_INDICATOR_HIDE_DELAY_MS = 700
 
+const isGroupChatActive = computed(
+	() => activeChat.value?.chatType === 'GROUP',
+)
+
+const normalizeAccount = (value?: string): string => value?.trim() || ''
+
+const refreshActiveGroupMemberProfiles = async (): Promise<void> => {
+	const groupNo = activeChat.value?.groupNo?.trim()
+	if (!isGroupChatActive.value || !groupNo) {
+		groupMemberProfileMap.value = {}
+		return
+	}
+	try {
+		const members = await chatStore.getGroupMembers(groupNo)
+		const nextMap: Record<string, { name?: string; avatar?: string }> = {}
+		for (const member of members) {
+			const account = normalizeAccount(member.account)
+			if (!account) continue
+			nextMap[account] = {
+				name: member.name?.trim() || undefined,
+				avatar: member.avatarUrl?.trim() || undefined,
+			}
+		}
+		groupMemberProfileMap.value = nextMap
+	} catch (error) {
+		console.warn('拉取群成员资料失败:', error)
+	}
+}
+
+const resolveMessageSenderAccount = (item: Message): string => {
+	const account = normalizeAccount(item.senderAccount)
+	if (account) return account
+	if (item.senderId === 'me') {
+		return normalizeAccount(userInfo.account)
+	}
+	if (activeChat.value?.chatType === 'PRIVATE') {
+		return normalizeAccount(activeChat.value.peerAccount)
+	}
+	return ''
+}
+
+const resolveMessageName = (item: Message): string => {
+	if (item.senderId === 'me') {
+		return userInfo.userName?.trim() || userInfo.account?.trim() || '我'
+	}
+	const senderAccount = resolveMessageSenderAccount(item)
+	if (isGroupChatActive.value) {
+		const groupProfile = senderAccount
+			? groupMemberProfileMap.value[senderAccount]
+			: undefined
+		const friendProfile = senderAccount
+			? friends.value.find((friend) => friend.id === senderAccount)
+			: undefined
+		return (
+			item.senderName?.trim() ||
+			groupProfile?.name?.trim() ||
+			friendProfile?.remark?.trim() ||
+			friendProfile?.name?.trim() ||
+			senderAccount ||
+			'群成员'
+		)
+	}
+	return activeChat.value?.name?.trim() || senderAccount || '对方'
+}
+
+const resolveMessageAvatar = (item: Message): string => {
+	const senderAccount = resolveMessageSenderAccount(item)
+	if (item.senderId === 'me') {
+		return resolveAvatarUrl(
+			userInfo.avatarUrl?.trim() ||
+				item.senderAvatar?.trim() ||
+				`https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(senderAccount || 'me')}`,
+		)
+	}
+	if (isGroupChatActive.value) {
+		const groupProfile = senderAccount
+			? groupMemberProfileMap.value[senderAccount]
+			: undefined
+		const friendProfile = senderAccount
+			? friends.value.find((friend) => friend.id === senderAccount)
+			: undefined
+		const candidate =
+			item.senderAvatar?.trim() ||
+			groupProfile?.avatar?.trim() ||
+			friendProfile?.avatar?.trim() ||
+			`https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(senderAccount || 'group-member')}`
+		return resolveAvatarUrl(candidate)
+	}
+	return resolveAvatarUrl(
+		activeChat.value?.avatar ||
+			item.senderAvatar?.trim() ||
+			`https://api.dicebear.com/7.x/thumbs/svg?seed=${encodeURIComponent(senderAccount || 'peer')}`,
+	)
+}
+
+const shouldShowSenderName = (item: Message): boolean => {
+	return isGroupChatActive.value && item.senderId !== 'me'
+}
+
 // --- 统一的右键状态 ---
 const showDropdown = ref(false)
 const xRef = ref(0)
@@ -49,6 +159,156 @@ const contextData = ref<{
 	extra: MenuContextExtra
 	msg: Message
 } | null>(null)
+const transferStatusMap = ref<Record<string, 'pending' | 'accepting' | 'accepted'>>({})
+const showTransferDetailModal = ref(false)
+const transferDetail = ref<{
+	businessNo: string
+	amountText: string
+	remarkText: string
+	confirmTimeText: string
+}>({
+	businessNo: '',
+	amountText: '',
+	remarkText: '',
+	confirmTimeText: '',
+})
+const showTransferConfirmModal = ref(false)
+const pendingTransferConfirm = ref<{
+	businessNo: string
+	amountText: string
+	remarkText: string
+}>({
+	businessNo: '',
+	amountText: '',
+	remarkText: '',
+})
+
+const escapeHtml = (value: string): string =>
+	value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;')
+
+const extractTransferBusinessNo = (content: string): string => {
+	const dataMatched = content.match(/data-business-no\s*=\s*["']([^"']+)["']/i)
+	if (dataMatched?.[1]?.trim()) return dataMatched[1].trim()
+	const textMatched = content.match(/交易号\s*[：:]\s*([^<\n]+)/i)
+	if (!textMatched) return ''
+	return textMatched[1]?.trim() || ''
+}
+
+const hasTransferReceiptMarker = (content: string): boolean => {
+	return /\bchat-transfer-receipt-card\b/i.test(content)
+}
+
+const hasTransferRefundMarker = (content: string): boolean => {
+	return /\bchat-transfer-refund-card\b/i.test(content)
+}
+
+const receiptBusinessNoSet = computed<Set<string>>(() => {
+	const set = new Set<string>()
+	for (const row of props.messages) {
+		if (!hasTransferReceiptMarker(row.text || '')) continue
+		const businessNo = extractTransferBusinessNo(row.text || '')
+		if (!businessNo) continue
+		set.add(businessNo)
+	}
+	return set
+})
+
+const refundBusinessNoSet = computed<Set<string>>(() => {
+	const set = new Set<string>()
+	for (const row of props.messages) {
+		if (!hasTransferRefundMarker(row.text || '')) continue
+		const businessNo = extractTransferBusinessNo(row.text || '')
+		if (!businessNo) continue
+		set.add(businessNo)
+	}
+	return set
+})
+
+const getTransferStatus = (
+	item: Message,
+): 'pending' | 'accepting' | 'accepted' | 'refunded' => {
+	if (hasTransferRefundMarker(item.text || '')) return 'refunded'
+	if (hasTransferReceiptMarker(item.text || '')) return 'accepted'
+	const businessNo = extractTransferBusinessNo(item.text || '')
+	if (!businessNo) return 'pending'
+	if (refundBusinessNoSet.value.has(businessNo)) return 'refunded'
+	if (receiptBusinessNoSet.value.has(businessNo)) return 'accepted'
+	return transferStatusMap.value[businessNo] || 'pending'
+}
+
+const openTransferDetail = (payload: {
+	businessNo: string
+	amountText: string
+	remarkText: string
+	confirmTimeText: string
+}): void => {
+	transferDetail.value = {
+		businessNo: payload.businessNo || '',
+		amountText: payload.amountText || '',
+		remarkText: payload.remarkText || '',
+		confirmTimeText: payload.confirmTimeText || '',
+	}
+	showTransferDetailModal.value = true
+}
+
+const openTransferConfirmModal = (
+	payload: { businessNo: string; amountText: string; remarkText: string },
+): void => {
+	const businessNo = payload.businessNo?.trim()
+	if (!businessNo) {
+		message.warning('转账信息缺少交易号，无法接受')
+		return
+	}
+	const currentStatus = transferStatusMap.value[businessNo] || 'pending'
+	if (currentStatus === 'accepted' || currentStatus === 'accepting') return
+	pendingTransferConfirm.value = {
+		businessNo,
+		amountText: payload.amountText?.trim() || '',
+		remarkText: payload.remarkText?.trim() || '',
+	}
+	showTransferConfirmModal.value = true
+}
+
+const handleTransferAccept = async (): Promise<void> => {
+	const businessNo = pendingTransferConfirm.value.businessNo?.trim()
+	if (!businessNo) return
+	const currentStatus = transferStatusMap.value[businessNo] || 'pending'
+	if (currentStatus === 'accepted' || currentStatus === 'accepting') {
+		showTransferConfirmModal.value = false
+		return
+	}
+	transferStatusMap.value[businessNo] = 'accepting'
+	const amountText = pendingTransferConfirm.value.amountText?.trim()
+	const remarkText = pendingTransferConfirm.value.remarkText?.trim()
+	try {
+		await walletStore.acceptTransfer({ businessNo })
+		transferStatusMap.value[businessNo] = 'accepted'
+		const confirmTimeText = new Date().toLocaleString('zh-CN', {
+			hour12: false,
+		})
+		const receiptHtml = `
+<div class="chat-transfer-receipt-card" data-business-no="${escapeHtml(businessNo)}">
+	<div><strong>转账已收款</strong></div>
+	${amountText ? `<div>金额：${escapeHtml(amountText)}</div>` : ''}
+	${remarkText ? `<div>备注：${escapeHtml(remarkText)}</div>` : ''}
+	<div>确认时间：${escapeHtml(confirmTimeText)}</div>
+</div>`.trim()
+		chatStore.sendMessage(receiptHtml, 'transfer')
+		showTransferConfirmModal.value = false
+		message.success('转账已确认并入账')
+	} catch (error) {
+		transferStatusMap.value[businessNo] = 'pending'
+		const maybeResponse = (
+			error as { response?: { data?: { message?: string } } }
+		).response
+		message.error(maybeResponse?.data?.message || '接受转账失败，请稍后重试')
+	}
+}
 
 const onShowMenu = (
 	e: MouseEvent,
@@ -145,7 +405,7 @@ const buildRenderDedupKey = (item: Message): string => {
 	if (clientId) return `c:${clientId}`
 	const sentAt = item.sentAt?.trim() || ''
 	const time = sentAt || item.timestamp || 'no-time'
-	return `f:${item.senderId}|${item.type}|${time}|${item.text || ''}`
+	return `f:${item.senderId}|${item.senderAccount || ''}|${item.type}|${time}|${item.text || ''}`
 }
 
 const compactRenderMessages = (rows: Message[]): Message[] => {
@@ -460,6 +720,14 @@ watch(
 )
 
 watch(
+	() => [activeChat.value?.id, activeChat.value?.groupNo, activeChat.value?.chatType],
+	() => {
+		void refreshActiveGroupMemberProfiles()
+	},
+	{ immediate: true },
+)
+
+watch(
 	() => messageJumpTarget.value?.token,
 	() => {
 		jumpToTargetMessage()
@@ -515,17 +783,19 @@ onBeforeUnmount(() => {
 				<chat-message
 					v-bind="item"
 					:content="item.text"
+					:message-type="item.type"
+					:transfer-status="getTransferStatus(item)"
+					:transfer-target-name="activeChat?.name || ''"
+					:sender-name="shouldShowSenderName(item) ? resolveMessageName(item) : ''"
 					:is-me="item.senderId === 'me'"
-					:avatar="
-						item.senderId === 'me'
-							? userInfo.avatarUrl
-							: activeChat?.avatar
-					"
+					:avatar="resolveMessageAvatar(item)"
 					:time="item.timestamp"
 					@image-loaded="handleImageLoaded"
 					@contextmenu="
 						(e, type, extra) => onShowMenu(e, type, extra, item)
 					"
+					@transfer-accept="openTransferConfirmModal"
+					@transfer-detail="openTransferDetail"
 				/>
 			</div>
 		</div>
@@ -541,6 +811,49 @@ onBeforeUnmount(() => {
 			@select="handleMenuSelect"
 			@clickoutside="showDropdown = false"
 		/>
+
+		<n-modal
+			v-model:show="showTransferDetailModal"
+			preset="card"
+			title="转账详情"
+			style="width: min(420px, 92vw)"
+			:mask-closable="true"
+		>
+			<div class="space-y-2 text-sm">
+				<div><strong>交易号：</strong>{{ transferDetail.businessNo || '-' }}</div>
+				<div><strong>金额：</strong>{{ transferDetail.amountText || '-' }}</div>
+				<div><strong>备注：</strong>{{ transferDetail.remarkText || '-' }}</div>
+				<div><strong>确认时间：</strong>{{ transferDetail.confirmTimeText || '-' }}</div>
+			</div>
+		</n-modal>
+
+		<n-modal
+			v-model:show="showTransferConfirmModal"
+			preset="card"
+			title="确认收款"
+			style="width: min(360px, 92vw)"
+			:mask-closable="false"
+		>
+			<div class="transfer-confirm-body">
+				<div class="transfer-confirm-amount">
+					{{ pendingTransferConfirm.amountText || '-' }}
+				</div>
+				<div class="transfer-confirm-actions">
+					<n-button
+						type="primary"
+						block
+						:loading="
+							transferStatusMap[pendingTransferConfirm.businessNo] ===
+							'accepting'
+						"
+						@click="handleTransferAccept"
+					>
+						确认收款
+					</n-button>
+					<div class="transfer-confirm-refund-text">退还</div>
+				</div>
+			</div>
+		</n-modal>
 	</div>
 </template>
 
@@ -591,5 +904,32 @@ onBeforeUnmount(() => {
 .message-viewport:hover::-webkit-scrollbar-thumb,
 .message-viewport.is-scrolling::-webkit-scrollbar-thumb {
 	background-color: rgba(148, 163, 184, 0.65);
+}
+
+.transfer-confirm-body {
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+}
+
+.transfer-confirm-amount {
+	text-align: center;
+	font-size: 30px;
+	line-height: 1.2;
+	font-weight: 700;
+	color: var(--color-text-main);
+	padding: 6px 0 2px;
+}
+
+.transfer-confirm-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.transfer-confirm-refund-text {
+	text-align: center;
+	font-size: 13px;
+	color: #6b7280;
 }
 </style>

@@ -2,6 +2,13 @@ import { getDb } from './db'
 
 export interface DbChatItem {
 	id: number
+	chatType?: 'PRIVATE' | 'GROUP'
+	peerAccount?: string
+	groupNo?: string
+	myRole?: 'OWNER' | 'ADMIN' | 'MEMBER'
+	maxMembers?: number
+	memberCount?: number
+	announcement?: string
 	name: string
 	avatar: string
 	lastMessage: string
@@ -37,7 +44,7 @@ export const chatService = {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			db.all(
-				'SELECT id, name, avatar, lastMessage, timestamp, lastMessageAt, online, unreadCount, isPinned FROM user_chats WHERE userAccount = ? ORDER BY isPinned DESC, COALESCE(lastMessageAt, \'\') DESC, id DESC',
+				'SELECT id, chatType, peerAccount, groupNo, myRole, maxMembers, memberCount, announcement, name, avatar, lastMessage, timestamp, lastMessageAt, online, unreadCount, isPinned FROM user_chats WHERE userAccount = ? ORDER BY isPinned DESC, COALESCE(lastMessageAt, \'\') DESC, id DESC',
 				[userAccount],
 				(err, rows) => {
 					if (err) reject(err)
@@ -52,12 +59,37 @@ export const chatService = {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			const stmt = db.prepare(`
-				INSERT OR REPLACE INTO user_chats (userAccount, id, name, avatar, lastMessage, timestamp, lastMessageAt, online, unreadCount, isPinned)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT OR REPLACE INTO user_chats (
+					userAccount,
+					id,
+					chatType,
+					peerAccount,
+					groupNo,
+					myRole,
+					maxMembers,
+					memberCount,
+					announcement,
+					name,
+					avatar,
+					lastMessage,
+					timestamp,
+					lastMessageAt,
+					online,
+					unreadCount,
+					isPinned
+				)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`)
 			stmt.run(
 				userAccount,
 				chat.id,
+				chat.chatType || 'PRIVATE',
+				chat.peerAccount || null,
+				chat.groupNo || null,
+				chat.myRole || null,
+				chat.maxMembers || null,
+				chat.memberCount || null,
+				chat.announcement || null,
 				chat.name,
 				chat.avatar,
 				chat.lastMessage,

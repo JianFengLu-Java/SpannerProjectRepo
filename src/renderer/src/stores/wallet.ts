@@ -14,6 +14,7 @@ interface WalletDto {
 	balance?: number | string
 	currency?: string
 	status?: string
+	securityPasswordSet?: boolean
 	updatedAt?: string
 }
 
@@ -24,7 +25,7 @@ interface WalletChangeDto {
 interface WalletFlowDto {
 	walletNo?: string
 	businessNo?: string
-	changeType?: 'RECHARGE' | 'CONSUME' | string
+	changeType?: 'RECHARGE' | 'CONSUME' | 'TRANSFER_OUT' | 'TRANSFER_IN' | string
 	amount?: number | string
 	beforeBalance?: number | string
 	afterBalance?: number | string
@@ -44,13 +45,13 @@ interface WalletFlowPageDto {
 interface WalletFlowQuery {
 	page?: number
 	size?: number
-	changeType?: 'RECHARGE' | 'CONSUME'
+	changeType?: 'RECHARGE' | 'CONSUME' | 'TRANSFER_OUT' | 'TRANSFER_IN'
 }
 
 export interface WalletFlowRecord {
 	walletNo: string
 	businessNo: string
-	changeType: 'RECHARGE' | 'CONSUME'
+	changeType: 'RECHARGE' | 'CONSUME' | 'TRANSFER_OUT' | 'TRANSFER_IN'
 	amountCents: number
 	beforeBalanceCents: number
 	afterBalanceCents: number
@@ -62,9 +63,55 @@ interface WalletActionPayload {
 	amountCents: number
 	businessNo?: string
 	remark?: string
+	securityPassword?: string
+}
+
+interface WalletTransferPayload {
+	toAccount: string
+	amountCents: number
+	securityPassword: string
+	businessNo?: string
+	remark?: string
+}
+
+interface WalletTransferAcceptPayload {
+	businessNo: string
+}
+
+interface WalletTransferAcceptDto {
+	toWallet?: WalletDto
+}
+
+interface WalletTransferApplyDto {
+	businessNo?: string
+	toAccount?: string
+	amount?: number | string
+	remark?: string
+	status?: string
+	createdAt?: string
+}
+
+const extractBusinessNo = (value: unknown, depth = 0): string => {
+	if (depth > 3 || value === null || value === undefined) return ''
+	if (typeof value === 'string') return value.trim()
+	if (typeof value !== 'object') return ''
+	const row = value as Record<string, unknown>
+	const direct = row.businessNo
+	if (typeof direct === 'string' && direct.trim()) return direct.trim()
+	for (const nested of Object.values(row)) {
+		const found = extractBusinessNo(nested, depth + 1)
+		if (found) return found
+	}
+	return ''
+}
+
+interface WalletSecurityPasswordPayload {
+	oldSecurityPassword?: string
+	newSecurityPassword: string
 }
 
 const AMOUNT_PATTERN = /^(-)?(\d+)(?:\.(\d+))?$/
+const SECURITY_PASSWORD_PATTERN = /^\d{6}$/
 
 const parseAmountToCents = (value: unknown): number | null => {
 	if (value === null || value === undefined) return null
@@ -124,9 +171,11 @@ export const useWalletStore = defineStore('wallet', () => {
 	const balanceCents = ref(0)
 	const currency = ref('CNY')
 	const walletStatus = ref('')
+	const securityPasswordSet = ref(false)
 	const updatedAt = ref('')
 	const isLoading = ref(false)
 	const initialized = ref(false)
+	const overviewFlowRecords = ref<WalletFlowRecord[]>([])
 	const flowRecords = ref<WalletFlowRecord[]>([])
 	const flowLoading = ref(false)
 	const flowPage = ref(1)
@@ -134,7 +183,12 @@ export const useWalletStore = defineStore('wallet', () => {
 	const flowTotal = ref(0)
 	const flowTotalPages = ref(0)
 	const flowHasMore = ref(false)
-	const flowChangeType = ref<'RECHARGE' | 'CONSUME' | ''>('')
+	const flowChangeType = ref<
+		'RECHARGE' | 'CONSUME' | 'TRANSFER_OUT' | 'TRANSFER_IN' | ''
+	>('')
+	let walletFetchToken = 0
+	let overviewFlowFetchToken = 0
+	let flowFetchToken = 0
 	let timer: number | null = null
 
 	const formattedBalance = computed(() =>
@@ -157,6 +211,7 @@ export const useWalletStore = defineStore('wallet', () => {
 				: 'CNY'
 		walletStatus.value =
 			typeof payload.status === 'string' ? payload.status : ''
+		securityPasswordSet.value = Boolean(payload.securityPasswordSet)
 		updatedAt.value =
 			typeof payload.updatedAt === 'string' ? payload.updatedAt : ''
 
@@ -168,12 +223,17 @@ export const useWalletStore = defineStore('wallet', () => {
 	}
 
 	const fetchWallet = async (silent = false): Promise<void> => {
+		const currentToken = ++walletFetchToken
 		if (!silent) isLoading.value = true
 		try {
-			const res = await request.get<ApiResponse<WalletDto>>('/user/wallet')
+			const res =
+				await request.get<ApiResponse<WalletDto>>('/user/wallet')
+			if (currentToken !== walletFetchToken) return
 			applyWallet(res.data?.data)
 		} finally {
-			if (!silent) isLoading.value = false
+			if (!silent && currentToken === walletFetchToken) {
+				isLoading.value = false
+			}
 		}
 	}
 
@@ -185,11 +245,22 @@ export const useWalletStore = defineStore('wallet', () => {
 		if (!Number.isInteger(normalizedCents) || normalizedCents <= 0) {
 			throw new Error('amount 必须大于 0')
 		}
+		const trimmedSecurityPassword = payload.securityPassword?.trim() || ''
+		if (
+			url === '/user/wallet/consume' &&
+			!SECURITY_PASSWORD_PATTERN.test(trimmedSecurityPassword)
+		) {
+			throw new Error('securityPassword 必须为 6 位数字')
+		}
 		const amount = centsToApiAmount(normalizedCents)
 		const res = await request.post<ApiResponse<WalletChangeDto>>(url, {
 			amount,
 			businessNo: payload.businessNo?.trim() || undefined,
 			remark: payload.remark?.trim() || undefined,
+			securityPassword:
+				url === '/user/wallet/consume'
+					? trimmedSecurityPassword
+					: undefined,
 		})
 		const changedWallet = res.data?.data?.wallet
 		if (changedWallet) {
@@ -200,6 +271,9 @@ export const useWalletStore = defineStore('wallet', () => {
 		if (flowRecords.value.length > 0) {
 			await fetchFlows({ page: 1 })
 		}
+		if (overviewFlowRecords.value.length > 0) {
+			await fetchOverviewFlows(flowSize.value)
+		}
 	}
 
 	const recharge = (payload: WalletActionPayload): Promise<void> =>
@@ -208,12 +282,105 @@ export const useWalletStore = defineStore('wallet', () => {
 	const consume = (payload: WalletActionPayload): Promise<void> =>
 		runWalletAction('/user/wallet/consume', payload)
 
+	const transfer = async (
+		payload: WalletTransferPayload,
+	): Promise<WalletTransferApplyDto> => {
+		const toAccount = payload.toAccount?.trim() || ''
+		if (!toAccount) {
+			throw new Error('toAccount 不能为空')
+		}
+		const normalizedCents = Math.floor(payload.amountCents)
+		if (!Number.isInteger(normalizedCents) || normalizedCents <= 0) {
+			throw new Error('amount 必须大于 0')
+		}
+		const trimmedSecurityPassword = payload.securityPassword?.trim() || ''
+		if (!SECURITY_PASSWORD_PATTERN.test(trimmedSecurityPassword)) {
+			throw new Error('securityPassword 必须为 6 位数字')
+		}
+
+		const res = await request.post<ApiResponse<WalletTransferApplyDto>>(
+			'/user/wallet/transfer',
+			{
+				toAccount,
+				amount: centsToApiAmount(normalizedCents),
+				securityPassword: trimmedSecurityPassword,
+				remark: payload.remark?.trim() || undefined,
+			},
+		)
+		const data = (res.data?.data || {}) as WalletTransferApplyDto
+		const normalizedBusinessNo =
+			(typeof data.businessNo === 'string' && data.businessNo.trim()) ||
+			extractBusinessNo(res.data?.data) ||
+			extractBusinessNo(res.data) ||
+			''
+		return {
+			...data,
+			businessNo: normalizedBusinessNo || undefined,
+		}
+	}
+
+	const acceptTransfer = async (
+		payload: WalletTransferAcceptPayload,
+	): Promise<void> => {
+		const businessNo = payload.businessNo?.trim() || ''
+		if (!businessNo) {
+			throw new Error('businessNo 不能为空')
+		}
+		const res = await request.post<ApiResponse<WalletTransferAcceptDto>>(
+			'/user/wallet/transfer/accept',
+			{
+				businessNo,
+			},
+		)
+		const nextWallet = res.data?.data?.toWallet
+		if (nextWallet) {
+			applyWallet(nextWallet)
+		} else {
+			await fetchWallet(true)
+		}
+		if (flowRecords.value.length > 0) {
+			await fetchFlows({ page: 1 })
+		}
+		if (overviewFlowRecords.value.length > 0) {
+			await fetchOverviewFlows(flowSize.value)
+		}
+	}
+
+	const setSecurityPassword = async (
+		payload: WalletSecurityPasswordPayload,
+	): Promise<void> => {
+		const oldSecurityPassword = payload.oldSecurityPassword?.trim() || ''
+		const newSecurityPassword = payload.newSecurityPassword?.trim() || ''
+		if (!SECURITY_PASSWORD_PATTERN.test(newSecurityPassword)) {
+			throw new Error('newSecurityPassword 必须为 6 位数字')
+		}
+		if (
+			oldSecurityPassword &&
+			!SECURITY_PASSWORD_PATTERN.test(oldSecurityPassword)
+		) {
+			throw new Error('oldSecurityPassword 必须为 6 位数字')
+		}
+		const res = await request.put<ApiResponse<WalletDto>>(
+			'/user/wallet/security-password',
+			{
+				oldSecurityPassword: oldSecurityPassword || undefined,
+				newSecurityPassword,
+			},
+		)
+		applyWallet(res.data?.data)
+	}
+
 	const mapFlow = (item: WalletFlowDto): WalletFlowRecord => {
 		const amountCents = parseAmountToCents(item.amount) || 0
 		const beforeBalanceCents = parseAmountToCents(item.beforeBalance) || 0
 		const afterBalanceCents = parseAmountToCents(item.afterBalance) || 0
 		const changeType =
-			item.changeType === 'RECHARGE' ? 'RECHARGE' : 'CONSUME'
+			item.changeType === 'RECHARGE' ||
+			item.changeType === 'CONSUME' ||
+			item.changeType === 'TRANSFER_OUT' ||
+			item.changeType === 'TRANSFER_IN'
+				? item.changeType
+				: 'CONSUME'
 		return {
 			walletNo: typeof item.walletNo === 'string' ? item.walletNo : '',
 			businessNo:
@@ -228,8 +395,13 @@ export const useWalletStore = defineStore('wallet', () => {
 	}
 
 	const fetchFlows = async (patch: WalletFlowQuery = {}): Promise<void> => {
+		const currentToken = ++flowFetchToken
 		flowLoading.value = true
 		try {
+			const hasChangeTypePatch = Object.prototype.hasOwnProperty.call(
+				patch,
+				'changeType',
+			)
 			const nextPage =
 				typeof patch.page === 'number' && patch.page > 0
 					? Math.floor(patch.page)
@@ -238,14 +410,18 @@ export const useWalletStore = defineStore('wallet', () => {
 				typeof patch.size === 'number' && patch.size > 0
 					? Math.floor(patch.size)
 					: flowSize.value
-			const nextChangeType =
-				patch.changeType ?? flowChangeType.value ?? ''
+			const nextChangeType = hasChangeTypePatch
+				? patch.changeType || ''
+				: flowChangeType.value || ''
 
 			const params: WalletFlowQuery = {
 				page: nextPage,
 				size: Math.min(100, Math.max(1, nextSize)),
 				changeType:
-					nextChangeType === 'RECHARGE' || nextChangeType === 'CONSUME'
+					nextChangeType === 'RECHARGE' ||
+					nextChangeType === 'CONSUME' ||
+					nextChangeType === 'TRANSFER_OUT' ||
+					nextChangeType === 'TRANSFER_IN'
 						? nextChangeType
 						: undefined,
 			}
@@ -254,6 +430,7 @@ export const useWalletStore = defineStore('wallet', () => {
 				'/user/wallet/flows',
 				{ params },
 			)
+			if (currentToken !== flowFetchToken) return
 			const data = res.data?.data
 			const records = Array.isArray(data?.records) ? data.records : []
 			flowRecords.value = records.map(mapFlow)
@@ -273,14 +450,54 @@ export const useWalletStore = defineStore('wallet', () => {
 				typeof data?.totalPages === 'number' && data.totalPages >= 0
 					? Math.floor(data.totalPages)
 					: 0
-			flowHasMore.value = Boolean(data?.hasMore)
+			if (typeof data?.hasMore === 'boolean') {
+				flowHasMore.value = data.hasMore
+			} else {
+				flowHasMore.value =
+					flowTotalPages.value > 0
+						? flowPage.value < flowTotalPages.value
+						: flowRecords.value.length >= flowSize.value
+			}
 			flowChangeType.value =
-				params.changeType === 'RECHARGE' || params.changeType === 'CONSUME'
+				params.changeType === 'RECHARGE' ||
+				params.changeType === 'CONSUME' ||
+				params.changeType === 'TRANSFER_OUT' ||
+				params.changeType === 'TRANSFER_IN'
 					? params.changeType
 					: ''
 		} finally {
-			flowLoading.value = false
+			if (currentToken === flowFetchToken) {
+				flowLoading.value = false
+			}
 		}
+	}
+
+	const fetchOverviewFlows = async (
+		size = flowSize.value || 20,
+	): Promise<void> => {
+		const currentToken = ++overviewFlowFetchToken
+		const safeSize = Math.min(100, Math.max(1, Math.floor(size || 20)))
+		const res = await request.get<ApiResponse<WalletFlowPageDto>>(
+			'/user/wallet/flows',
+			{
+				params: {
+					page: 1,
+					size: safeSize,
+				},
+			},
+		)
+		if (currentToken !== overviewFlowFetchToken) return
+		const records = Array.isArray(res.data?.data?.records)
+			? res.data.data.records
+			: []
+		overviewFlowRecords.value = records.map(mapFlow)
+	}
+
+	const refreshOverview = async (): Promise<void> => {
+		await Promise.all([
+			fetchWallet(true),
+			fetchOverviewFlows(flowSize.value),
+		])
 	}
 
 	const startAutoRefresh = (intervalMs = 5000): void => {
@@ -299,13 +516,18 @@ export const useWalletStore = defineStore('wallet', () => {
 
 	const reset = (): void => {
 		stopAutoRefresh()
+		walletFetchToken += 1
+		overviewFlowFetchToken += 1
+		flowFetchToken += 1
 		walletNo.value = ''
 		balanceCents.value = 0
 		currency.value = 'CNY'
 		walletStatus.value = ''
+		securityPasswordSet.value = false
 		updatedAt.value = ''
 		isLoading.value = false
 		initialized.value = false
+		overviewFlowRecords.value = []
 		flowRecords.value = []
 		flowLoading.value = false
 		flowPage.value = 1
@@ -321,9 +543,11 @@ export const useWalletStore = defineStore('wallet', () => {
 		balanceCents,
 		currency,
 		walletStatus,
+		securityPasswordSet,
 		updatedAt,
 		isLoading,
 		initialized,
+		overviewFlowRecords,
 		flowRecords,
 		flowLoading,
 		flowPage,
@@ -337,7 +561,12 @@ export const useWalletStore = defineStore('wallet', () => {
 		fetchWallet,
 		recharge,
 		consume,
+		transfer,
+		acceptTransfer,
+		setSecurityPassword,
+		fetchOverviewFlows,
 		fetchFlows,
+		refreshOverview,
 		formatAmount,
 		startAutoRefresh,
 		stopAutoRefresh,

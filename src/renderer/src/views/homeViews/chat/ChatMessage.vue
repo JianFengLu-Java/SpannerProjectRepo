@@ -14,6 +14,12 @@
 			:class="isMe ? 'items-end' : 'items-start'"
 			@contextmenu="handleContextMenu"
 		>
+			<div
+				v-if="senderName && !isMe"
+				class="px-1 mb-0.5 text-[11px] text-gray-500 avatar-no-select"
+			>
+				{{ senderName }}
+			</div>
 			<div class="message-bubble-row" :class="isMe ? 'justify-end' : 'justify-start'">
 				<n-tooltip
 					v-if="isMe && deliveryStatus === 'failed'"
@@ -33,7 +39,42 @@
 				</n-tooltip>
 
 				<div
-					v-if="isOnlyImage"
+					v-if="isTransferCard"
+					class="transfer-card avatar-no-select"
+					:class="[
+						isMe ? 'transfer-card-me' : 'transfer-card-other',
+						(canAcceptTransfer && transferFooterText === '点击收款') ||
+						transferFooterText === '已收款' ||
+						transferFooterText === '已退还'
+							? 'transfer-card-clickable'
+							: '',
+						`transfer-card-state-${transferVisualState}`,
+					]"
+					@click="handleTransferCardClick"
+				>
+					<div class="transfer-card-content">
+						<div class="transfer-card-icon">{{ transferIconText }}</div>
+						<div class="transfer-card-main">
+							<div class="transfer-card-title">{{ transferTitleText }}</div>
+							<div class="transfer-card-amount">
+								{{ transferAmountText || '金额待确认' }}
+							</div>
+							<div
+								v-if="transferRemarkText"
+								class="transfer-card-remark"
+								:title="transferRemarkText"
+							>
+								{{ transferRemarkText }}
+							</div>
+						</div>
+					</div>
+					<div class="transfer-card-footer" :class="transferFooterClass">
+						<span>{{ transferFooterText }}</span>
+					</div>
+				</div>
+
+				<div
+					v-else-if="isOnlyImage"
 					class="msg-content-selectable"
 					@click="handleClickEvent"
 					v-html="content"
@@ -73,6 +114,10 @@ import { computed, onMounted, onUpdated, ref } from 'vue'
 
 const props = defineProps<{
 	content: string
+	messageType?: 'text' | 'image' | 'file' | 'transfer'
+	transferStatus?: 'pending' | 'accepting' | 'accepted' | 'refunded'
+	transferTargetName?: string
+	senderName?: string
 	isMe: boolean
 	avatar?: string
 	time: string
@@ -89,6 +134,23 @@ const emit = defineEmits<{
 		ev: MouseEvent,
 		type: 'text' | 'image',
 		extra?: any,
+	): void
+	(
+		e: 'transfer-accept',
+		payload: {
+			businessNo: string
+			amountText: string
+			remarkText: string
+		},
+	): void
+	(
+		e: 'transfer-detail',
+		payload: {
+			businessNo: string
+			amountText: string
+			remarkText: string
+			confirmTimeText: string
+		},
 	): void
 }>()
 
@@ -112,7 +174,150 @@ const handleContextMenu = (e: MouseEvent) => {
 	}
 }
 
+const parseTransferField = (
+	content: string,
+	fieldName: '金额' | '交易号' | '备注' | '确认时间',
+): string => {
+	const pattern = new RegExp(`${fieldName}\\s*[：:]\\s*([^<\\n]+)`, 'i')
+	const matched = content.match(pattern)
+	if (!matched) return ''
+	return matched[1]?.trim() || ''
+}
+
+const parseTransferBusinessNo = (content: string): string => {
+	const dataMatched = content.match(/data-business-no\s*=\s*["']([^"']+)["']/i)
+	if (dataMatched?.[1]?.trim()) return dataMatched[1].trim()
+	return parseTransferField(content, '交易号')
+}
+
+const hasTransferMarker = computed(() => /\bchat-transfer-card\b/i.test(props.content))
+const hasTransferReceiptMarker = computed(() =>
+	/\bchat-transfer-receipt-card\b/i.test(props.content),
+)
+const hasTransferRefundMarker = computed(() =>
+	/\bchat-transfer-refund-card\b/i.test(props.content),
+)
+
+const transferAmountText = computed(() => {
+	return parseTransferField(props.content, '金额')
+})
+
+const transferBusinessNo = computed(() => {
+	return parseTransferBusinessNo(props.content)
+})
+
+const transferRemarkText = computed(() => {
+	return parseTransferField(props.content, '备注')
+})
+
+const transferConfirmTimeText = computed(() => {
+	return parseTransferField(props.content, '确认时间')
+})
+
+const isTransferCard = computed(() => {
+	return (
+		props.messageType === 'transfer' ||
+		hasTransferMarker.value ||
+		hasTransferReceiptMarker.value ||
+		hasTransferRefundMarker.value
+	)
+})
+
+const canAcceptTransfer = computed(() => {
+	return (
+		isTransferCard.value &&
+		!hasTransferReceiptMarker.value &&
+		!hasTransferRefundMarker.value &&
+		!props.isMe &&
+		!!transferBusinessNo.value
+	)
+})
+
+const transferStatusValue = computed<
+	'pending' | 'accepting' | 'accepted' | 'refunded'
+>(() => {
+	return props.transferStatus || 'pending'
+})
+
+const transferTargetLabel = computed(() => {
+	const name = props.transferTargetName?.trim() || '对方'
+	return name.length > 10 ? `${name.slice(0, 10)}...` : name
+})
+
+const transferFooterText = computed(() => {
+	if (hasTransferRefundMarker.value) return '已退还'
+	if (hasTransferReceiptMarker.value) return '已收款'
+	if (transferStatusValue.value === 'refunded') return '已退还'
+	if (transferStatusValue.value === 'accepted') return '已收款'
+	if (props.isMe) return `转账给${transferTargetLabel.value}`
+	if (!canAcceptTransfer.value) return '转账消息'
+	return '点击收款'
+})
+
+const transferFooterClass = computed(() => {
+	if (hasTransferRefundMarker.value) return 'is-refunded'
+	if (hasTransferReceiptMarker.value) return 'is-receipt'
+	if (transferStatusValue.value === 'refunded') return 'is-refunded'
+	if (props.isMe) return 'is-me'
+	if (transferStatusValue.value === 'accepted') return 'is-accepted'
+	return 'is-pending'
+})
+
+const transferVisualState = computed<
+	'pending' | 'accepted' | 'receipt' | 'refunded'
+>(() => {
+	if (hasTransferRefundMarker.value) return 'refunded'
+	if (hasTransferReceiptMarker.value) return 'receipt'
+	if (transferStatusValue.value === 'refunded') return 'refunded'
+	if (transferStatusValue.value === 'accepted') return 'accepted'
+	return 'pending'
+})
+
+const transferIconText = computed(() => {
+	if (transferVisualState.value === 'refunded') return '↩'
+	if (
+		transferVisualState.value === 'accepted' ||
+		transferVisualState.value === 'receipt'
+	) {
+		return '✓'
+	}
+	return '￥'
+})
+
+const transferTitleText = computed(() => {
+	if (transferVisualState.value === 'refunded') return '转账已退还'
+	if (
+		transferVisualState.value === 'accepted' ||
+		transferVisualState.value === 'receipt'
+	) {
+		return '转账已收款'
+	}
+	if (props.isMe && transferVisualState.value === 'pending') {
+		return `转账给${transferTargetLabel.value}`
+	}
+	return '转账'
+})
+
+const handleTransferCardClick = (): void => {
+	if (canAcceptTransfer.value && transferStatusValue.value === 'pending') {
+		emit('transfer-accept', {
+			businessNo: transferBusinessNo.value,
+			amountText: transferAmountText.value,
+			remarkText: transferRemarkText.value,
+		})
+		return
+	}
+	if (!transferBusinessNo.value) return
+	emit('transfer-detail', {
+		businessNo: transferBusinessNo.value,
+		amountText: transferAmountText.value,
+		remarkText: transferRemarkText.value,
+		confirmTimeText: transferConfirmTimeText.value,
+	})
+}
+
 const isOnlyImage = computed(() => {
+	if (isTransferCard.value) return false
 	if (!props.content) return false
 	let html = props.content.replace(/\s/g, '')
 	html = html
@@ -223,6 +428,187 @@ onUpdated(attachLoadEvents)
 .chat-bubble-me :deep(a:hover) {
 	color: #f4f9ff;
 	text-decoration-color: rgb(244 249 255 / 90%);
+}
+
+.transfer-card {
+	min-width: 248px;
+	max-width: 308px;
+	border-radius: 8px;
+	border: 1px solid #2f80ed;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	background: #2f80ed;
+}
+
+.transfer-card-clickable {
+	cursor: pointer;
+}
+
+.transfer-card-clickable:hover {
+	filter: brightness(1.02);
+}
+
+.transfer-card-clickable:active {
+	filter: brightness(0.98);
+}
+
+.transfer-card-me {
+	background: #2f80ed;
+	color: #f6fbff;
+	border-color: #2b74d7;
+	border-bottom-right-radius: 6px;
+}
+
+.transfer-card-other {
+	background: #2f80ed;
+	color: #f6fbff;
+	border-color: #2b74d7;
+	border-bottom-left-radius: 6px;
+}
+
+.transfer-card.transfer-card-state-accepted,
+.transfer-card.transfer-card-state-receipt {
+	background: #dce9fb;
+	border-color: #c2d7f8;
+	color: #2157a3;
+}
+
+.transfer-card.transfer-card-state-refunded {
+	background: #e6ebf3;
+	border-color: #d2dae8;
+	color: #4f5f79;
+}
+
+.transfer-card-content {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 12px;
+}
+
+.transfer-card-icon {
+	width: 34px;
+	height: 34px;
+	border-radius: 8px;
+	background: rgb(255 255 255 / 20%);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	line-height: 1;
+	font-weight: 500;
+	flex-shrink: 0;
+}
+
+.transfer-card.transfer-card-state-accepted .transfer-card-icon,
+.transfer-card.transfer-card-state-receipt .transfer-card-icon {
+	background: #c8dbf7;
+	color: #2a5fa9;
+}
+
+.transfer-card.transfer-card-state-refunded .transfer-card-icon {
+	background: #d8dfeb;
+	color: #54637a;
+}
+
+.transfer-card-main {
+	min-width: 0;
+	flex: 1;
+}
+
+.transfer-card-title {
+	font-size: 12px;
+	opacity: 0.9;
+	font-weight: 500;
+}
+
+.transfer-card-amount {
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1.2;
+	margin-top: 3px;
+	letter-spacing: 0;
+}
+
+.transfer-card-remark {
+	font-size: 12px;
+	line-height: 1.35;
+	opacity: 0.82;
+	margin-top: 4px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.transfer-card-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 7px 12px;
+	font-size: 12px;
+	line-height: 1.35;
+	background: #ffffff;
+	border-top: 1px solid #d9e6fb;
+	color: #2a5fa9;
+}
+
+.transfer-card-footer.is-pending {
+	color: #2559a0;
+	font-weight: 500;
+}
+
+.transfer-card-footer.is-accepting {
+	color: #3b6eb3;
+}
+
+.transfer-card-footer.is-accepted {
+	color: #4a6ea8;
+}
+
+.transfer-card-footer.is-me {
+	color: #3969ab;
+}
+
+.transfer-card-footer.is-receipt {
+	color: #3f6298;
+	font-weight: 500;
+}
+
+.transfer-card-footer.is-refunded {
+	color: #55657d;
+	font-weight: 500;
+}
+
+.transfer-card.transfer-card-state-accepted .transfer-card-footer,
+.transfer-card.transfer-card-state-receipt .transfer-card-footer {
+	background: #f8fbff;
+	border-top-color: #d7e5fa;
+	color: #4d6ea4;
+}
+
+.transfer-card.transfer-card-state-refunded .transfer-card-footer {
+	background: #f5f7fb;
+	border-top-color: #dce3ef;
+	color: #66768e;
+}
+
+.transfer-card-state {
+	padding: 0 12px 8px;
+	font-size: 11px;
+	line-height: 1.35;
+	color: rgb(235 245 255 / 92%);
+	opacity: 1;
+}
+
+.transfer-card.transfer-card-state-accepted .transfer-card-state,
+.transfer-card.transfer-card-state-receipt .transfer-card-state {
+	color: #4e6fa5;
+}
+
+.transfer-card.transfer-card-state-refunded .transfer-card-state {
+	color: #66768e;
 }
 
 .bubble-failed-badge {

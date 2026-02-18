@@ -5,7 +5,7 @@
 	>
 		<!-- 左侧：分组联系人列表 (依赖容器宽度实现响应式) -->
 		<div
-			v-if="containerWidth >= 500 || !friendStore.selectedFriendId"
+			v-if="shouldShowListPanel"
 			class="h-full flex flex-col border-r border-border-default shrink-0 overflow-hidden"
 			:class="[containerWidth < 500 ? 'w-full border-r-0!' : '']"
 			:style="{
@@ -88,120 +88,168 @@
 						</n-icon>
 					</template>
 				</n-input>
+
+				<div class="mt-2 grid grid-cols-2 gap-1 rounded-[6px] bg-black/5 p-1 dark:bg-white/5">
+					<button
+						type="button"
+						class="h-7 rounded-[6px] text-xs font-semibold transition-colors"
+						:class="
+							contactModule === 'friends'
+								? 'bg-card-bg text-text-main'
+								: 'text-gray-500 hover:text-text-main'
+						"
+						@click="switchContactModule('friends')"
+					>
+						好友
+					</button>
+					<button
+						type="button"
+						class="h-7 rounded-[6px] text-xs font-semibold transition-colors"
+						:class="
+							contactModule === 'groups'
+								? 'bg-card-bg text-text-main'
+								: 'text-gray-500 hover:text-text-main'
+						"
+						@click="switchContactModule('groups')"
+					>
+						群组
+					</button>
+				</div>
 			</div>
 
 			<!-- 联系人列表内容 -->
 			<div class="flex-1 overflow-y-auto custom-scrollbar p-2 pt-0">
-				<div
-					v-if="
-						friendStore.isLoading &&
-						!isInitializingFriends &&
-						!friendStore.friends.length
-					"
-					class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
-				>
-					加载好友列表中...
-				</div>
-				<div
-					v-else-if="
-						!isInitializingFriends && !friendStore.friends.length
-					"
-					class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
-				>
-					暂无好友，点击右上角添加
-				</div>
-				<div
-					v-for="group in sortedGroups"
-					v-else
-					:key="group.id"
-					class="mb-1"
-				>
-					<!-- 分组头部 -->
+				<template v-if="contactModule === 'friends'">
 					<div
-						class="group-header flex items-center gap-1 h-9 px-2 rounded-[6px] cursor-pointer hover:bg-black/5 dark:hover:bg-white/6 transition-colors select-none"
-						@click="friendStore.toggleGroupExpand(group.id)"
-						@contextmenu.prevent="onGroupContextMenu($event, group)"
+						v-if="
+							friendStore.isLoading &&
+							!isInitializingFriends &&
+							!friendStore.friends.length
+						"
+						class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
 					>
-						<n-icon
-							size="14"
-							class="text-gray-400 dark:text-gray-500 transition-transform duration-200"
-							:class="{ 'rotate-90': group.expanded }"
-						>
-							<ChevronRight12Filled />
-						</n-icon>
-						<span
-							class="text-xs font-semibold text-gray-500 dark:text-gray-300 flex-1 truncate"
-						>
-							{{ group.name }}
-						</span>
-						<span
-							class="text-[10px] text-gray-400 dark:text-gray-500"
-						>
-							{{ onlineCount(group.id) }}/{{
-								(friendStore.groupedFriends[group.id] || [])
-									.length
-							}}
-						</span>
+						加载好友列表中...
 					</div>
-
-					<!-- 分组联系人列表 -->
 					<div
-						v-if="group.expanded"
-						class="mt-0.5 space-y-0.5 overflow-hidden"
+						v-else-if="
+							!isInitializingFriends && !friendStore.friends.length
+						"
+						class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
+					>
+						暂无好友，点击右上角添加
+					</div>
+					<div
+						v-for="group in sortedGroups"
+						v-else
+						:key="group.id"
+						class="mb-1"
 					>
 						<div
-							v-for="friend in filteredFriendsByGroup(group.id)"
-							:key="friend.id"
-							class="flex items-center gap-3 px-3 py-2 rounded-[6px] cursor-copy transition-all duration-200 relative group"
-							:class="[
-								friendStore.selectedFriendId === friend.id
-									? 'bg-primary/10'
-									: 'hover:bg-black/5 dark:hover:bg-white/6',
-							]"
-							@click="selectFriend(friend.id)"
+							class="group-header flex items-center gap-1 h-9 px-2 rounded-[6px] cursor-pointer hover:bg-black/5 dark:hover:bg-white/6 transition-colors select-none"
+							@click="friendStore.toggleGroupExpand(group.id)"
+							@contextmenu.prevent="onGroupContextMenu($event, group)"
 						>
-							<div class="relative shrink-0">
-								<n-avatar
-									round
-									:size="34"
-									:src="friend.avatar"
-									:class="{
-										'opacity-60 grayscale':
-											friend.status === 'offline',
-									}"
-								/>
-								<div
-									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700"
-									:class="[
-										friend.status === 'online'
-											? 'bg-blue-500'
-											: 'bg-gray-400',
-									]"
-								></div>
-							</div>
-							<div class="flex-1 min-w-0">
-								<div class="flex items-center justify-between">
-									<span
-										class="text-sm font-medium text-text-main truncate"
-									>
-										{{ friend.remark || friend.name }}
-									</span>
+							<n-icon
+								size="14"
+								class="text-gray-400 dark:text-gray-500 transition-transform duration-200"
+								:class="{ 'rotate-90': group.expanded }"
+							>
+								<ChevronRight12Filled />
+							</n-icon>
+							<span class="text-xs font-semibold text-gray-500 dark:text-gray-300 flex-1 truncate">
+								{{ group.name }}
+							</span>
+							<span class="text-[10px] text-gray-400 dark:text-gray-500">
+								{{ onlineCount(group.id) }}/{{ (friendStore.groupedFriends[group.id] || []).length }}
+							</span>
+						</div>
+
+						<div v-if="group.expanded" class="mt-0.5 space-y-0.5 overflow-hidden">
+							<div
+								v-for="friend in filteredFriendsByGroup(group.id)"
+								:key="friend.id"
+								class="flex items-center gap-3 px-3 py-2 rounded-[6px] cursor-copy transition-all duration-200 relative group"
+								:class="[
+									friendStore.selectedFriendId === friend.id
+										? 'bg-primary/10'
+										: 'hover:bg-black/5 dark:hover:bg-white/6',
+								]"
+								@click="selectFriend(friend.id)"
+							>
+								<div class="relative shrink-0">
+									<n-avatar
+										round
+										:size="34"
+										:src="friend.avatar"
+										:class="{
+											'opacity-60 grayscale':
+												friend.status === 'offline',
+										}"
+									/>
+									<div
+										class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700"
+										:class="[
+											friend.status === 'online'
+												? 'bg-blue-500'
+												: 'bg-gray-400',
+										]"
+									></div>
 								</div>
-								<div
-									class="text-[11px] text-gray-400 dark:text-gray-500 truncate pr-4"
-								>
-									{{ friend.signature || '[无签名]' }}
+								<div class="flex-1 min-w-0">
+									<div class="flex items-center justify-between">
+										<span class="text-sm font-medium text-text-main truncate">
+											{{ friend.remark || friend.name }}
+										</span>
+									</div>
+									<div class="text-[11px] text-gray-400 dark:text-gray-500 truncate pr-4">
+										{{ friend.signature || '[无签名]' }}
+									</div>
 								</div>
 							</div>
 						</div>
 					</div>
-				</div>
+				</template>
+
+				<template v-else>
+					<div
+						v-if="!filteredGroupChats.length"
+						class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
+					>
+						暂无群组
+					</div>
+					<div v-else class="space-y-1 pt-1">
+						<div
+							v-for="groupChat in filteredGroupChats"
+							:key="groupChat.id"
+							class="flex items-center gap-3 px-3 py-2 rounded-[6px] cursor-pointer transition-all duration-200"
+							:class="
+								selectedGroupChatId === groupChat.id
+									? 'bg-primary/10'
+									: 'hover:bg-black/5 dark:hover:bg-white/6'
+							"
+							@click="selectGroupChat(groupChat.id)"
+						>
+							<n-avatar round :size="34" :src="groupChat.avatar" />
+							<div class="min-w-0 flex-1">
+								<div class="text-sm font-medium text-text-main truncate">
+									{{ groupChat.name }}
+								</div>
+								<div class="text-[11px] text-gray-400 truncate">
+									群号: {{ groupChat.groupNo || '-' }}
+								</div>
+							</div>
+							<n-tag size="small" :bordered="false">
+								{{ groupChat.memberCount || 0 }}人
+							</n-tag>
+						</div>
+					</div>
+				</template>
 			</div>
 		</div>
 
 		<!-- 右侧：详情展示区 -->
 		<div
-			v-if="containerWidth >= 500 || friendStore.selectedFriendId"
+			v-if="shouldShowDetailPanel"
 			class="flex-1 overflow-hidden relative flex flex-col bg-page-bg"
 		>
 			<div
@@ -209,17 +257,17 @@
 			></div>
 			<!-- 窄屏返回按钮 -->
 			<div
-				v-if="containerWidth < 500 && friendStore.selectedFriendId"
+				v-if="containerWidth < 500 && (friendStore.selectedFriendId || selectedGroupChatId)"
 				class="absolute top-3 left-3 z-50"
 			>
 				<button
 					class="w-8 h-8 flex items-center justify-center bg-white/80 dark:bg-zinc-800/85 border border-black/5 dark:border-zinc-700/80 backdrop-blur-md rounded-full text-gray-600 dark:text-gray-100 active:scale-90 transition-all"
-					@click="friendStore.selectedFriendId = null"
+					@click="handleMobileBack"
 				>
 					<n-icon size="20"><ChevronLeft24Regular /></n-icon>
 				</button>
 			</div>
-			<Transition name="fade-scale" mode="out-in">
+			<Transition v-if="contactModule === 'friends'" name="fade-scale" mode="out-in">
 				<div
 					v-if="friendStore.selectedFriend"
 					:key="friendStore.selectedFriend.id"
@@ -560,6 +608,61 @@
 						</n-icon>
 						<span class="text-base font-medium text-text-main">
 							选择一名联系人查看详情
+						</span>
+					</div>
+				</div>
+			</Transition>
+
+			<Transition v-else name="fade-scale" mode="out-in">
+				<div
+					v-if="selectedGroupChat"
+					:key="String(selectedGroupChat.id)"
+					class="h-full overflow-y-auto custom-scrollbar"
+				>
+					<div class="relative isolate px-4 pb-6 pt-4">
+						<div class="mx-auto w-full max-w-3xl space-y-3">
+							<section class="rounded-[6px] border border-border-default bg-card-bg p-4">
+								<div class="flex items-start gap-3">
+									<n-avatar round :size="56" :src="selectedGroupChat.avatar" />
+									<div class="min-w-0 flex-1">
+										<h3 class="truncate text-lg font-semibold text-text-main">
+											{{ selectedGroupChat.name }}
+										</h3>
+										<p class="mt-1 text-xs text-gray-400">
+											群号：{{ selectedGroupChat.groupNo || '-' }}
+										</p>
+										<div class="mt-2 flex flex-wrap gap-2">
+											<n-tag size="small" :bordered="false">
+												{{ selectedGroupChat.memberCount || 0 }}/{{ selectedGroupChat.maxMembers || 500 }} 人
+											</n-tag>
+											<n-tag size="small" :bordered="false" type="info">
+												{{ selectedGroupChat.myRole || 'MEMBER' }}
+											</n-tag>
+										</div>
+									</div>
+								</div>
+								<div class="mt-3 rounded-[6px] border border-border-default bg-page-bg p-3 text-xs text-gray-500">
+									{{ selectedGroupChat.announcement?.trim() || '暂无群公告' }}
+								</div>
+								<div class="mt-3 flex gap-2">
+									<n-button type="primary" @click="openSelectedGroupChat">
+										进入群聊
+									</n-button>
+									<n-button secondary @click="copySelectedGroupNo">
+										复制群号
+									</n-button>
+								</div>
+							</section>
+						</div>
+					</div>
+				</div>
+				<div v-else class="h-full flex items-center justify-center select-none px-6">
+					<div class="flex flex-col items-center justify-center rounded-[6px] px-8 py-10">
+						<n-icon size="108" class="mb-3 text-gray-300">
+							<PeopleCommunity24Regular />
+						</n-icon>
+						<span class="text-base font-medium text-text-main">
+							选择一个群组查看详情
 						</span>
 					</div>
 				</div>
@@ -918,7 +1021,7 @@ import {
 	FriendRequestStatus,
 	FriendRequestHistoryItem,
 } from '@renderer/stores/friend'
-import { useChatStore } from '@renderer/stores/chat'
+import { useChatStore, type ChatItem } from '@renderer/stores/chat'
 import { useElementSize } from '@vueuse/core'
 import FriendApplyModal from '@renderer/components/FriendApplyModal.vue'
 
@@ -932,6 +1035,8 @@ const { width: containerWidth } = useElementSize(containerRef)
 const listWidth = ref(260)
 
 const searchQuery = ref('')
+const contactModule = ref<'friends' | 'groups'>('friends')
+const selectedGroupChatId = ref<number | null>(null)
 const showAddFriendModal = ref(false)
 const showAddGroupModal = ref(false)
 const showPendingRequestsModal = ref(false)
@@ -1002,6 +1107,43 @@ const sortedGroups = computed(() => {
 	})
 })
 
+const groupChats = computed<ChatItem[]>(() =>
+	chatStore.chatlist.filter((item) => item.chatType === 'GROUP'),
+)
+
+const filteredGroupChats = computed<ChatItem[]>(() => {
+	const keyword = searchQuery.value.trim().toLowerCase()
+	if (!keyword) return groupChats.value
+	return groupChats.value.filter((item) => {
+		const candidate = `${item.name || ''} ${item.groupNo || ''}`.toLowerCase()
+		return candidate.includes(keyword)
+	})
+})
+
+const selectedGroupChat = computed<ChatItem | null>(() => {
+	if (!selectedGroupChatId.value) return null
+	return (
+		groupChats.value.find((item) => item.id === selectedGroupChatId.value) ||
+		null
+	)
+})
+
+const shouldShowListPanel = computed<boolean>(() => {
+	if (containerWidth.value >= 500) return true
+	if (contactModule.value === 'friends') {
+		return !friendStore.selectedFriendId
+	}
+	return !selectedGroupChatId.value
+})
+
+const shouldShowDetailPanel = computed<boolean>(() => {
+	if (containerWidth.value >= 500) return true
+	if (contactModule.value === 'friends') {
+		return !!friendStore.selectedFriendId
+	}
+	return !!selectedGroupChatId.value
+})
+
 const onlineCount = (groupId: string): number => {
 	return (friendStore.groupedFriends[groupId] || []).filter(
 		(f) => f.status === 'online',
@@ -1032,6 +1174,31 @@ const filteredFriendsByGroup = (groupId: string): Friend[] => {
 
 const selectFriend = (id: string): void => {
 	friendStore.selectedFriendId = id
+}
+
+const selectGroupChat = (chatId: number): void => {
+	selectedGroupChatId.value = chatId
+}
+
+const switchContactModule = (module: 'friends' | 'groups'): void => {
+	contactModule.value = module
+	searchQuery.value = ''
+	if (module === 'friends') {
+		selectedGroupChatId.value = null
+		return
+	}
+	friendStore.selectedFriendId = null
+	if (!selectedGroupChatId.value && filteredGroupChats.value.length) {
+		selectedGroupChatId.value = filteredGroupChats.value[0].id
+	}
+}
+
+const handleMobileBack = (): void => {
+	if (contactModule.value === 'friends') {
+		friendStore.selectedFriendId = null
+		return
+	}
+	selectedGroupChatId.value = null
 }
 
 const formatGender = (gender?: Friend['gender']): string => {
@@ -1269,6 +1436,26 @@ const startChat = async (friend: Friend): Promise<void> => {
 	router.push({ name: 'chat' })
 }
 
+const openSelectedGroupChat = async (): Promise<void> => {
+	if (!selectedGroupChat.value) return
+	await chatStore.setActiveChat(selectedGroupChat.value.id)
+	router.push({ name: 'chat' })
+}
+
+const copySelectedGroupNo = async (): Promise<void> => {
+	const groupNo = selectedGroupChat.value?.groupNo?.trim() || ''
+	if (!groupNo) {
+		message.warning('当前群组缺少群号')
+		return
+	}
+	try {
+		await navigator.clipboard.writeText(groupNo)
+		message.success('群号已复制')
+	} catch {
+		message.error('复制失败，请手动复制')
+	}
+}
+
 // 分组右键菜单
 const showGroupContextMenu = ref(false)
 const contextMenuX = ref(0)
@@ -1485,6 +1672,20 @@ watch(
 		if (tab === 'history') {
 			void reloadHistory()
 		}
+	},
+)
+
+watch(
+	() => groupChats.value.map((item) => item.id).join(','),
+	() => {
+		if (contactModule.value !== 'groups') return
+		if (
+			selectedGroupChatId.value &&
+			groupChats.value.some((item) => item.id === selectedGroupChatId.value)
+		) {
+			return
+		}
+		selectedGroupChatId.value = groupChats.value[0]?.id || null
 	},
 )
 </script>

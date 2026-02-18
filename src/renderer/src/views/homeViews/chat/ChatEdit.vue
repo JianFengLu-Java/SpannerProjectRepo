@@ -5,9 +5,25 @@ import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
-import { ImageOutline, At, HappyOutline } from '@vicons/ionicons5'
-import { useMessage, NPopover, NIcon } from 'naive-ui'
+import {
+	ImageOutline,
+	At,
+	HappyOutline,
+	WalletOutline,
+} from '@vicons/ionicons5'
+import {
+	useMessage,
+	NPopover,
+	NIcon,
+	NModal,
+	NForm,
+	NFormItem,
+	NInputNumber,
+	NInput,
+} from 'naive-ui'
 import { useChatStore } from '@renderer/stores/chat'
+import { useWalletStore } from '@renderer/stores/wallet'
+import { storeToRefs } from 'pinia'
 import request from '@renderer/utils/request'
 import StarterKit from '@tiptap/starter-kit'
 import {
@@ -36,7 +52,16 @@ const props = defineProps<{
 }>()
 
 const chatStore = useChatStore()
+const walletStore = useWalletStore()
 const message = useMessage()
+const {
+	walletNo,
+	walletStatus,
+	securityPasswordSet,
+	balanceCents,
+	formattedBalance,
+	currency,
+} = storeToRefs(walletStore)
 
 // 响应式状态
 const isMultiline = ref(false)
@@ -49,6 +74,11 @@ const showLinkInput = ref(false)
 let resizeObserver: ResizeObserver | null = null
 const canSend = ref(false)
 const showEmoji = ref(false)
+const showTransferModal = ref(false)
+const transferAmount = ref<number | null>(null)
+const transferRemark = ref('')
+const transferSecurityPassword = ref('')
+const transferLoading = ref(false)
 
 // 添加边界元素引用
 const boundaryElement = ref<HTMLElement | null>(null)
@@ -224,7 +254,7 @@ const editor = useEditor({
 	],
 	editorProps: {
 		attributes: {
-			class: 'focus:outline-none py-1 leading-6 text-text-main break-all w-full min-h-[36px] flex items-center',
+			class: 'focus:outline-none py-1 leading-6 text-text-main break-all w-full min-h-[36px]',
 		},
 		handlePaste: (_view, event) => {
 			const items = event.clipboardData?.items
@@ -364,6 +394,107 @@ const handleSendMessage = (): void => {
 	// 清除草稿
 	if (normalizedId.value) {
 		chatStore.saveDraft(normalizedId.value, null)
+	}
+}
+
+const parseInputAmountToCents = (value: number | null): number | null => {
+	if (typeof value !== 'number' || !Number.isFinite(value)) return null
+	if (value <= 0) return null
+	const normalized = value.toFixed(2)
+	const [integerPart, fractionPart = '00'] = normalized.split('.')
+	const cents = Number(integerPart) * 100 + Number(fractionPart)
+	return Number.isSafeInteger(cents) && cents > 0 ? cents : null
+}
+
+const escapeHtml = (value: string): string =>
+	value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;')
+
+const canTransfer = computed(
+	() => Boolean(walletNo.value) && walletStatus.value !== 'FROZEN',
+)
+
+const openTransferModal = async (): Promise<void> => {
+	if (!normalizedId.value) {
+		message.warning('请先选择聊天对象')
+		return
+	}
+	try {
+		await walletStore.fetchWallet(true)
+		transferSecurityPassword.value = ''
+		showTransferModal.value = true
+	} catch {
+		message.error('钱包信息加载失败，请稍后重试')
+	}
+}
+
+const submitTransfer = async (): Promise<void> => {
+	if (transferLoading.value) return
+	if (!canTransfer.value) {
+		message.warning('钱包不可交易，请先检查账户状态')
+		return
+	}
+	const amountCents = parseInputAmountToCents(transferAmount.value)
+	if (!amountCents) {
+		message.warning('请输入大于 0 的转账金额，最多两位小数')
+		return
+	}
+	if (amountCents > Math.max(balanceCents.value, 0)) {
+		message.warning('余额不足，无法转账')
+		return
+	}
+	const pin = transferSecurityPassword.value.trim()
+	if (!securityPasswordSet.value) {
+		message.warning('尚未设置钱包安全PIN，请先到钱包页面设置')
+		return
+	}
+	if (!/^\d{6}$/.test(pin)) {
+		message.warning('请输入6位数字安全PIN')
+		return
+	}
+
+	const remark = transferRemark.value.trim()
+	const target = String(normalizedId.value)
+	transferLoading.value = true
+	try {
+		const transferResult = await walletStore.transfer({
+			toAccount: target,
+			amountCents,
+			remark: remark || `chat transfer to ${target}`,
+			securityPassword: pin,
+		})
+		const amountText = walletStore.formatAmount(amountCents, currency.value)
+		const businessNo =
+			typeof transferResult.businessNo === 'string'
+				? transferResult.businessNo.trim()
+				: ''
+		if (businessNo) {
+			const messageHtml = `
+<div class="chat-transfer-card" data-business-no="${escapeHtml(businessNo)}">
+	<div><strong>转账</strong></div>
+	<div>金额：${escapeHtml(amountText)}</div>
+	${remark ? `<div>备注：${escapeHtml(remark)}</div>` : ''}
+</div>`.trim()
+			chatStore.sendMessage(messageHtml, 'transfer')
+		} else {
+			message.warning('转账已创建，但未返回业务号，暂无法在聊天中展示收款卡片')
+		}
+		transferAmount.value = null
+		transferRemark.value = ''
+		transferSecurityPassword.value = ''
+		showTransferModal.value = false
+		message.success('转账申请已创建')
+	} catch (error) {
+		const maybeResponse = (
+			error as { response?: { data?: { message?: string } } }
+		).response
+		message.error(maybeResponse?.data?.message || '转账失败，请稍后重试')
+	} finally {
+		transferLoading.value = false
 	}
 }
 
@@ -525,7 +656,7 @@ onUnmounted(() => {
 				</div>
 
 				<div
-					class="flex-1 min-w-[120px] px-1 min-h-9 cursor-text flex items-center"
+					class="flex-1 min-w-[120px] px-1 min-h-9 cursor-text flex items-start"
 					@click="focusEditor"
 				>
 					<!-- BubbleMenu -->
@@ -608,7 +739,9 @@ onUnmounted(() => {
 								/></n-icon>
 							</button>
 
-							<div class="w-[1.5px] h-4 bg-gray-200/60 dark:bg-zinc-700 mx-1"></div>
+							<div
+								class="w-[1.5px] h-4 bg-gray-200/60 dark:bg-zinc-700 mx-1"
+							></div>
 
 							<button
 								type="button"
@@ -666,10 +799,6 @@ onUnmounted(() => {
 					>
 						输入消息...
 					</div>
-					<span
-						v-if="editor?.isEmpty && isFocus"
-						class="editor-fake-caret pointer-events-none"
-					></span>
 				</div>
 
 				<div
@@ -730,6 +859,14 @@ onUnmounted(() => {
 						>
 							<n-icon size="18"><FontDecrease24Regular /></n-icon>
 						</button>
+						<button
+							type="button"
+							class="composer-action-btn"
+							title="聊天转账"
+							@click="openTransferModal"
+						>
+							<n-icon size="18"><WalletOutline /></n-icon>
+						</button>
 
 						<button
 							type="button"
@@ -768,6 +905,57 @@ onUnmounted(() => {
 				Shift + Enter 换行
 			</div>
 		</div>
+
+		<n-modal
+			v-model:show="showTransferModal"
+			preset="card"
+			title="聊天转账"
+			style="width: 420px"
+			:mask-closable="false"
+		>
+			<n-form label-placement="left" label-width="76">
+				<n-form-item label="可用余额">
+					<div class="text-sm text-text-main/80">
+						{{ formattedBalance }}
+					</div>
+				</n-form-item>
+				<n-form-item label="转账金额">
+					<n-input-number
+						v-model:value="transferAmount"
+						:min="0.01"
+						:precision="2"
+						class="w-full"
+						placeholder="请输入转账金额"
+					/>
+				</n-form-item>
+				<n-form-item label="备注">
+					<n-input
+						v-model:value="transferRemark"
+						placeholder="可选"
+						:maxlength="60"
+						show-count
+					/>
+				</n-form-item>
+				<n-form-item label="安全PIN">
+					<n-input
+						v-model:value="transferSecurityPassword"
+						type="password"
+						show-password-on="mousedown"
+						:maxlength="6"
+						placeholder="请输入6位数字PIN"
+					/>
+				</n-form-item>
+			</n-form>
+			<div class="mt-3 flex justify-end gap-2">
+				<n-button @click="showTransferModal = false">取消</n-button>
+				<n-button
+					type="primary"
+					:loading="transferLoading"
+					@click="submitTransfer"
+					>确认转账</n-button
+				>
+			</div>
+		</n-modal>
 	</div>
 </template>
 
@@ -779,9 +967,7 @@ onUnmounted(() => {
 	outline: none;
 	padding: 4px;
 	min-height: 36px;
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
+	display: block;
 }
 
 :deep(.tiptap p) {
@@ -819,29 +1005,6 @@ onUnmounted(() => {
 :deep(.ProseMirror-focused) {
 	outline: none;
 	caret-color: #3695ff;
-}
-
-.editor-fake-caret {
-	position: absolute;
-	left: 8px;
-	top: 50%;
-	transform: translateY(-50%);
-	width: 2px;
-	height: 1.1em;
-	background: #3695ff;
-	border-radius: 1px;
-	animation: editorCaretBlink 1s steps(2, start) infinite;
-}
-
-@keyframes editorCaretBlink {
-	0%,
-	45% {
-		opacity: 1;
-	}
-	46%,
-	100% {
-		opacity: 0;
-	}
 }
 
 :deep(.ProseMirror-selectednode) {

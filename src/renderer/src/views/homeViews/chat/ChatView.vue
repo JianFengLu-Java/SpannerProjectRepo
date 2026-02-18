@@ -202,7 +202,12 @@
 								</div>
 								<div class="flex items-center justify-between">
 									<div
-										class="text-[11px] text-gray-400 truncate pr-2"
+										class="text-[11px] truncate pr-2"
+										:class="
+											isIncomingTransferSummary(chat)
+												? 'text-red-500'
+												: 'text-gray-400'
+										"
 									>
 										{{ chat.lastMessage }}
 									</div>
@@ -321,6 +326,32 @@
 			</n-spin>
 		</div>
 
+		<div class="mt-4 pt-3 border-t border-border-default/50">
+			<div class="text-xs text-gray-400 mb-2">或创建群聊</div>
+			<div class="flex flex-col gap-2">
+				<n-input
+					v-model:value="createGroupName"
+					placeholder="输入群名称"
+					maxlength="40"
+				/>
+				<n-input
+					v-model:value="createGroupAnnouncement"
+					type="textarea"
+					:autosize="{ minRows: 2, maxRows: 4 }"
+					placeholder="输入群公告（可选）"
+					maxlength="200"
+				/>
+				<n-button
+					type="primary"
+					:loading="isCreatingGroup"
+					:disabled="!createGroupName.trim()"
+					@click="createGroup"
+				>
+					创建群聊
+				</n-button>
+			</div>
+		</div>
+
 		<template #footer>
 			<div class="flex justify-end">
 				<n-button tertiary @click="showNewChatModal = false">
@@ -415,6 +446,9 @@ type ChatFilterKey = 'all' | 'unread' | 'mentions'
 const currentFilter = ref<ChatFilterKey>('all')
 const showNewChatModal = ref(false)
 const newChatKeyword = ref('')
+const createGroupName = ref('')
+const createGroupAnnouncement = ref('')
+const isCreatingGroup = ref(false)
 const isPreparingFriends = ref(false)
 const showFriendSettingPanel = ref(false)
 
@@ -462,6 +496,10 @@ const filteredPinnedChats = computed(() =>
 	pinnedChats.value.filter(matchFilter),
 )
 
+const isIncomingTransferSummary = (chat: ChatItem): boolean => {
+	return (chat.lastMessage || '').trim().startsWith('[转账]')
+}
+
 const filteredFriendsForNewChat = computed(() => {
 	const keyword = newChatKeyword.value.trim().toLowerCase()
 	if (!keyword) return friends.value
@@ -501,6 +539,8 @@ const handleFilterSelect = (key: string | number): void => {
 
 const handleNewChat = async (): Promise<void> => {
 	showNewChatModal.value = true
+	createGroupName.value = ''
+	createGroupAnnouncement.value = ''
 	if (friends.value.length > 0) return
 
 	isPreparingFriends.value = true
@@ -520,6 +560,35 @@ const startChatWithFriend = async (friend: Friend): Promise<void> => {
 	chatStore.markAsRead(chatId)
 	showNewChatModal.value = false
 	newChatKeyword.value = ''
+}
+
+const createGroup = async (): Promise<void> => {
+	const groupName = createGroupName.value.trim()
+	if (!groupName) {
+		message.warning('请输入群名称')
+		return
+	}
+	isCreatingGroup.value = true
+	try {
+		const chat = await chatStore.createGroupChat({
+			groupName,
+			announcement: createGroupAnnouncement.value.trim(),
+		})
+		await chatStore.setActiveChat(chat.id)
+		chatStore.markAsRead(chat.id)
+		showNewChatModal.value = false
+		newChatKeyword.value = ''
+		createGroupName.value = ''
+		createGroupAnnouncement.value = ''
+		message.success('创建群聊成功')
+	} catch (error) {
+		const fallback = '创建群聊失败，请稍后再试'
+		const tip =
+			error instanceof Error && error.message ? error.message : fallback
+		message.error(tip)
+	} finally {
+		isCreatingGroup.value = false
+	}
 }
 
 const getChatListViewport = (): HTMLElement | null => {

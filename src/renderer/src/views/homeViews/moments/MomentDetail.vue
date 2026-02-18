@@ -71,8 +71,11 @@
 						secondary
 						size="small"
 						class="px-5 font-bold"
+						:loading="isApplyingFriend"
+						:disabled="isAuthor || isFriend || isPendingFriendRequest || !authorAccount"
+						@click="handleAddFriend"
 					>
-						{{ isAuthor ? '我的动态' : '添加好友' }}
+						{{ friendActionText }}
 					</n-button>
 				</div>
 
@@ -320,6 +323,7 @@ import {
 import type { DropdownOption } from 'naive-ui'
 import { Moment, useMomentStore } from '@renderer/stores/moment'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
+import { useFriendStore } from '@renderer/stores/friend'
 import MomentPublishEditor from './MomentPublishEditor.vue'
 
 const props = defineProps<{
@@ -332,12 +336,14 @@ defineEmits<{
 
 const momentStore = useMomentStore()
 const userInfoStore = useUserInfoStore()
+const friendStore = useFriendStore()
 const message = useMessage()
 const commentText = ref('')
 const isSubmittingComment = ref(false)
 const showEditModal = ref(false)
 const isUpdatingMoment = ref(false)
 const isDeletingMoment = ref(false)
+const isApplyingFriend = ref(false)
 const editEditorKey = ref(0)
 const { width: windowWidth } = useWindowSize()
 
@@ -361,6 +367,28 @@ const isAuthor = computed(() => {
 	return Boolean(
 		currentAccount && authorAccount && currentAccount === authorAccount,
 	)
+})
+
+const authorAccount = computed(() => props.moment.author.account?.trim() || '')
+
+const isFriend = computed(() => {
+	if (props.moment.friendStatusWithAuthor === 'FRIEND') {
+		return true
+	}
+	return friendStore.friends.some(
+		(friend) => friend.id === authorAccount.value,
+	)
+})
+
+const isPendingFriendRequest = computed(() => {
+	return props.moment.friendStatusWithAuthor === 'PENDING_OUTBOUND'
+})
+
+const friendActionText = computed(() => {
+	if (isAuthor.value) return '我的动态'
+	if (isFriend.value) return '已是好友'
+	if (isPendingFriendRequest.value) return '已申请'
+	return '添加好友'
 })
 
 const manageOptions: DropdownOption[] = [
@@ -441,6 +469,29 @@ const handleDeleteMoment = async (): Promise<void> => {
 		message.error('删除失败，请稍后重试')
 	} finally {
 		isDeletingMoment.value = false
+	}
+}
+
+const handleAddFriend = async (): Promise<void> => {
+	if (
+		isAuthor.value ||
+		isFriend.value ||
+		isPendingFriendRequest.value ||
+		!authorAccount.value ||
+		isApplyingFriend.value
+	) {
+		return
+	}
+	isApplyingFriend.value = true
+	try {
+		await friendStore.applyFriendRequest(authorAccount.value)
+		props.moment.friendStatusWithAuthor = 'PENDING_OUTBOUND'
+		message.success('好友申请已发送')
+	} catch (error) {
+		console.error('发送好友申请失败', error)
+		message.error('发送好友申请失败，请稍后重试')
+	} finally {
+		isApplyingFriend.value = false
 	}
 }
 </script>
