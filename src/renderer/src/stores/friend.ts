@@ -26,6 +26,9 @@ export interface Friend {
 	verificationMessage?: string
 	createTime?: string
 	relationType?: 'PENDING' | 'ACCEPTED' | 'BLOCKED' | null
+	isVip?: boolean
+	growthValue?: number
+	vipLevel?: number
 	tags?: string[]
 	cover?: string
 }
@@ -57,6 +60,16 @@ interface FriendRelationDto {
 		signature?: string | null
 		realName?: string | null
 		avatarUrl?: string | null
+		email?: string | null
+		region?: string | null
+		phone?: string | null
+		gender?: 'male' | 'female' | 'unknown' | null
+		age?: number | null
+		isVip?: boolean | number | string | null
+		vipActive?: boolean | number | string | null
+		growthValue?: number | null
+		vipLevel?: number | null
+		userLevel?: number | null
 	} | null
 	online?: boolean | number | string | null
 	region?: string | null
@@ -65,6 +78,11 @@ interface FriendRelationDto {
 	gender?: 'male' | 'female' | 'unknown' | null
 	age?: number | null
 	relationType: 'PENDING' | 'ACCEPTED' | 'BLOCKED' | null
+	isVip?: boolean | number | string | null
+	vipActive?: boolean | number | string | null
+	growthValue?: number | null
+	vipLevel?: number | null
+	userLevel?: number | null
 	verificationMessage?: string | null
 	createTime: string
 }
@@ -73,6 +91,7 @@ export interface PendingFriendRequest {
 	account: string
 	realName: string
 	avatarUrl: string
+	isVip?: boolean
 	verificationMessage?: string | null
 	createTime: string
 }
@@ -92,9 +111,11 @@ export interface FriendRequestHistoryItem {
 	applicantAccount: string
 	applicantName: string
 	applicantAvatarUrl: string
+	applicantIsVip?: boolean
 	targetAccount: string
 	targetName: string
 	targetAvatarUrl: string
+	targetIsVip?: boolean
 	verificationMessage?: string | null
 	operatorAccount?: string | null
 	createdAt: string
@@ -128,10 +149,17 @@ export interface FriendSearchUser {
 	isSelf?: boolean
 	relationType?: 'PENDING' | 'ACCEPTED' | 'BLOCKED' | null
 	verificationMessage?: string | null
+	isVip?: boolean
+	growthValue?: number
+	vipLevel?: number
 	userInfo?: {
 		realName?: string | null
 		avatarUrl?: string | null
 		signature?: string | null
+		isVip?: boolean | number | string | null
+		vipActive?: boolean | number | string | null
+		growthValue?: number | null
+		vipLevel?: number | null
 	} | null
 }
 
@@ -176,17 +204,35 @@ const mapFriendRelationToFriend = (relation: FriendRelationDto): Friend => {
 		status: normalizeOnlineStatus(relation.online),
 		signature: resolvedSignature,
 		groupId: 'default',
-		gender: normalizeGender(relation.gender),
+		gender: normalizeGender(profile?.gender ?? relation.gender),
 		age:
-			typeof relation.age === 'number' && relation.age > 0
-				? relation.age
-				: undefined,
-		region: relation.region || undefined,
-		email: relation.email || undefined,
-		phone: relation.phone || undefined,
+			typeof profile?.age === 'number' && profile.age > 0
+				? profile.age
+				: typeof relation.age === 'number' && relation.age > 0
+					? relation.age
+					: undefined,
+		region: profile?.region || relation.region || undefined,
+		email: profile?.email || relation.email || undefined,
+		phone: profile?.phone || relation.phone || undefined,
 		verificationMessage: relation.verificationMessage || undefined,
 		createTime: relation.createTime || undefined,
 		relationType: relation.relationType ?? null,
+		isVip: normalizeVipFlag(
+			profile?.isVip,
+			profile?.vipActive,
+			relation.isVip,
+			relation.vipActive,
+			normalizeNonNegativeNumber(profile?.vipLevel),
+			normalizeNonNegativeNumber(relation.vipLevel),
+			normalizeNonNegativeNumber(profile?.userLevel),
+			normalizeNonNegativeNumber(relation.userLevel),
+		),
+		growthValue:
+			normalizeNonNegativeNumber(profile?.growthValue) ??
+			normalizeNonNegativeNumber(relation.growthValue),
+		vipLevel:
+			normalizeNonNegativeNumber(profile?.vipLevel) ??
+			normalizeNonNegativeNumber(relation.vipLevel),
 	}
 }
 
@@ -196,6 +242,16 @@ const mapFriendRelationToPendingRequest = (
 	account: relation.account,
 	realName: relation.realName || relation.account,
 	avatarUrl: resolveAvatarUrl(relation.avatarUrl),
+	isVip: normalizeVipFlag(
+		relation.userInfo?.isVip,
+		relation.userInfo?.vipActive,
+		relation.isVip,
+		relation.vipActive,
+		normalizeNonNegativeNumber(relation.userInfo?.vipLevel),
+		normalizeNonNegativeNumber(relation.vipLevel),
+		normalizeNonNegativeNumber(relation.userInfo?.userLevel),
+		normalizeNonNegativeNumber(relation.userLevel),
+	),
 	verificationMessage: relation.verificationMessage,
 	createTime: relation.createTime,
 })
@@ -228,6 +284,36 @@ const asString = (value: unknown): string => {
 	return typeof value === 'string' ? value : ''
 }
 
+const normalizeNonNegativeNumber = (value: unknown): number | undefined => {
+	if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+	return Math.max(0, Math.floor(value))
+}
+
+const normalizeVipFlag = (...values: unknown[]): boolean => {
+	for (const value of values) {
+		if (typeof value === 'boolean') return value
+		if (typeof value === 'number') return value > 0
+		if (typeof value === 'string') {
+			const normalized = value.trim().toLowerCase()
+			if (
+				normalized === 'true' ||
+				normalized === '1' ||
+				normalized === 'yes'
+			) {
+				return true
+			}
+			if (
+				normalized === 'false' ||
+				normalized === '0' ||
+				normalized === 'no'
+			) {
+				return false
+			}
+		}
+	}
+	return false
+}
+
 const mapHistoryItem = (
 	item: Record<string, unknown>,
 ): FriendRequestHistoryItem => {
@@ -255,17 +341,24 @@ const mapHistoryItem = (
 			(item.direction === 'OUTBOUND'
 				? asString(item.realName)
 				: asString(item.applicantAccount)),
-		applicantAvatarUrl: resolveAvatarUrl(
-			asString(item.applicantAvatarUrl) || asString(item.avatarUrl),
-		),
-		targetAccount,
+			applicantAvatarUrl: resolveAvatarUrl(
+				asString(item.applicantAvatarUrl) || asString(item.avatarUrl),
+			),
+			applicantIsVip: normalizeVipFlag(
+				item.applicantIsVip,
+				item.applicantVip,
+				item.isVip,
+				item.vipActive,
+			),
+			targetAccount,
 		targetName:
 			asString(item.targetName) ||
 			(item.direction === 'INBOUND'
 				? asString(item.realName)
 				: asString(item.targetAccount)),
-		targetAvatarUrl: resolveAvatarUrl(asString(item.targetAvatarUrl)),
-		verificationMessage: asString(item.verificationMessage) || null,
+			targetAvatarUrl: resolveAvatarUrl(asString(item.targetAvatarUrl)),
+			targetIsVip: normalizeVipFlag(item.targetIsVip, item.targetVip),
+			verificationMessage: asString(item.verificationMessage) || null,
 		operatorAccount: asString(item.operatorAccount) || null,
 		createdAt,
 		updatedAt,
@@ -431,6 +524,25 @@ export const useFriendStore = defineStore(
 				const relations = Array.isArray(response.data?.data)
 					? response.data.data
 					: []
+				if (import.meta.env.DEV && relations.length > 0) {
+					const sample = relations[0]
+					console.info('[friends] VIP字段样本:', {
+						keys: Object.keys(sample || {}),
+						isVip: sample?.isVip,
+						vipActive: sample?.vipActive,
+						vipLevel: sample?.vipLevel,
+						userLevel: sample?.userLevel,
+						userInfo: sample?.userInfo
+							? {
+									keys: Object.keys(sample.userInfo),
+									isVip: sample.userInfo.isVip,
+									vipActive: sample.userInfo.vipActive,
+									vipLevel: sample.userInfo.vipLevel,
+									userLevel: sample.userInfo.userLevel,
+								}
+							: null,
+					})
+				}
 				const previousFriendMap = new Map(
 					friends.value.map((friend) => [friend.id, friend]),
 				)
@@ -712,8 +824,8 @@ export const useFriendStore = defineStore(
 				return null
 			}
 			const profile = data.userInfo || null
-			return {
-				account: data.account,
+				return {
+					account: data.account,
 				realName:
 					profile?.realName?.trim() || data.realName || data.account,
 				avatarUrl: resolveAvatarUrl(
@@ -724,11 +836,22 @@ export const useFriendStore = defineStore(
 					data.signature ??
 					''
 				).trim(),
-				isSelf: Boolean(data.isSelf),
-				relationType: data.relationType ?? null,
-				verificationMessage: data.verificationMessage ?? null,
+					isSelf: Boolean(data.isSelf),
+					relationType: data.relationType ?? null,
+					verificationMessage: data.verificationMessage ?? null,
+					isVip: normalizeVipFlag(
+						profile?.isVip,
+						profile?.vipActive,
+						data.isVip,
+					),
+					growthValue:
+						normalizeNonNegativeNumber(profile?.growthValue) ??
+						normalizeNonNegativeNumber(data.growthValue),
+					vipLevel:
+						normalizeNonNegativeNumber(profile?.vipLevel) ??
+						normalizeNonNegativeNumber(data.vipLevel),
+				}
 			}
-		}
 
 		tokenManager.onTokenUpdated(() => {
 			pendingRequestsWsActive = false

@@ -1,22 +1,21 @@
 <template>
-	<div class="bill-terminal">
-		<div class="toolbar border border-border-default rounded-lg p-3">
-			<div class="flex flex-wrap items-center justify-between gap-2">
+	<div class="relative h-full flex flex-col bg-page-bg">
+		<!-- Toolbar & Stats -->
+		<div class="px-4 sm:px-6 py-4 space-y-4">
+			<div class="flex flex-wrap items-center justify-between gap-4">
 				<div>
-					<div class="text-sm font-semibold">账单面板</div>
-					<div class="text-xs panel-muted mt-1">
-						高密度交易流水视图
-					</div>
+					<h3 class="text-lg font-bold">交易记录</h3>
+					<p class="text-xs text-gray-500">查看历史资金变动明细</p>
 				</div>
-				<div class="tabs">
+				<div class="flex bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl">
 					<button
 						v-for="item in flowTabs"
 						:key="item.value"
 						type="button"
-						:class="[
-							'tab-btn',
-							{ active: flowFilter === item.value },
-						]"
+						class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all"
+						:class="flowFilter === item.value 
+							? 'bg-white dark:bg-zinc-700 text-primary' 
+							: 'text-gray-500 hover:text-text-main'"
 						@click="setFlowFilter(item.value)"
 					>
 						{{ item.label }}
@@ -24,183 +23,145 @@
 				</div>
 			</div>
 
-			<div class="mt-3 grid grid-cols-3 gap-2">
-				<div class="stat-card">
-					<div class="stat-label">收入</div>
-					<div class="stat-value up">
-						+{{ formatMoney(rechargeTotalCents) }}
-					</div>
+			<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+				<div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+					<p class="text-[10px] uppercase font-bold text-emerald-600/70 mb-1">总收入</p>
+					<p class="text-sm font-bold text-emerald-600 number-font">+{{ formatMoney(rechargeTotalCents) }}</p>
 				</div>
-				<div class="stat-card">
-					<div class="stat-label">支出</div>
-					<div class="stat-value down">
-						-{{ formatMoney(consumeTotalCents) }}
-					</div>
+				<div class="p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+					<p class="text-[10px] uppercase font-bold text-orange-600/70 mb-1">总支出</p>
+					<p class="text-sm font-bold text-orange-600 number-font">-{{ formatMoney(consumeTotalCents) }}</p>
 				</div>
-				<div class="stat-card">
-					<div class="stat-label">净变化</div>
-					<div
-						class="stat-value"
-						:class="netChangeCents >= 0 ? 'up' : 'down'"
-					>
-						{{ netChangeCents >= 0 ? '+' : '-'
-						}}{{ formatMoney(Math.abs(netChangeCents)) }}
-					</div>
+				<div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+					<p class="text-[10px] uppercase font-bold text-blue-600/70 mb-1">净变化</p>
+					<p class="text-sm font-bold text-blue-600 number-font" :class="netChangeCents < 0 ? 'text-orange-600' : 'text-emerald-600'">
+						{{ netChangeCents >= 0 ? '+' : '-' }}{{ formatMoney(Math.abs(netChangeCents)) }}
+					</p>
 				</div>
 			</div>
 		</div>
 
-		<div
-			class="table-wrap border border-border-default rounded-lg mt-3 overflow-hidden"
-		>
-			<div class="table-head">
-				<div class="col time">时间</div>
-				<div class="col type">类型</div>
-				<div class="col amount right">金额</div>
-				<div class="col balance right">余额变化</div>
-				<div class="col business">业务单号</div>
-			</div>
-
-			<div
-				v-if="groupedRecords.length === 0 && !flowLoading"
-				class="empty"
-			>
-				{{
-					flowFilter === 'ALL'
-						? '暂无账单记录'
-						: '当前筛选条件下暂无记录'
-				}}
-			</div>
-
-			<n-spin :show="flowLoading">
-				<div v-if="groupedRecords.length > 0" class="table-body">
-					<div
-						v-for="group in groupedRecords"
-						:key="group.key"
-						class="group-block"
-					>
-						<div class="group-row">
-							<span>{{ group.label }}</span>
-							<span
-								>收入
-								{{ formatMoney(group.rechargeTotalCents) }} ·
-								支出
-								{{ formatMoney(group.consumeTotalCents) }}</span
-							>
-						</div>
-						<div
-							v-for="record in group.records"
-							:key="recordKey(record)"
-							class="data-row"
-							@click="openDetail(record)"
-						>
-							<div class="col time number-font">
-								{{ formatDateTime(record.createdAt, true) }}
+		<!-- List Content -->
+		<div class="flex-1 overflow-hidden flex flex-col px-4 sm:px-6">
+			<div class="flex-1 overflow-y-auto no-scrollbar bg-card-bg border border-border-default rounded-2xl mb-4">
+				<n-spin :show="flowLoading">
+					<div v-if="groupedRecords.length > 0" class="divide-y divide-border-default/30">
+						<div v-for="group in groupedRecords" :key="group.key" class="group-block">
+							<div class="sticky top-0 z-10 bg-card-bg/90 backdrop-blur-md px-4 sm:px-5 py-3 flex flex-wrap justify-between items-center gap-2 border-b border-border-default/20">
+								<span class="text-xs font-bold text-gray-500 uppercase tracking-widest">{{ group.label }}</span>
+								<div class="flex gap-3 text-[10px] font-bold">
+									<span class="text-emerald-500">+{{ formatMoney(group.rechargeTotalCents) }}</span>
+									<span class="text-orange-500">-{{ formatMoney(group.consumeTotalCents) }}</span>
+								</div>
 							</div>
-							<div class="col type">
-								<span
-									class="type-pill"
-									:class="
-										isInflowType(record.changeType)
-											? 'up-pill'
-											: 'down-pill'
-									"
+							
+								<div 
+									v-for="record in group.records" 
+									:key="recordKey(record)" 
+									class="transaction-item max-sm:flex-col max-sm:items-start max-sm:gap-2"
+									@click="openDetail(record)"
 								>
-									{{ getRecordDirectionLabel(record.changeType) }}
-								</span>
-							</div>
-							<div
-								class="col amount right number-font"
-								:class="
-									isInflowType(record.changeType)
-										? 'up'
-										: 'down'
-								"
-							>
-								{{ getRecordDirectionSign(record.changeType)
-								}}{{ formatMoney(record.amountCents) }}
-							</div>
-							<div class="col balance right number-font">
-								{{ formatMoney(record.beforeBalanceCents) }} ->
-								{{ formatMoney(record.afterBalanceCents) }}
-							</div>
-							<div class="col business truncate">
-								{{ record.businessNo || '-' }}
+								<div class="flex items-center gap-4 flex-1">
+									<div 
+										class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-border-default/50" 
+										:class="isInflowType(record.changeType) ? 'bg-emerald-500/5 text-emerald-500' : 'bg-gray-500/5 text-gray-400'"
+									>
+										<n-icon size="20">
+											<ArrowDownLeft24Filled v-if="isInflowType(record.changeType)" />
+											<ArrowUpRight24Filled v-else />
+										</n-icon>
+									</div>
+									<div class="min-w-0 flex-1">
+										<p class="text-sm font-bold truncate">{{ getRecordTypeLabel(record.changeType) }}</p>
+										<p class="text-[10px] text-gray-400">{{ formatDateTime(record.createdAt, true) }} · {{ record.businessNo || '无业务单号' }}</p>
+									</div>
+								</div>
+								<div class="text-right max-sm:text-left max-sm:w-full">
+									<p 
+										class="text-sm font-bold number-font"
+										:class="isInflowType(record.changeType) ? 'text-emerald-500' : 'text-text-main'"
+									>
+										{{ getRecordDirectionSign(record.changeType) }}{{ formatMoney(record.amountCents) }}
+									</p>
+									<p class="text-[10px] text-gray-400 font-mono">余额: {{ formatMoney(record.afterBalanceCents) }}</p>
+								</div>
 							</div>
 						</div>
 					</div>
-				</div>
-			</n-spin>
-		</div>
-
-		<div class="mt-3 flex items-center justify-between text-xs panel-muted">
-			<div>
-				第 {{ flowPage }} / {{ Math.max(flowTotalPages, 1) }} 页 · 共
-				{{ flowTotal }} 条
+					<div v-else-if="!flowLoading" class="py-24 flex flex-col items-center justify-center text-gray-400">
+						<n-icon size="48" class="opacity-20 mb-2">
+							<Receipt24Regular />
+						</n-icon>
+						<p class="text-sm">没有找到相关记录</p>
+					</div>
+				</n-spin>
 			</div>
-			<div class="flex gap-2">
-				<n-button
-					size="tiny"
-					:disabled="flowPage <= 1 || flowLoading"
-					@click="loadPrevFlowPage"
-					>上一页</n-button
-				>
-				<n-button
-					size="tiny"
-					:disabled="!flowHasMore || flowLoading"
-					@click="loadNextFlowPage"
-					>下一页</n-button
-				>
-			</div>
-		</div>
 
-		<n-modal
-			v-model:show="showDetailModal"
-			preset="card"
-			title="账单详情"
-			style="width: 460px"
-		>
-			<div v-if="activeRecord" class="space-y-3 text-sm">
-				<div class="detail-row">
-					<span>类型</span
-					><strong>{{
-						getRecordDirectionLabel(activeRecord.changeType)
-					}}</strong>
-				</div>
-				<div class="detail-row">
-					<span>金额</span
-					><strong
-						>{{ getRecordDirectionSign(activeRecord.changeType)
-						}}{{ formatMoney(activeRecord.amountCents) }}</strong
+			<!-- Pagination -->
+			<div class="min-h-14 shrink-0 flex flex-wrap items-center justify-between gap-2 px-2 py-2 text-xs text-gray-400">
+				<p>第 {{ flowPage }} / {{ Math.max(flowTotalPages, 1) }} 页 · {{ flowTotal }} 条</p>
+				<div class="flex gap-2">
+					<button 
+						class="pagination-btn"
+						:disabled="flowPage <= 1 || flowLoading"
+						@click="loadPrevFlowPage"
 					>
+						上一页
+					</button>
+					<button 
+						class="pagination-btn"
+						:disabled="!flowHasMore || flowLoading"
+						@click="loadNextFlowPage"
+					>
+						下一页
+					</button>
 				</div>
-				<div class="detail-row">
-					<span>变更前余额</span
-					><span>{{
-						formatMoney(activeRecord.beforeBalanceCents)
-					}}</span>
+			</div>
+		</div>
+
+		<!-- Detail Modal -->
+		<n-modal v-model:show="showDetailModal" transform-origin="center">
+			<div class="next-wallet-modal w-[min(92vw,460px)] pb-6">
+				<div class="flex flex-col items-center pt-8 pb-6 bg-gray-50 dark:bg-zinc-800/50">
+					<div
+						class="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+						:class="isInflowType(activeRecord?.changeType) ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'"
+					>
+						<n-icon size="32">
+							<Receipt24Filled />
+						</n-icon>
+					</div>
+					<h3 class="text-lg font-bold">{{ getRecordTypeLabel(activeRecord?.changeType || 'CONSUME') }}</h3>
+					<p class="text-2xl sm:text-3xl font-bold number-font mt-2" :class="isInflowType(activeRecord?.changeType) ? 'text-emerald-500' : ''">
+						{{ isInflowType(activeRecord?.changeType) ? '+' : '-' }}{{ formatMoney(activeRecord?.amountCents || 0) }}
+					</p>
 				</div>
-				<div class="detail-row">
-					<span>变更后余额</span
-					><span>{{
-						formatMoney(activeRecord.afterBalanceCents)
-					}}</span>
+
+				<div class="px-5 sm:px-8 mt-6 space-y-4">
+					<div class="detail-item">
+						<span class="detail-label">交易状态</span>
+						<span class="detail-value text-emerald-500">支付成功</span>
+					</div>
+					<div class="detail-item">
+						<span class="detail-label">交易类型</span>
+						<span class="detail-value">{{ activeRecord?.changeType }}</span>
+					</div>
+					<div class="detail-item">
+						<span class="detail-label">交易时间</span>
+						<span class="detail-value">{{ formatDateTime(activeRecord?.createdAt || '') }}</span>
+					</div>
+					<div class="detail-item">
+						<span class="detail-label">业务单号</span>
+						<span class="detail-value font-mono text-[11px] select-all">{{ activeRecord?.businessNo || '---' }}</span>
+					</div>
+					<div class="detail-item">
+						<span class="detail-label">备注内容</span>
+						<span class="detail-value italic text-gray-400">{{ activeRecord?.remark || '无' }}</span>
+					</div>
 				</div>
-				<div class="detail-row">
-					<span>业务单号</span
-					><span class="break-all text-right">{{
-						activeRecord.businessNo || '-'
-					}}</span>
-				</div>
-				<div class="detail-row">
-					<span>备注</span
-					><span class="break-all text-right">{{
-						activeRecord.remark || '-'
-					}}</span>
-				</div>
-				<div class="detail-row">
-					<span>时间</span
-					><span>{{ formatDateTime(activeRecord.createdAt) }}</span>
+
+				<div class="px-5 sm:px-8 mt-8">
+					<button class="modal-btn-ghost w-full" @click="showDetailModal = false">关闭详情</button>
 				</div>
 			</div>
 		</n-modal>
@@ -208,7 +169,13 @@
 </template>
 
 <script setup lang="ts">
-import { NButton, NModal, NSpin } from 'naive-ui'
+import { NModal, NSpin, NIcon } from 'naive-ui'
+import {
+	ArrowDownLeft24Filled,
+	ArrowUpRight24Filled,
+	Receipt24Regular,
+	Receipt24Filled,
+} from '@vicons/fluent'
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWalletStore, type WalletFlowRecord } from '@renderer/stores/wallet'
@@ -244,19 +211,24 @@ const flowTabs = [
 	{ label: '支出', value: 'CONSUME' as const },
 ]
 
-const isInflowType = (changeType: WalletFlowRecord['changeType']): boolean =>
+const isInflowType = (changeType?: string): boolean =>
 	changeType === 'RECHARGE' || changeType === 'TRANSFER_IN'
 
-const getRecordDirectionLabel = (
-	changeType: WalletFlowRecord['changeType'],
-): '收入' | '支出' => (isInflowType(changeType) ? '收入' : '支出')
-
-const getRecordDirectionSign = (
-	changeType: WalletFlowRecord['changeType'],
-): '+' | '-' => (isInflowType(changeType) ? '+' : '-')
+const getRecordDirectionSign = (changeType: string): '+' | '-' => (isInflowType(changeType) ? '+' : '-')
 
 const formatMoney = (cents: number): string =>
 	walletStore.formatAmount(cents, currency.value)
+
+const getRecordTypeLabel = (type: string): string => {
+	const labels: Record<string, string> = {
+		RECHARGE: '充值账户',
+		CONSUME: '商户消费',
+		TRANSFER_OUT: '转账（支出）',
+		TRANSFER_IN: '转账（收入）',
+		VIP_PURCHASE: '会员购买',
+	}
+	return labels[type] || '其他交易'
+}
 
 const formatDateTime = (value: string, short = false): string => {
 	if (!value) return '-'
@@ -368,7 +340,7 @@ const loadNextFlowPage = (): void => {
 }
 
 const recordKey = (record: WalletFlowRecord): string =>
-	`${record.createdAt}-${record.businessNo}-${record.changeType}-${record.amountCents}-${record.beforeBalanceCents}-${record.afterBalanceCents}-${record.remark}`
+	`${record.createdAt}-${record.businessNo}-${record.changeType}-${record.amountCents}`
 
 const openDetail = (record: WalletFlowRecord): void => {
 	activeRecord.value = record
@@ -380,11 +352,7 @@ flowSizeLocal.value = flowSize.value || 20
 watch(
 	() => userStore.account,
 	(account) => {
-		if (!account) {
-			showDetailModal.value = false
-			activeRecord.value = null
-			return
-		}
+		if (!account) return
 		syncFlows(1)
 	},
 	{ immediate: true },
@@ -392,181 +360,45 @@ watch(
 </script>
 
 <style scoped>
-.bill-terminal {
-	background: var(--color-page-bg);
-}
-
-.toolbar,
-.table-wrap {
-	background: var(--color-card-bg);
-}
-
-.panel-muted {
-	color: rgba(99, 116, 148, 0.72);
-}
+@reference "../../../../assets/base.css";
 
 .number-font {
+	font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
 	font-variant-numeric: tabular-nums;
-	font-feature-settings: 'tnum';
 }
 
-.tabs {
-	display: inline-flex;
-	border: 1px solid var(--color-border-default);
-	border-radius: 8px;
-	overflow: hidden;
+.transaction-item {
+	@apply flex items-center justify-between px-5 py-4 transition-colors cursor-pointer hover:bg-black/5 dark:hover:bg-white/5;
 }
 
-.tab-btn {
-	border: 0;
-	background: transparent;
-	padding: 6px 11px;
-	font-size: 12px;
-	cursor: pointer;
-	color: rgba(99, 116, 148, 0.72);
+.pagination-btn {
+	@apply px-4 py-1.5 rounded-lg bg-gray-100 dark:bg-zinc-800 font-bold hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed;
 }
 
-.tab-btn.active {
-	background: rgba(54, 149, 255, 0.14);
-	color: #1d4ed8;
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+.no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
 }
 
-.stat-card {
-	border: 1px solid var(--color-border-default);
-	border-radius: 8px;
-	padding: 8px;
-	background: rgba(148, 163, 184, 0.06);
+.next-wallet-modal {
+	@apply bg-card-bg rounded-[20px] border border-border-default overflow-hidden;
 }
 
-.stat-label {
-	font-size: 11px;
-	color: rgba(99, 116, 148, 0.72);
+.modal-btn-ghost {
+	@apply h-12 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 font-bold transition-all active:scale-95;
 }
 
-.stat-value {
-	margin-top: 3px;
-	font-size: 14px;
-	font-weight: 600;
+.detail-item {
+	@apply flex justify-between items-center;
+}
+.detail-label {
+	@apply text-xs text-gray-500 font-medium;
+}
+.detail-value {
+	@apply text-sm font-bold;
 }
 
-.up {
-	color: #16a34a;
-}
-
-.down {
-	color: #ea580c;
-}
-
-.table-head,
-.data-row {
-	display: grid;
-	grid-template-columns: 96px 80px 120px 220px minmax(180px, 1fr);
-	align-items: center;
-	gap: 8px;
-	padding: 9px 12px;
-}
-
-.table-head {
-	border-bottom: 1px solid var(--color-border-default);
-	font-size: 11px;
-	color: rgba(99, 116, 148, 0.72);
-}
-
-.table-body {
-	max-height: 500px;
-	overflow: auto;
-}
-
-.group-row {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 8px 12px 6px;
-	font-size: 11px;
-	color: rgba(99, 116, 148, 0.72);
-}
-
-.data-row {
-	font-size: 12px;
-	border-top: 1px solid var(--color-border-default);
-	cursor: pointer;
-}
-
-.data-row:hover {
-	background: rgba(47, 143, 255, 0.07);
-}
-
-.col.right {
-	text-align: right;
-}
-
-.type-pill {
-	display: inline-flex;
-	align-items: center;
-	height: 20px;
-	padding: 0 8px;
-	border-radius: 999px;
-	font-size: 11px;
-	font-weight: 600;
-}
-
-.up-pill {
-	background: rgba(22, 163, 74, 0.14);
-	color: #15803d;
-}
-
-.down-pill {
-	background: rgba(234, 88, 12, 0.14);
-	color: #c2410c;
-}
-
-.empty {
-	padding: 36px 0;
-	text-align: center;
-	font-size: 12px;
-	color: rgba(99, 116, 148, 0.72);
-}
-
-.detail-row {
-	display: flex;
-	justify-content: space-between;
-	gap: 12px;
-	line-height: 1.5;
-}
-
-.detail-row span:first-child {
-	color: rgba(99, 116, 148, 0.72);
-}
-
-.dark .panel-muted,
-.dark .tab-btn,
-.dark .stat-label,
-.dark .group-row,
-.dark .table-head,
-.dark .empty,
-.dark .detail-row span:first-child {
-	color: #9aa0a6;
-}
-
-@media (max-width: 980px) {
-	.table-head,
-	.data-row {
-		grid-template-columns: 80px 70px 100px minmax(140px, 1fr);
-	}
-
-	.col.balance {
-		display: none;
-	}
-}
-
-@media (max-width: 640px) {
-	.table-head,
-	.data-row {
-		grid-template-columns: 68px 66px minmax(110px, 1fr);
-	}
-
-	.col.business {
-		display: none;
-	}
-}
 </style>

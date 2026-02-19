@@ -202,8 +202,10 @@
 				</div>
 			</div>
 
-				<div v-if="slotMenus.length > 0" class="w-full flex-1 min-h-0">
-					<div class="slot-scroll-wrapper w-full h-full flex flex-col gap-1">
+			<div v-if="slotMenus.length > 0" class="w-full flex-1 min-h-0">
+				<div
+					class="slot-scroll-wrapper w-full h-full flex flex-col gap-1"
+				>
 					<n-tooltip
 						v-for="item in slotMenus"
 						:key="item.key"
@@ -224,67 +226,74 @@
 								]"
 								@click="go(item)"
 							>
-						<n-badge :dot="item.hasMessage" class="sidebar-menu-dot">
-							<div class="flex justify-center items-center">
-								<n-icon
-								size="18"
-								:class="[
-									isMenuActive(item)
-										? ' text-[#3695ff] dark:text-[#56a7ff]'
-										: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
-								]"
-							>
-								<component :is="iconMap[item.icon]" />
-							</n-icon>
-						</div>
-					</n-badge>
+								<n-badge
+									:dot="item.hasMessage"
+									class="sidebar-menu-dot"
+								>
+									<div
+										class="flex justify-center items-center"
+									>
+										<n-icon
+											size="18"
+											:class="[
+												isMenuActive(item)
+													? ' text-[#3695ff] dark:text-[#56a7ff]'
+													: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
+											]"
+										>
+											<component
+												:is="iconMap[item.icon]"
+											/>
+										</n-icon>
+									</div>
+								</n-badge>
 
-						<span
-							v-if="isExpanded"
-							class="text-xs whitespace-nowrap overflow-hidden flex-1"
-							:class="{ 'pr-5': !!item.slotKey }"
-						>
-							<span
-								class="block truncate"
-								:class="[
-									isMenuActive(item)
-										? ' text-sidebar-select-item'
-										: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
-								]"
-							>
-								{{ item.label }}
-							</span>
-						</span>
-						<span
-							v-else
-							class="text-[10px] leading-none text-center"
-							:class="[
-								isMenuActive(item)
-									? ' text-sidebar-select-item'
-									: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
-							]"
-						>
-							{{ getCollapsedSlotLabel(item) }}
-						</span>
-					<button
-						v-if="item.slotKey"
-						type="button"
-						:class="[
-							'absolute top-1 right-1 z-10 h-4 w-4 rounded-full bg-card-bg/92 border border-border-default/70 shadow-sm flex items-center justify-center text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)] hover:text-sidebar-select-item transition-colors opacity-100',
-						]"
-						@click.stop="destroySlot(item.slotKey)"
-					>
-							<n-icon size="12">
-								<Close />
-							</n-icon>
-						</button>
+								<span
+									v-if="isExpanded"
+									class="text-xs whitespace-nowrap overflow-hidden flex-1"
+									:class="{ 'pr-5': !!item.slotKey }"
+								>
+									<span
+										class="block truncate"
+										:class="[
+											isMenuActive(item)
+												? ' text-sidebar-select-item'
+												: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
+										]"
+									>
+										{{ item.label }}
+									</span>
+								</span>
+								<span
+									v-else
+									class="text-[10px] leading-none text-center"
+									:class="[
+										isMenuActive(item)
+											? ' text-sidebar-select-item'
+											: ' text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)]',
+									]"
+								>
+									{{ getCollapsedSlotLabel(item) }}
+								</span>
+								<button
+									v-if="item.slotKey"
+									type="button"
+									:class="[
+										'absolute top-1 right-1 z-10 h-4 w-4 rounded-full bg-card-bg/92 border border-border-default/70 shadow-sm flex items-center justify-center text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)] hover:text-sidebar-select-item transition-colors opacity-100',
+									]"
+									@click.stop="destroySlot(item.slotKey)"
+								>
+									<n-icon size="12">
+										<Close />
+									</n-icon>
+								</button>
 							</div>
 						</template>
 						{{ item.label }}
 					</n-tooltip>
-					</div>
 				</div>
 			</div>
+		</div>
 
 		<n-modal
 			v-model:show="showSearchModal"
@@ -319,10 +328,7 @@
 				</n-input>
 
 				<div class="search-content min-h-[240px]">
-					<div
-						v-if="!globalSearchQuery.trim()"
-						class="space-y-3"
-					>
+					<div v-if="!globalSearchQuery.trim()" class="space-y-3">
 						<div class="text-xs text-gray-400 dark:text-gray-500">
 							快捷入口
 						</div>
@@ -342,10 +348,14 @@
 									</n-icon>
 								</div>
 								<div class="min-w-0">
-									<div class="truncate text-xs font-semibold text-text-main">
+									<div
+										class="truncate text-xs font-semibold text-text-main"
+									>
 										{{ item.label }}
 									</div>
-									<div class="truncate text-[11px] text-gray-400 dark:text-gray-500">
+									<div
+										class="truncate text-[11px] text-gray-400 dark:text-gray-500"
+									>
 										{{ item.description }}
 									</div>
 								</div>
@@ -357,7 +367,11 @@
 						<div
 							class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500"
 						>
-							<span>匹配结果 ({{ filteredGlobalSearchEntries.length }})</span>
+							<span
+								>匹配结果 ({{
+									filteredGlobalSearchEntries.length
+								}})</span
+							>
 							<span v-if="isSearchingGlobalChatRecords">
 								正在检索聊天记录...
 							</span>
@@ -381,10 +395,14 @@
 									</n-icon>
 								</div>
 								<div class="min-w-0 flex-1">
-									<div class="truncate text-sm font-medium text-text-main">
+									<div
+										class="truncate text-sm font-medium text-text-main"
+									>
 										{{ item.label }}
 									</div>
-									<div class="truncate text-xs text-gray-400 dark:text-gray-500">
+									<div
+										class="truncate text-xs text-gray-400 dark:text-gray-500"
+									>
 										{{ item.description }}
 									</div>
 								</div>
@@ -401,183 +419,41 @@
 								<SearchOutline />
 							</n-icon>
 							<p class="text-sm">没有匹配结果</p>
-							<p class="text-xs">试试其他关键词，例如“动态”或“设置”</p>
+							<p class="text-xs">
+								试试其他关键词，例如“动态”或“设置”
+							</p>
 						</div>
 					</div>
 				</div>
 
-				<div class="flex items-center justify-between border-t border-border-default/70 pt-2 text-[11px] text-gray-400 dark:text-gray-500">
+				<div
+					class="flex items-center justify-between border-t border-border-default/70 pt-2 text-[11px] text-gray-400 dark:text-gray-500"
+				>
 					<div class="flex items-center gap-3">
-						<div
-							class="flex items-center gap-1"
-						>
-							<span class="rounded-[4px] bg-page-bg px-1.5 py-0.5">Enter</span>
+						<div class="flex items-center gap-1">
+							<span class="rounded-[4px] bg-page-bg px-1.5 py-0.5"
+								>Enter</span
+							>
 							<span>打开</span>
 						</div>
 						<div class="flex items-center gap-1">
-							<span class="rounded-[4px] bg-page-bg px-1.5 py-0.5">Esc</span>
+							<span class="rounded-[4px] bg-page-bg px-1.5 py-0.5"
+								>Esc</span
+							>
 							<span>关闭</span>
 						</div>
 					</div>
-					<div>
-						当前可搜索 {{ globalSearchEntries.length }} 项
-					</div>
+					<div>当前可搜索 {{ globalSearchEntries.length }} 项</div>
 				</div>
 			</div>
-		</n-modal>
-
-		<n-modal
-			v-model:show="showEditProfileModal"
-			preset="card"
-			title="编辑个人信息"
-			:mask-closable="false"
-			style="width: 560px"
-		>
-			<div class="mb-3 text-xs text-gray-500 dark:text-gray-300">
-				字段失焦后自动保存，保存成功不提示。
-			</div>
-			<n-form label-placement="left" label-width="90">
-				<n-form-item label="真实姓名">
-					<div class="w-full flex items-center gap-2">
-						<n-input
-							v-model:value="editProfile.realName"
-							placeholder="请输入真实姓名"
-							@blur="saveField('realName')"
-						/>
-						<span
-							v-if="savingField.realName"
-							class="text-xs text-gray-400 shrink-0"
-							>保存中...</span
-						>
-					</div>
-				</n-form-item>
-				<n-form-item label="头像地址">
-					<div class="w-full flex items-center gap-3">
-						<n-avatar
-							:size="40"
-							round
-							:src="editProfile.avatarUrl || user.avatarUrl"
-							class="shrink-0 border border-gray-200 dark:border-zinc-700"
-						/>
-						<n-button
-							size="small"
-							:loading="
-								isAvatarUploading || savingField.avatarUrl
-							"
-							@click="triggerAvatarUpload"
-						>
-							上传头像
-						</n-button>
-						<span
-							v-if="savingField.avatarUrl"
-							class="text-xs text-gray-400 shrink-0"
-							>保存中...</span
-						>
-					</div>
-				</n-form-item>
-				<n-form-item label="性别">
-					<div class="w-full flex items-center gap-2">
-						<n-select
-							v-model:value="editProfile.gender"
-							:options="genderOptions"
-							placeholder="请选择"
-							@update:value="saveField('gender')"
-						/>
-						<span
-							v-if="savingField.gender"
-							class="text-xs text-gray-400 shrink-0"
-							>保存中...</span
-						>
-					</div>
-				</n-form-item>
-				<n-form-item label="邮箱">
-					<div class="w-full flex items-center gap-2">
-						<n-input
-							v-model:value="editProfile.email"
-							placeholder="a@b.com"
-							@blur="saveField('email')"
-						/>
-						<span
-							v-if="savingField.email"
-							class="text-xs text-gray-400 shrink-0"
-							>保存中...</span
-						>
-					</div>
-				</n-form-item>
-				<n-form-item label="手机号">
-					<div class="w-full flex items-center gap-2">
-						<n-input
-							v-model:value="editProfile.phone"
-							placeholder="13800138000"
-							@blur="saveField('phone')"
-						/>
-						<span
-							v-if="savingField.phone"
-							class="text-xs text-gray-400 shrink-0"
-							>保存中...</span
-						>
-					</div>
-				</n-form-item>
-				<n-form-item label="地址">
-					<div class="w-full flex items-center gap-2">
-						<n-input
-							v-model:value="editProfile.address"
-							placeholder="Shanghai"
-							@blur="saveField('address')"
-						/>
-						<span
-							v-if="savingField.address"
-							class="text-xs text-gray-400 shrink-0"
-							>保存中...</span
-						>
-					</div>
-				</n-form-item>
-				<n-form-item label="个性签名">
-					<div class="w-full flex items-center gap-2">
-						<n-input
-							v-model:value="editProfile.signature"
-							type="textarea"
-							placeholder="请输入个性签名"
-							autosize
-							maxlength="80"
-							show-count
-							@blur="saveField('signature')"
-						/>
-						<span
-							v-if="savingField.signature"
-							class="text-xs text-gray-400 shrink-0"
-							>保存中...</span
-						>
-					</div>
-				</n-form-item>
-				<n-form-item label="年龄">
-					<div class="w-full flex items-center gap-2">
-						<n-input-number
-							v-model:value="editProfile.age"
-							:min="0"
-							placeholder="25"
-							class="w-full"
-							@blur="saveField('age')"
-						/>
-						<span
-							v-if="savingField.age"
-							class="text-xs text-gray-400 shrink-0"
-							>保存中...</span
-						>
-					</div>
-				</n-form-item>
-			</n-form>
 		</n-modal>
 
 		<FriendApplyModal
 			v-model:show="showAddFriendModal"
 			@applied="handleFriendApplied"
 		/>
-		<AvatarUploadEditor
-			ref="avatarUploadEditorRef"
-			@uploaded="handleAvatarUploaded"
-			@uploading-change="handleAvatarUploadingChange"
-		/>
+
+		<GroupCreateModal v-model:show="showGroupCreateModal" />
 	</div>
 </template>
 
@@ -587,14 +463,9 @@ import {
 	NIcon,
 	NTag,
 	NDropdown,
-	NModal,
 	NInput,
 	NBadge,
-	NForm,
-	NFormItem,
-	NSelect,
-	NInputNumber,
-	NButton,
+	NModal,
 	NTooltip,
 	useMessage,
 	type InputInst,
@@ -613,6 +484,7 @@ import {
 	Close,
 	WalletOutline,
 } from '@vicons/ionicons5'
+import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { Add16Filled } from '@vicons/fluent'
 import FriendApplyModal from '@renderer/components/FriendApplyModal.vue'
@@ -622,7 +494,7 @@ import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
 import { useInAppBrowserStore } from '@renderer/stores/inAppBrowser'
 import { storeToRefs } from 'pinia'
 import request from '@renderer/utils/request'
-import AvatarUploadEditor from '@renderer/components/AvatarUploadEditor.vue'
+import GroupCreateModal from '@renderer/components/GroupCreateModal.vue'
 
 defineProps<{ isExpanded: boolean; width: number; isDragging?: boolean }>()
 
@@ -647,13 +519,11 @@ const globalChatMatchedRecords = ref<
 	}>
 >([])
 const showAddFriendModal = ref(false)
+const showGroupCreateModal = ref(false)
 const showUserDropdown = ref(false)
 const showAddDropdown = ref(false)
-const showEditProfileModal = ref(false)
-const isAvatarUploading = ref(false)
-const avatarUploadEditorRef = ref<{
-	openFileDialog: () => void
-} | null>(null)
+const signatureDraft = ref('')
+const isSavingSignature = ref(false)
 const platfrom = window.api.platform
 const isMac = platfrom === 'darwin'
 const GLOBAL_CHAT_SEARCH_DEBOUNCE_MS = 260
@@ -661,238 +531,43 @@ const GLOBAL_CHAT_SEARCH_CHAT_LIMIT = 30
 let globalChatSearchTimer: ReturnType<typeof setTimeout> | null = null
 let globalChatSearchSeq = 0
 
-type EditableField =
-	| 'realName'
-	| 'avatarUrl'
-	| 'gender'
-	| 'email'
-	| 'phone'
-	| 'address'
-	| 'signature'
-	| 'age'
-
-interface EditableProfile {
-	realName: string
-	avatarUrl: string
-	gender: string
-	email: string
-	phone: string
-	address: string
-	signature: string
-	age: number | null
-}
-
-type EditableValue = string | number | null
-
-const genderOptions = [
-	{ label: '男', value: 'male' },
-	{ label: '女', value: 'female' },
-	{ label: '未知', value: 'unknown' },
-]
-
-const createEditableProfile = (): EditableProfile => ({
-	realName: user.userName || '',
-	avatarUrl: user.avatarUrl || '',
-	gender: user.gender || 'unknown',
-	email: user.email || '',
-	phone: user.phone || '',
-	address: user.address || '',
-	signature: user.signature || '',
-	age:
-		typeof user.age === 'number' && Number.isFinite(user.age)
-			? user.age
-			: null,
+const vipIdentityText = computed(() => {
+	if (!user.vipActive) return '普通用户'
+	if (user.userLevel >= 9) return '黑金VIP'
+	if (user.userLevel >= 7) return '铂金VIP'
+	if (user.userLevel >= 4) return '黄金VIP'
+	return '尊享VIP'
 })
 
-const editProfile = ref<EditableProfile>(createEditableProfile())
-const persistedProfile = ref<EditableProfile>(createEditableProfile())
-const savingField = ref<Record<EditableField, boolean>>({
-	realName: false,
-	avatarUrl: false,
-	gender: false,
-	email: false,
-	phone: false,
-	address: false,
-	signature: false,
-	age: false,
-})
-
-const getProfileFieldValue = (
-	profile: EditableProfile,
-	field: EditableField,
-): EditableValue => {
-	switch (field) {
-		case 'realName':
-			return profile.realName
-		case 'avatarUrl':
-			return profile.avatarUrl
-		case 'gender':
-			return profile.gender
-		case 'email':
-			return profile.email
-		case 'phone':
-			return profile.phone
-		case 'address':
-			return profile.address
-		case 'signature':
-			return profile.signature
-		case 'age':
-			return profile.age
-	}
+const openEditProfileSlot = (): void => {
+	sidebarSlotStore.openSlot({
+		slotKey: 'edit-profile',
+		title: '编辑资料',
+		componentKey: 'edit-profile',
+		icon: 'user',
+	})
 }
-
-const setProfileFieldValue = (
-	profile: EditableProfile,
-	field: EditableField,
-	value: EditableValue,
-): void => {
-	switch (field) {
-		case 'realName':
-			profile.realName = String(value ?? '')
-			return
-		case 'avatarUrl':
-			profile.avatarUrl = String(value ?? '')
-			return
-		case 'gender':
-			profile.gender = String(value ?? 'unknown')
-			return
-		case 'email':
-			profile.email = String(value ?? '')
-			return
-		case 'phone':
-			profile.phone = String(value ?? '')
-			return
-		case 'address':
-			profile.address = String(value ?? '')
-			return
-		case 'signature':
-			profile.signature = String(value ?? '')
-			return
-		case 'age':
-			profile.age =
-				typeof value === 'number' && Number.isFinite(value)
-					? value
-					: null
-			return
-	}
-}
-
-const normalizeFieldValue = (
-	field: EditableField,
-	value: EditableValue,
-): EditableValue => {
-	if (field === 'age') {
-		if (typeof value !== 'number' || !Number.isFinite(value)) return null
-		return Math.max(0, Math.floor(value))
-	}
-	if (field === 'gender') {
-		return value === 'male' || value === 'female' || value === 'unknown'
-			? value
-			: 'unknown'
-	}
-	if (field === 'signature') {
-		const normalized = typeof value === 'string' ? value.trim() : ''
-		return normalized.slice(0, 80)
-	}
-	return typeof value === 'string' ? value.trim() : value
-}
-
-const openEditProfile = (): void => {
-	const snapshot = createEditableProfile()
-	editProfile.value = { ...snapshot }
-	persistedProfile.value = { ...snapshot }
-	showEditProfileModal.value = true
-}
-
-const saveFieldValue = async (
-	field: EditableField,
-	nextValue: EditableValue,
-): Promise<void> => {
-	if (savingField.value[field]) return
-
-	const normalizedValue = normalizeFieldValue(field, nextValue)
-	const prevValue = getProfileFieldValue(persistedProfile.value, field)
-	if (normalizedValue === prevValue) {
-		setProfileFieldValue(editProfile.value, field, prevValue)
-		return
-	}
-
-	if (
-		field === 'email' &&
-		typeof normalizedValue === 'string' &&
-		normalizedValue
-	) {
-		const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-		if (!emailPattern.test(normalizedValue)) {
-			message.error('邮箱格式不正确')
-			setProfileFieldValue(editProfile.value, field, prevValue)
-			return
-		}
-	}
-
-	savingField.value[field] = true
-	setProfileFieldValue(editProfile.value, field, normalizedValue)
-
-	try {
-		const payload: Record<string, EditableValue> = {
-			[field]: normalizedValue,
-		}
-		await request.put('/user/me', payload)
-		setProfileFieldValue(persistedProfile.value, field, normalizedValue)
-		if (field === 'age') {
-			user.patchUserInfo({
-				age:
-					typeof normalizedValue === 'number' &&
-					Number.isFinite(normalizedValue)
-						? normalizedValue
-						: null,
-			})
-		} else if (field === 'realName') {
-			user.patchUserInfo({ realName: String(normalizedValue ?? '') })
-		} else if (field === 'avatarUrl') {
-			user.patchUserInfo({ avatarUrl: String(normalizedValue ?? '') })
-		} else if (field === 'gender') {
-			user.patchUserInfo({
-				gender: String(normalizedValue ?? 'unknown'),
-			})
-		} else if (field === 'email') {
-			user.patchUserInfo({ email: String(normalizedValue ?? '') })
-		} else if (field === 'phone') {
-			user.patchUserInfo({ phone: String(normalizedValue ?? '') })
-		} else if (field === 'address') {
-			user.patchUserInfo({ address: String(normalizedValue ?? '') })
-		} else if (field === 'signature') {
-			user.patchUserInfo({ signature: String(normalizedValue ?? '') })
-		}
-	} catch (error) {
-		console.error(`更新字段 ${field} 失败`, error)
-		setProfileFieldValue(editProfile.value, field, prevValue)
-		message.error('保存失败，请稍后重试')
-	} finally {
-		savingField.value[field] = false
-	}
-}
-
-const saveField = async (field: EditableField): Promise<void> => {
-	await saveFieldValue(field, getProfileFieldValue(editProfile.value, field))
-}
-
-const triggerAvatarUpload = (): void => {
-	avatarUploadEditorRef.value?.openFileDialog()
-}
-
-const handleAvatarUploaded = async (url: string): Promise<void> => {
-	await saveFieldValue('avatarUrl', url)
-}
-
-const handleAvatarUploadingChange = (uploading: boolean): void => {
-	isAvatarUploading.value = uploading
-}
-
-const signatureDraft = ref('')
 
 const saveDropdownSignature = async (): Promise<void> => {
-	await saveFieldValue('signature', signatureDraft.value)
+	if (isSavingSignature.value) return
+	const normalizedSignature = signatureDraft.value.trim().slice(0, 80)
+	const currentSignature = user.signature || ''
+	if (normalizedSignature === currentSignature) {
+		signatureDraft.value = currentSignature
+		return
+	}
+	isSavingSignature.value = true
+	signatureDraft.value = normalizedSignature
+	try {
+		await request.put('/user/me', { signature: normalizedSignature })
+		user.patchUserInfo({ signature: normalizedSignature })
+	} catch (error) {
+		console.error('更新签名失败', error)
+		signatureDraft.value = currentSignature
+		message.error('保存失败，请稍后重试')
+	} finally {
+		isSavingSignature.value = false
+	}
 	signatureDraft.value = user.signature || ''
 }
 
@@ -973,6 +648,11 @@ const addMenuOptions = [
 		label: '新建群组',
 		key: 'new-group',
 		icon: () => h(NIcon, null, { default: () => h(Add) }),
+		props: {
+			onClick: () => {
+				showGroupCreateModal.value = true
+			},
+		},
 	},
 	{
 		label: '添加好友',
@@ -1022,12 +702,28 @@ const userMenuOptions = [
 									},
 									{ default: () => '在线' },
 								),
+								user.vipActive
+									? h('img', {
+											src: vipBadgeIcon,
+											alt: 'VIP',
+											class: 'ml-2 h-4 w-4 block vip-fill-red',
+										})
+									: null,
 							],
 						),
 						h(
 							'div',
 							{ class: 'text-xs text-gray-500' },
 							user.email,
+						),
+						h(
+							'div',
+							{
+								class: user.vipActive
+									? 'mt-1 text-xs text-amber-500 font-medium'
+									: 'mt-1 text-xs text-gray-400',
+							},
+							`身份：${vipIdentityText.value}`,
 						),
 						h('div', { class: 'mt-2' }, [
 							h(
@@ -1054,7 +750,7 @@ const userMenuOptions = [
 									}
 								},
 							}),
-							savingField.value.signature
+							isSavingSignature.value
 								? h(
 										'div',
 										{
@@ -1069,7 +765,7 @@ const userMenuOptions = [
 			]),
 	},
 	{ type: 'divider' },
-	{ label: '我的个人名片', key: 'my-card' },
+	{ label: '个人资料中心', key: 'my-card' },
 	{ label: '编辑个人信息', key: 'edit-profile' },
 	{ type: 'divider' },
 	{
@@ -1083,7 +779,7 @@ const handleUserMenuSelect = (key: string): void => {
 		showUserDropdown.value = false
 		sidebarSlotStore.openSlot({
 			slotKey: 'my-profile-card',
-			title: '我的名片',
+			title: '个人资料中心',
 			componentKey: 'profile-card',
 			icon: 'user',
 		})
@@ -1091,7 +787,7 @@ const handleUserMenuSelect = (key: string): void => {
 	}
 	if (key === 'edit-profile') {
 		showUserDropdown.value = false
-		openEditProfile()
+		openEditProfileSlot()
 		return
 	}
 	if (key !== 'logout') return
@@ -1209,7 +905,7 @@ const globalSearchEntries = computed<GlobalSearchEntry[]>(() => {
 			keywords: ['编辑', '个人', '资料', 'profile'],
 			action: () => {
 				showSearchModal.value = false
-				openEditProfile()
+				openEditProfileSlot()
 			},
 		},
 	]
@@ -1248,30 +944,33 @@ const globalSearchEntries = computed<GlobalSearchEntry[]>(() => {
 
 	const chatRecordEntries: GlobalSearchEntry[] = keyword
 		? globalChatMatchedRecords.value.map((record) => {
-					const matchedMessage = record.message
-					return {
-						key: `chat-${record.chatId}-${matchedMessage.id}`,
-						label: record.chatName,
-						description:
-							getMessageSearchText(matchedMessage) ||
-							'进入会话查看聊天记录',
-						typeLabel: '聊天' as const,
-						icon: Chatbubbles,
-						keywords: [record.chatName, getMessageSearchText(matchedMessage)],
-						action: async () => {
-							showSearchModal.value = false
-							await router.push({ name: 'chat' })
-							await chatStore.setActiveChat(record.chatId)
-							chatStore.requestMessageJump({
-								chatId: record.chatId,
-								messageId: matchedMessage.id,
-								serverMessageId: matchedMessage.serverMessageId,
-								clientMessageId: matchedMessage.clientMessageId,
-								keyword,
-							})
-						},
-					}
-				})
+				const matchedMessage = record.message
+				return {
+					key: `chat-${record.chatId}-${matchedMessage.id}`,
+					label: record.chatName,
+					description:
+						getMessageSearchText(matchedMessage) ||
+						'进入会话查看聊天记录',
+					typeLabel: '聊天' as const,
+					icon: Chatbubbles,
+					keywords: [
+						record.chatName,
+						getMessageSearchText(matchedMessage),
+					],
+					action: async () => {
+						showSearchModal.value = false
+						await router.push({ name: 'chat' })
+						await chatStore.setActiveChat(record.chatId)
+						chatStore.requestMessageJump({
+							chatId: record.chatId,
+							messageId: matchedMessage.id,
+							serverMessageId: matchedMessage.serverMessageId,
+							clientMessageId: matchedMessage.clientMessageId,
+							keyword,
+						})
+					},
+				}
+			})
 		: []
 
 	return [
@@ -1305,14 +1004,14 @@ const isProfileCardSlotItem = (item: MenuItem): boolean =>
 
 const getCollapsedSlotLabel = (item: MenuItem): string => {
 	if (isWebSlotItem(item)) return '网页'
-	if (isProfileCardSlotItem(item)) return '名片'
+	if (isProfileCardSlotItem(item)) return '资料'
 	return item.label || ''
 }
 
 const shouldShowSlotTooltip = (item: MenuItem): boolean => {
 	if (!item.label) return false
 	if (isWebSlotItem(item)) return item.label !== '网页'
-	if (isProfileCardSlotItem(item)) return item.label !== '我的名片'
+	if (isProfileCardSlotItem(item)) return item.label !== '个人资料中心'
 	return false
 }
 
@@ -1623,5 +1322,10 @@ function isMenuActive(item: MenuItem): boolean {
 
 :deep(.dark .global-search-modal .n-card-header) {
 	border-bottom-color: rgba(82, 82, 91, 0.7);
+}
+
+.vip-fill-red {
+	filter: brightness(0) saturate(100%) invert(23%) sepia(94%) saturate(7118%)
+		hue-rotate(353deg) brightness(97%) contrast(111%);
 }
 </style>

@@ -177,6 +177,11 @@ export const useChatStore = defineStore('chat', () => {
 	const userInfoStore = useUserInfoStore()
 	const friendStore = useFriendStore()
 	const appSettingsStore = useAppSettingsStore()
+	const SYSTEM_ACCOUNT = 'SYSTEM'
+	const SYSTEM_CHAT_NAME = '系统通知'
+	const SYSTEM_CHAT_ID_SEED = -999000001
+	const SYSTEM_AVATAR_DATA_URI =
+		'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgdmlld0JveD0iMCAwIDk2IDk2Ij4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjEwIiB5MT0iOCIgeDI9Ijg2IiB5Mj0iODgiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjNzBCOEVGIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4NzZFQiIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iNDYiIGZpbGw9InVybCgjZykiLz4KICA8cGF0aCBkPSJNNjggNjhjLTIuNiAwLTQuNy0yLjEtNC43LTQuN3YtMTRjMC04LjEtNS42LTE1LjEtMTMuMi0xNi44di0yLjFjMC0xLjEtLjktMi0yLTJoMGMtMS4xIDAtMiAuOS0yIDJ2Mi4xYy03LjYgMS43LTEzLjIgOC43LTEzLjIgMTYuOHYxNGMwIDIuNi0yLjEgNC43LTQuNyA0LjdjLTEuMSAwLTIgLjktMiAyczAuOSAyIDIgMmg0MGMxLjEgMCAyLS45IDItMnMtLjktMi0yLTJ6IiBmaWxsPSIjRkZGIi8+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI3MSIgcj0iNC42IiBmaWxsPSIjRkZGIi8+Cjwvc3ZnPgo='
 	let localMessageIdCursor = Date.now()
 	// --- 状态定义 ---
 	const activeChatId = ref<number | null>(null)
@@ -254,12 +259,65 @@ export const useChatStore = defineStore('chat', () => {
 		return chat?.chatType === 'GROUP' ? 'GROUP' : 'PRIVATE'
 	}
 
+	const normalizeAccount = (value: unknown): string => {
+		if (value === null || value === undefined) return ''
+		return String(value).trim()
+	}
+
+	const isSystemAccount = (account: string): boolean => {
+		return account.toUpperCase() === SYSTEM_ACCOUNT
+	}
+
+	const resolveSystemChatAvatar = (avatar?: string): string => {
+		const normalized = avatar?.trim() || ''
+		return normalized || SYSTEM_AVATAR_DATA_URI
+	}
+
+	const isSystemNotificationChatItem = (chat?: ChatItem | null): boolean => {
+		if (!chat || chat.chatType === 'GROUP') return false
+		return isSystemAccount(normalizeAccount(chat.peerAccount))
+	}
+
+	const findSystemNotificationChat = (): ChatItem | undefined => {
+		return chatlist.value.find((item) => isSystemNotificationChatItem(item))
+	}
+
+	const allocateSystemChatId = (): number => {
+		const usedIds = new Set(chatlist.value.map((item) => item.id))
+		let candidate = SYSTEM_CHAT_ID_SEED
+		while (usedIds.has(candidate)) {
+			candidate -= 1
+		}
+		return candidate
+	}
+
+	const hashToPositiveInt = (seed: string): number => {
+		let hash = 2166136261
+		for (let i = 0; i < seed.length; i += 1) {
+			hash ^= seed.charCodeAt(i)
+			hash = Math.imul(hash, 16777619)
+		}
+		return (hash >>> 0) % 1000000000 + 1000000000
+	}
+
+	const derivePrivateChatId = (account: string): number | null => {
+		const normalized = account.trim()
+		if (!normalized) return null
+		const numeric = Number(normalized)
+		if (Number.isFinite(numeric) && numeric > 0) {
+			return Math.floor(numeric)
+		}
+		return hashToPositiveInt(`private:${normalized}`)
+	}
+
 	const deriveGroupChatId = (groupNo: string): number | null => {
 		const normalized = groupNo.trim()
 		if (!normalized) return null
 		const numeric = Number(normalized)
-		if (!Number.isFinite(numeric) || numeric <= 0) return null
-		return -Math.floor(numeric)
+		if (Number.isFinite(numeric) && numeric > 0) {
+			return -Math.floor(numeric)
+		}
+		return -hashToPositiveInt(`group:${normalized}`)
 	}
 
 	const findGroupChatByNo = (groupNo: string): ChatItem | undefined => {
@@ -267,7 +325,21 @@ export const useChatStore = defineStore('chat', () => {
 		if (!normalized) return undefined
 		return chatlist.value.find(
 			(item) =>
-				item.chatType === 'GROUP' && item.groupNo?.trim() === normalized,
+				item.chatType === 'GROUP' &&
+				item.groupNo?.trim() === normalized,
+		)
+	}
+
+	const findPrivateChatByAccount = (
+		account: string,
+	): ChatItem | undefined => {
+		const normalized = account.trim()
+		if (!normalized) return undefined
+		return chatlist.value.find(
+			(item) =>
+				item.chatType !== 'GROUP' &&
+				!isSystemNotificationChatItem(item) &&
+				item.peerAccount?.trim() === normalized,
 		)
 	}
 
@@ -473,12 +545,10 @@ export const useChatStore = defineStore('chat', () => {
 		return 'text'
 	}
 
-	const triggerSystemMessageReminder = (
-		params: {
-			chatName: string
-			messageText: string
-		},
-	): void => {
+	const triggerSystemMessageReminder = (params: {
+		chatName: string
+		messageText: string
+	}): void => {
 		if (!appSettingsStore.notificationsEnabled) return
 		const isStandalone =
 			window.location.href.includes('chat-standalone') ||
@@ -632,8 +702,10 @@ export const useChatStore = defineStore('chat', () => {
 			const serverId = row.serverMessageId?.trim() || ''
 			const fingerprint = buildMessageFingerprint(row)
 			const duplicatedByLocalId = seenLocalId.has(row.id)
-			const duplicatedByClientId = !!clientId && seenClientId.has(clientId)
-			const duplicatedByServerId = !!serverId && seenServerId.has(serverId)
+			const duplicatedByClientId =
+				!!clientId && seenClientId.has(clientId)
+			const duplicatedByServerId =
+				!!serverId && seenServerId.has(serverId)
 			const duplicatedByFingerprint =
 				!serverId &&
 				!clientId &&
@@ -710,7 +782,9 @@ export const useChatStore = defineStore('chat', () => {
 					? byServerId.get(item.serverMessageId)
 					: undefined)
 			const duplicatedByFingerprint =
-				!duplicatedByIds && !item.serverMessageId && !item.clientMessageId
+				!duplicatedByIds &&
+				!item.serverMessageId &&
+				!item.clientMessageId
 					? fingerprintMap.get(buildMessageFingerprint(item))
 					: undefined
 			const duplicated = duplicatedByIds || duplicatedByFingerprint
@@ -817,11 +891,16 @@ export const useChatStore = defineStore('chat', () => {
 				maxMembers:
 					typeof c.maxMembers === 'number' ? c.maxMembers : undefined,
 				memberCount:
-					typeof c.memberCount === 'number' ? c.memberCount : undefined,
+					typeof c.memberCount === 'number'
+						? c.memberCount
+						: undefined,
 				announcement: c.announcement || undefined,
 				timestamp: c.lastMessageAt
 					? formatTimeFromIso(c.lastMessageAt)
 					: c.timestamp,
+				avatar: isSystemAccount((c.peerAccount || '').trim())
+					? resolveSystemChatAvatar(c.avatar)
+					: c.avatar,
 				online: !!c.online,
 				isPinned: !!c.isPinned,
 			}))
@@ -959,7 +1038,8 @@ export const useChatStore = defineStore('chat', () => {
 			}
 
 			chat.lastMessage = preview || chat.lastMessage || ''
-			chat.timestamp = latestTimeLabel || chat.timestamp || formatTimeFromIso()
+			chat.timestamp =
+				latestTimeLabel || chat.timestamp || formatTimeFromIso()
 			if (latestSentAt) {
 				chat.lastMessageAt = latestSentAt
 			}
@@ -973,7 +1053,11 @@ export const useChatStore = defineStore('chat', () => {
 
 	const resolveLatestPreviewBeforeCreate = async (
 		chatId: number,
-	): Promise<{ preview: string; timeLabel: string; sentAt?: string } | null> => {
+	): Promise<{
+		preview: string
+		timeLabel: string
+		sentAt?: string
+	} | null> => {
 		try {
 			const latestSegment = await db.getMessagesSegment(chatId, 1, 0)
 			if (latestSegment.length) {
@@ -1027,7 +1111,9 @@ export const useChatStore = defineStore('chat', () => {
 					type: latest.type,
 					senderId: latest.senderId,
 				}),
-				timeLabel: latest.timestamp || (sentAt ? formatTimeFromIso(sentAt) : ''),
+				timeLabel:
+					latest.timestamp ||
+					(sentAt ? formatTimeFromIso(sentAt) : ''),
 				sentAt,
 			}
 		} catch (error) {
@@ -1173,21 +1259,61 @@ export const useChatStore = defineStore('chat', () => {
 	const ensureChatSession = async (
 		account: string,
 	): Promise<number | null> => {
-		const chatId = Number(account)
-		if (!Number.isFinite(chatId)) return null
+		const normalizedAccount = normalizeAccount(account)
+		if (!normalizedAccount) return null
 
-		let existing = chatlist.value.find((item) => item.id === chatId)
-		if (existing) {
-			await hydrateSingleChatPreviewFromLatestMessage(existing)
-			return chatId
+		if (isSystemAccount(normalizedAccount)) {
+			const existingSystemChat = findSystemNotificationChat()
+			if (existingSystemChat) {
+				const nextAvatar = resolveSystemChatAvatar(existingSystemChat.avatar)
+				if (existingSystemChat.avatar !== nextAvatar) {
+					existingSystemChat.avatar = nextAvatar
+					db.saveChat(existingSystemChat)
+				}
+				await hydrateSingleChatPreviewFromLatestMessage(
+					existingSystemChat,
+				)
+				return existingSystemChat.id
+			}
+			const systemChat: ChatItem = {
+				id: allocateSystemChatId(),
+				chatType: 'PRIVATE',
+				peerAccount: SYSTEM_ACCOUNT,
+				name: SYSTEM_CHAT_NAME,
+				avatar: resolveSystemChatAvatar(''),
+				lastMessage: '',
+				timestamp: formatTimeFromIso(),
+				lastMessageAt: new Date().toISOString(),
+				online: true,
+				unreadCount: 0,
+				isPinned: false,
+			}
+			chatlist.value.unshift(systemChat)
+			db.saveChat(systemChat)
+			return systemChat.id
 		}
 
-		const friend = friendStore.friends.find((item) => item.id === account)
+		const chatId = derivePrivateChatId(normalizedAccount)
+		if (!chatId) return null
+
+		let existing =
+			findPrivateChatByAccount(normalizedAccount) ||
+			chatlist.value.find(
+				(item) => item.chatType !== 'GROUP' && item.id === chatId,
+			)
+		if (existing) {
+			await hydrateSingleChatPreviewFromLatestMessage(existing)
+			return existing.id
+		}
+
+		const friend = friendStore.friends.find(
+			(item) => item.id === normalizedAccount,
+		)
 		const newChat: ChatItem = {
 			id: chatId,
 			chatType: 'PRIVATE',
-			peerAccount: account,
-			name: friend?.name || account,
+			peerAccount: normalizedAccount,
+			name: friend?.name || normalizedAccount,
 			avatar: resolveAvatarUrl(friend?.avatar),
 			lastMessage: '',
 			timestamp: formatTimeFromIso(),
@@ -1285,7 +1411,9 @@ export const useChatStore = defineStore('chat', () => {
 		}
 	}
 
-	const upsertGroupSession = async (detail: GroupDetail): Promise<number | null> => {
+	const upsertGroupSession = async (
+		detail: GroupDetail,
+	): Promise<number | null> => {
 		const groupNo = detail.groupNo?.trim() || ''
 		if (!groupNo) return null
 		const existing = findGroupChatByNo(groupNo)
@@ -1302,9 +1430,7 @@ export const useChatStore = defineStore('chat', () => {
 			memberCount: detail.memberCount,
 			announcement: detail.announcement,
 			name: detail.groupName || existing?.name || `群聊 ${groupNo}`,
-			avatar:
-				existing?.avatar ||
-				`https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(`group-${groupNo}`)}`,
+			avatar: existing?.avatar || '',
 			lastMessage: existing?.lastMessage || '',
 			timestamp: existing?.timestamp || formatTimeFromIso(),
 			lastMessageAt:
@@ -1325,7 +1451,9 @@ export const useChatStore = defineStore('chat', () => {
 		return nextChat.id
 	}
 
-	const ensureGroupSession = async (groupNo: string): Promise<number | null> => {
+	const ensureGroupSession = async (
+		groupNo: string,
+	): Promise<number | null> => {
 		const normalized = groupNo.trim()
 		if (!normalized) return null
 		const existing = findGroupChatByNo(normalized)
@@ -1349,7 +1477,7 @@ export const useChatStore = defineStore('chat', () => {
 			chatType: 'GROUP',
 			groupNo: normalized,
 			name: `群聊 ${normalized}`,
-			avatar: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(`group-${normalized}`)}`,
+			avatar: '',
 			lastMessage: '',
 			timestamp: formatTimeFromIso(),
 			lastMessageAt: new Date().toISOString(),
@@ -1360,6 +1488,20 @@ export const useChatStore = defineStore('chat', () => {
 		chatlist.value.unshift(fallbackChat)
 		db.saveChat(fallbackChat)
 		return fallbackChat.id
+	}
+
+	const syncGroupSessionByNo = async (groupNo: string): Promise<void> => {
+		const normalized = groupNo.trim()
+		if (!normalized) return
+		try {
+			const response = await groupChatApi.getGroup(normalized)
+			const detail = response.data?.data
+			if (detail) {
+				await upsertGroupSession(detail)
+			}
+		} catch (error) {
+			console.warn('同步群信息失败:', normalized, error)
+		}
 	}
 
 	const handleIncomingGroupWsMessage = async (
@@ -1475,6 +1617,20 @@ export const useChatStore = defineStore('chat', () => {
 		const groupNo = options.groupNo || currentChat?.groupNo || ''
 		const isGroupChat =
 			currentChat?.chatType === 'GROUP' && !!groupNo.trim()
+		if (isSystemNotificationChatItem(currentChat)) {
+			historyPaginationMap.value.set(chatId, {
+				nextPage: 1,
+				hasMore: false,
+			})
+			return {
+				messages: [],
+				page: 1,
+				size,
+				total: messages.value[chatId]?.length || 0,
+				totalPages: 1,
+				hasMore: false,
+			}
+		}
 		let data: ChatHistoryPageData | GroupHistoryPageData = {}
 		let rawMessages: (HistoryMessageDto | GroupHistoryMessageDto)[] = []
 		if (isGroupChat) {
@@ -1486,19 +1642,18 @@ export const useChatStore = defineStore('chat', () => {
 			data = response.data?.data || {}
 			rawMessages = Array.isArray(data.messages) ? data.messages : []
 		} else {
-			const response = await request.get<ApiResponse<ChatHistoryPageData>>(
-				`/messages/history/${chatId}`,
-				{
-					params: {
-						page,
-						size,
-						startDate,
-						endDate,
-						type: messageType,
-						keyword,
-					},
+			const response = await request.get<
+				ApiResponse<ChatHistoryPageData>
+			>(`/messages/history/${chatId}`, {
+				params: {
+					page,
+					size,
+					startDate,
+					endDate,
+					type: messageType,
+					keyword,
 				},
-			)
+			})
 			data = response.data?.data || {}
 			rawMessages = Array.isArray(data.messages) ? data.messages : []
 		}
@@ -1578,12 +1733,13 @@ export const useChatStore = defineStore('chat', () => {
 							segment.length,
 						hasMore: segment.length >= size,
 					})
-					return (
-						segment.length >= size || !!remotePagination?.hasMore
-					)
+					return segment.length >= size || !!remotePagination?.hasMore
 				} catch (error) {
 					// 分段 IPC 不可用时兜底回退，避免历史消息空白。
-					console.warn('分段读取本地聊天记录失败，回退全量读取:', error)
+					console.warn(
+						'分段读取本地聊天记录失败，回退全量读取:',
+						error,
+					)
 					const allLocal = await db.getMessages(chatId)
 					if (allLocal.length) {
 						mergeMessagesToStore(chatId, allLocal, 'append')
@@ -2035,7 +2191,10 @@ export const useChatStore = defineStore('chat', () => {
 					)) {
 						const chatId = Number(chatIdKey)
 						if (!Number.isFinite(chatId)) continue
-						if (!Array.isArray(chatMessages) || !chatMessages.length)
+						if (
+							!Array.isArray(chatMessages) ||
+							!chatMessages.length
+						)
 							continue
 						mergeMessagesToStore(chatId, chatMessages, 'append')
 					}
@@ -2079,7 +2238,8 @@ export const useChatStore = defineStore('chat', () => {
 				})
 			chat.lastMessage = message
 			chat.timestamp = time
-			chat.lastMessageAt = lastMessageAtOverride || new Date().toISOString()
+			chat.lastMessageAt =
+				lastMessageAtOverride || new Date().toISOString()
 
 			if (moveToTop) {
 				// 新消息到达时移动到顶部 (所有聊天列表)
@@ -2230,6 +2390,7 @@ export const useChatStore = defineStore('chat', () => {
 		if (!activeChatId.value || !content) return
 		const chatId = activeChatId.value
 		const currentChat = chatlist.value.find((item) => item.id === chatId)
+		if (isSystemNotificationChatItem(currentChat)) return
 		let currentAccount = ''
 		try {
 			currentAccount = getCurrentAccount()
@@ -2341,6 +2502,24 @@ export const useChatStore = defineStore('chat', () => {
 		syncAction('markAsRead', { chatId: id })
 	}
 
+	const getSystemNotificationChatId = async (): Promise<number> => {
+		if (!isDbInitialized.value) {
+			await init()
+		}
+		const systemChatId = await ensureChatSession(SYSTEM_ACCOUNT)
+		if (!systemChatId) {
+			throw new Error('系统通知会话初始化失败')
+		}
+		return systemChatId
+	}
+
+	const openSystemNotificationChat = async (): Promise<number> => {
+		const systemChatId = await getSystemNotificationChatId()
+		await setActiveChat(systemChatId)
+		markAsRead(systemChatId)
+		return systemChatId
+	}
+
 	const getOrCreateChat = async (friend: {
 		id: string
 		name: string
@@ -2350,11 +2529,18 @@ export const useChatStore = defineStore('chat', () => {
 		if (!isDbInitialized.value) {
 			await init()
 		}
-		const id = parseInt(friend.id)
-		const existing = chatlist.value.find((c) => c.id === id)
+		const id = derivePrivateChatId(friend.id)
+		if (!id) {
+			throw new Error('无法创建会话：好友账号无效')
+		}
+		const existing =
+			findPrivateChatByAccount(friend.id) ||
+			chatlist.value.find(
+				(c) => c.chatType !== 'GROUP' && c.id === id,
+			)
 		if (existing) {
 			await hydrateSingleChatPreviewFromLatestMessage(existing)
-			return id
+			return existing.id
 		}
 		const latestPreview = await resolveLatestPreviewBeforeCreate(id)
 		// 创建新会话
@@ -2425,7 +2611,18 @@ export const useChatStore = defineStore('chat', () => {
 		if (!normalized) return []
 		const response = await groupChatApi.getGroupMembers(normalized)
 		const payload = response.data?.data
-		return Array.isArray(payload?.members) ? payload.members : []
+		const members = Array.isArray(payload?.members) ? payload.members : []
+		const countFromApi = payload?.count
+		const memberCount =
+			typeof countFromApi === 'number' && Number.isFinite(countFromApi)
+				? Math.max(0, Math.floor(countFromApi))
+				: members.length
+		const groupChat = findGroupChatByNo(normalized)
+		if (groupChat) {
+			groupChat.memberCount = memberCount
+			db.saveChat(groupChat)
+		}
+		return members
 	}
 
 	const joinGroupChat = async (groupNo: string): Promise<ChatItem | null> => {
@@ -2464,7 +2661,11 @@ export const useChatStore = defineStore('chat', () => {
 		if (!normalizedGroupNo || !normalizedFriendAccount) {
 			throw new Error('群号和好友账号不能为空')
 		}
-		await groupChatApi.inviteFriend(normalizedGroupNo, normalizedFriendAccount)
+		await groupChatApi.inviteFriend(
+			normalizedGroupNo,
+			normalizedFriendAccount,
+		)
+		await syncGroupSessionByNo(normalizedGroupNo)
 	}
 
 	const updateGroupAnnouncement = async (
@@ -2497,6 +2698,7 @@ export const useChatStore = defineStore('chat', () => {
 			throw new Error('群号和账号不能为空')
 		}
 		await groupChatApi.setAdmin(normalizedGroupNo, normalizedAccount)
+		await syncGroupSessionByNo(normalizedGroupNo)
 	}
 
 	const removeGroupAdmin = async (
@@ -2509,6 +2711,7 @@ export const useChatStore = defineStore('chat', () => {
 			throw new Error('群号和账号不能为空')
 		}
 		await groupChatApi.removeAdmin(normalizedGroupNo, normalizedAccount)
+		await syncGroupSessionByNo(normalizedGroupNo)
 	}
 
 	const kickGroupMember = async (
@@ -2521,6 +2724,7 @@ export const useChatStore = defineStore('chat', () => {
 			throw new Error('群号和账号不能为空')
 		}
 		await groupChatApi.kickMember(normalizedGroupNo, normalizedAccount)
+		await syncGroupSessionByNo(normalizedGroupNo)
 	}
 
 	return {
@@ -2541,6 +2745,9 @@ export const useChatStore = defineStore('chat', () => {
 		unpinChat,
 		deleteChat,
 		markAsRead,
+		getSystemNotificationChatId,
+		openSystemNotificationChat,
+		isSystemNotificationChatItem,
 		requestFullState,
 		init,
 		getOrCreateChat,

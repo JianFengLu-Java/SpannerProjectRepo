@@ -16,11 +16,22 @@
 		>
 			<div
 				v-if="senderName && !isMe"
-				class="px-1 mb-0.5 text-[11px] text-gray-500 avatar-no-select"
+				class="px-1 mb-0.5 text-[11px] avatar-no-select flex items-center gap-1"
 			>
-				{{ senderName }}
+				<span :class="senderIsVip ? 'text-red-500' : 'text-gray-500'">{{
+					senderName
+				}}</span>
+				<img
+					v-if="senderIsVip"
+					:src="vipBadgeIcon"
+					alt="VIP"
+					class="h-4 w-4 block vip-fill-red"
+				/>
 			</div>
-			<div class="message-bubble-row" :class="isMe ? 'justify-end' : 'justify-start'">
+			<div
+				class="message-bubble-row"
+				:class="isMe ? 'justify-end' : 'justify-start'"
+			>
 				<n-tooltip
 					v-if="isMe && deliveryStatus === 'failed'"
 					placement="top"
@@ -39,11 +50,60 @@
 				</n-tooltip>
 
 				<div
-					v-if="isTransferCard"
+					v-if="shouldRenderVipNoticeCard"
+					class="notice-card notice-card-vip avatar-no-select"
+					>
+						<div class="notice-card-head">
+								<span class="notice-card-badge">
+									<img
+										:src="vipBadgeIcon"
+										alt="VIP"
+										class="h-4 w-4 block vip-fill-red"
+									/>
+								</span>
+							<span class="notice-card-title">
+								{{ noticeTitle || '会员通知' }}
+							</span>
+						</div>
+					<div class="notice-card-body">
+						<p
+							v-for="(line, index) in noticeDetailLines"
+							:key="`${index}-${line}`"
+							class="notice-card-line"
+						>
+							{{ line }}
+						</p>
+					</div>
+				</div>
+
+				<div
+					v-else-if="shouldRenderSystemNoticeCard"
+					class="notice-card notice-card-system avatar-no-select"
+				>
+					<div class="notice-card-head">
+						<span class="notice-card-badge">系统</span>
+						<span class="notice-card-title">
+							{{ noticeTitle || '系统通知' }}
+						</span>
+					</div>
+					<div class="notice-card-body">
+						<p
+							v-for="(line, index) in noticeDetailLines"
+							:key="`${index}-${line}`"
+							class="notice-card-line"
+						>
+							{{ line }}
+						</p>
+					</div>
+				</div>
+
+				<div
+					v-else-if="isTransferCard"
 					class="transfer-card avatar-no-select"
 					:class="[
 						isMe ? 'transfer-card-me' : 'transfer-card-other',
-						(canAcceptTransfer && transferFooterText === '点击收款') ||
+						(canAcceptTransfer &&
+							transferFooterText === '点击收款') ||
 						transferFooterText === '已收款' ||
 						transferFooterText === '已退还'
 							? 'transfer-card-clickable'
@@ -53,23 +113,49 @@
 					@click="handleTransferCardClick"
 				>
 					<div class="transfer-card-content">
-						<div class="transfer-card-icon">{{ transferIconText }}</div>
 						<div class="transfer-card-main">
-							<div class="transfer-card-title">{{ transferTitleText }}</div>
+							<div class="transfer-card-title">
+								{{ transferTitleText }}
+							</div>
 							<div class="transfer-card-amount">
 								{{ transferAmountText || '金额待确认' }}
 							</div>
-							<div
-								v-if="transferRemarkText"
-								class="transfer-card-remark"
-								:title="transferRemarkText"
+						</div>
+						<div class="transfer-card-status-icon">
+							<n-icon
+								v-if="transferVisualState === 'pending'"
+								size="44"
 							>
-								{{ transferRemarkText }}
-							</div>
+								<Money24Filled />
+							</n-icon>
+							<n-icon
+								v-else-if="
+									transferVisualState === 'accepted' ||
+									transferVisualState === 'receipt'
+								"
+								size="44"
+							>
+								<CheckmarkCircle24Filled />
+							</n-icon>
+							<n-icon v-else size="44">
+								<ArrowReply24Filled />
+							</n-icon>
 						</div>
 					</div>
-					<div class="transfer-card-footer" :class="transferFooterClass">
-						<span>{{ transferFooterText }}</span>
+					<div
+						class="transfer-card-footer"
+						:class="transferFooterClass"
+					>
+						<span class="truncate mr-2">{{
+							transferFooterText
+						}}</span>
+						<span
+							v-if="transferRemarkText"
+							class="opacity-60 truncate font-normal"
+							:title="transferRemarkText"
+						>
+							{{ transferRemarkText }}
+						</span>
 					</div>
 				</div>
 
@@ -90,7 +176,7 @@
 					"
 					@click="handleClickEvent"
 				>
-					<div v-html="content" class="msg-content-selectable"></div>
+					<div class="msg-content-selectable" v-html="content"></div>
 				</div>
 			</div>
 
@@ -98,19 +184,167 @@
 				<span class="text-[10px] text-gray-400">{{ time }}</span>
 			</div>
 
-			<div
-				v-if="hasResult"
-				class="bubble-result-tip avatar-no-select"
-			>
+			<div v-if="hasResult" class="bubble-result-tip avatar-no-select">
 				<span class="bubble-result-dot" aria-hidden="true"></span>
 				<span class="truncate">{{ result || '消息异常' }}</span>
 			</div>
 		</div>
 	</div>
+
+	<!-- 确认收款弹窗 (NextUI 风格) -->
+	<n-modal
+		v-model:show="showConfirmModal"
+		:mask-closable="false"
+		transform-origin="center"
+	>
+		<div
+			class="transfer-modal-content w-[360px] max-h-[90vh] flex flex-col"
+		>
+			<div class="modal-header-gradient">
+				<div class="header-text text-white">确认收款</div>
+			</div>
+
+			<div
+				class="p-6 bg-white dark:bg-zinc-900 flex flex-col items-center flex-1 overflow-y-auto custom-scrollbar"
+			>
+				<div
+					class="amount-large text-text-main font-bold tracking-tight mb-1"
+				>
+					{{ transferAmountText || '￥0.00' }}
+				</div>
+				<div
+					class="text-xs text-gray-400 mb-6 px-4 py-1 bg-gray-50 dark:bg-white/5 rounded-full"
+				>
+					来自 {{ senderName || '对方' }}
+				</div>
+
+				<div class="w-full space-y-4 mb-8">
+					<div class="detail-item">
+						<span class="detail-label">交易号</span>
+						<span class="detail-value truncate">
+							{{ transferBusinessNo }}
+						</span>
+					</div>
+					<div v-if="transferRemarkText" class="detail-item">
+						<span class="detail-label">备注</span>
+						<span class="detail-value">
+							{{ transferRemarkText }}
+						</span>
+					</div>
+				</div>
+
+				<div
+					class="safe-tip flex items-center gap-2 text-amber-500 bg-amber-50 dark:bg-amber-500/10 px-4 py-2.5 rounded-xl text-[11px] mb-8 w-full"
+				>
+					<n-icon size="14">
+						<ShieldCheckmark24Regular />
+					</n-icon>
+					<span>确认收钱后，资金将直接存入余额</span>
+				</div>
+
+				<div class="grid grid-cols-2 gap-3 w-full">
+					<button
+						class="modal-btn-secondary hover:bg-gray-100 dark:hover:bg-white/5"
+						@click="showConfirmModal = false"
+					>
+						取消
+					</button>
+					<button
+						class="modal-btn-primary"
+						:disabled="isAccepting"
+						@click="handleConfirmAccept"
+					>
+						<span v-if="!isAccepting">确认收钱</span>
+						<n-spin v-else size="small" stroke="#fff" />
+					</button>
+				</div>
+			</div>
+		</div>
+	</n-modal>
+
+	<!-- 转账详情弹窗 (NextUI 风格) -->
+	<n-modal v-model:show="showDetailModal" transform-origin="center">
+		<div
+			class="transfer-modal-content w-[360px] max-h-[90vh] flex flex-col"
+		>
+			<div class="modal-header-gradient">
+				<div class="header-text text-white">交易单据</div>
+			</div>
+
+			<div
+				class="p-6 bg-white dark:bg-zinc-900 flex-1 overflow-y-auto custom-scrollbar"
+			>
+				<div class="flex flex-col items-center mb-8">
+					<div
+						class="amount-large text-text-main font-bold tracking-tight mb-1"
+					>
+						{{ transferAmountText || '￥0.00' }}
+					</div>
+					<div class="status-badge" :class="transferVisualState">
+						{{ transferFooterText }}
+					</div>
+				</div>
+
+				<div class="w-full space-y-4 mb-4">
+					<div class="detail-item">
+						<span class="detail-label">交易流程</span>
+						<span class="detail-value">{{
+							isMe ? '发出转账' : '收到转账'
+						}}</span>
+					</div>
+					<div class="detail-item">
+						<span class="detail-label">交易号</span>
+						<span
+							class="detail-value text-[10px] select-all opacity-80"
+						>
+							{{ transferBusinessNo }}
+						</span>
+					</div>
+					<div v-if="transferConfirmTimeText" class="detail-item">
+						<span class="detail-label">成交时间</span>
+						<span class="detail-value">{{
+							transferConfirmTimeText
+						}}</span>
+					</div>
+					<div
+						class="detail-item border-t border-gray-50 dark:border-white/5 pt-4"
+					>
+						<span class="detail-label">备注内容</span>
+						<span class="detail-value text-gray-400 italic">
+							{{ transferRemarkText || '无备注' }}
+						</span>
+					</div>
+				</div>
+
+				<div class="mt-8">
+					<button
+						class="modal-btn-ghost w-full"
+						@click="showDetailModal = false"
+					>
+						返回聊天
+					</button>
+				</div>
+			</div>
+		</div>
+	</n-modal>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUpdated, ref } from 'vue'
+import {
+	ShieldCheckmark24Regular,
+	Money24Filled,
+	CheckmarkCircle24Filled,
+	ArrowReply24Filled,
+} from '@vicons/fluent'
+import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
+import { NModal, NIcon, NSpin, useMessage } from 'naive-ui'
+import { useWalletStore } from '@renderer/stores/wallet'
+import { useChatStore } from '@renderer/stores/chat'
+
+const walletStore = useWalletStore()
+const chatStore = useChatStore()
+const message = useMessage()
 
 const props = defineProps<{
 	content: string
@@ -118,14 +352,54 @@ const props = defineProps<{
 	transferStatus?: 'pending' | 'accepting' | 'accepted' | 'refunded'
 	transferTargetName?: string
 	senderName?: string
+	senderIsVip?: boolean
 	isMe: boolean
 	avatar?: string
 	time: string
 	hasResult?: boolean
 	result?: string
 	deliveryStatus?: 'sending' | 'sent' | 'failed'
+	isSystemChat?: boolean
+	isVipNotice?: boolean
 }>()
 const messageRootRef = ref<HTMLElement | null>(null)
+
+const showConfirmModal = ref(false)
+const showDetailModal = ref(false)
+const isAccepting = ref(false)
+
+const normalizeNoticeText = (content: string): string => {
+	return content
+		.replace(/<br\s*\/?>/gi, '\n')
+		.replace(/<\/p>/gi, '\n')
+		.replace(/<[^>]*>/g, '')
+		.replace(/\r/g, '')
+		.trim()
+}
+
+const noticeText = computed(() => normalizeNoticeText(props.content || ''))
+
+const noticeLines = computed(() =>
+	noticeText.value
+		.split('\n')
+		.map((line) => line.trim())
+		.filter((line) => !!line),
+)
+
+const noticeTitle = computed(() => noticeLines.value[0] || '')
+
+const noticeDetailLines = computed(() => {
+	if (noticeLines.value.length <= 1) return []
+	return noticeLines.value.slice(1)
+})
+
+const shouldRenderSystemNoticeCard = computed(
+	() => !!props.isSystemChat && !props.isMe && !props.isVipNotice,
+)
+
+const shouldRenderVipNoticeCard = computed(
+	() => !!props.isSystemChat && !props.isMe && !!props.isVipNotice,
+)
 
 const emit = defineEmits<{
 	(e: 'image-loaded'): void
@@ -133,28 +407,11 @@ const emit = defineEmits<{
 		e: 'contextmenu',
 		ev: MouseEvent,
 		type: 'text' | 'image',
-		extra?: any,
-	): void
-	(
-		e: 'transfer-accept',
-		payload: {
-			businessNo: string
-			amountText: string
-			remarkText: string
-		},
-	): void
-	(
-		e: 'transfer-detail',
-		payload: {
-			businessNo: string
-			amountText: string
-			remarkText: string
-			confirmTimeText: string
-		},
+		extra?: { text?: string; src?: string },
 	): void
 }>()
 
-const handleContextMenu = (e: MouseEvent) => {
+const handleContextMenu = (e: MouseEvent): void => {
 	const target = e.target as HTMLElement
 	const selection = window.getSelection()?.toString()
 
@@ -185,12 +442,16 @@ const parseTransferField = (
 }
 
 const parseTransferBusinessNo = (content: string): string => {
-	const dataMatched = content.match(/data-business-no\s*=\s*["']([^"']+)["']/i)
+	const dataMatched = content.match(
+		/data-business-no\s*=\s*["']([^"']+)["']/i,
+	)
 	if (dataMatched?.[1]?.trim()) return dataMatched[1].trim()
 	return parseTransferField(content, '交易号')
 }
 
-const hasTransferMarker = computed(() => /\bchat-transfer-card\b/i.test(props.content))
+const hasTransferMarker = computed(() =>
+	/\bchat-transfer-card\b/i.test(props.content),
+)
 const hasTransferReceiptMarker = computed(() =>
 	/\bchat-transfer-receipt-card\b/i.test(props.content),
 )
@@ -273,17 +534,6 @@ const transferVisualState = computed<
 	return 'pending'
 })
 
-const transferIconText = computed(() => {
-	if (transferVisualState.value === 'refunded') return '↩'
-	if (
-		transferVisualState.value === 'accepted' ||
-		transferVisualState.value === 'receipt'
-	) {
-		return '✓'
-	}
-	return '￥'
-})
-
 const transferTitleText = computed(() => {
 	if (transferVisualState.value === 'refunded') return '转账已退还'
 	if (
@@ -300,20 +550,43 @@ const transferTitleText = computed(() => {
 
 const handleTransferCardClick = (): void => {
 	if (canAcceptTransfer.value && transferStatusValue.value === 'pending') {
-		emit('transfer-accept', {
-			businessNo: transferBusinessNo.value,
-			amountText: transferAmountText.value,
-			remarkText: transferRemarkText.value,
-		})
+		showConfirmModal.value = true
 		return
 	}
 	if (!transferBusinessNo.value) return
-	emit('transfer-detail', {
-		businessNo: transferBusinessNo.value,
-		amountText: transferAmountText.value,
-		remarkText: transferRemarkText.value,
-		confirmTimeText: transferConfirmTimeText.value,
-	})
+	showDetailModal.value = true
+}
+
+const handleConfirmAccept = async (): Promise<void> => {
+	const businessNo = transferBusinessNo.value?.trim()
+	if (!businessNo || isAccepting.value) return
+
+	isAccepting.value = true
+	try {
+		await walletStore.acceptTransfer({ businessNo })
+		const confirmTimeText = new Date().toLocaleString('zh-CN', {
+			hour12: false,
+		})
+		const receiptHtml = `
+<div class="chat-transfer-receipt-card" data-business-no="${businessNo}">
+	<div><strong>转账已收款</strong></div>
+	${transferAmountText.value ? `<div>金额：${transferAmountText.value}</div>` : ''}
+	${transferRemarkText.value ? `<div>备注：${transferRemarkText.value}</div>` : ''}
+	<div>确认时间：${confirmTimeText}</div>
+</div>`.trim()
+		chatStore.sendMessage(receiptHtml, 'transfer')
+		showConfirmModal.value = false
+		message.success('收款成功')
+	} catch (error) {
+		const maybeResponse = (
+			error as { response?: { data?: { message?: string } } }
+		).response
+		message.error(
+			maybeResponse?.data?.message || '接受转账失败，请稍后重试',
+		)
+	} finally {
+		isAccepting.value = false
+	}
 }
 
 const isOnlyImage = computed(() => {
@@ -430,185 +703,198 @@ onUpdated(attachLoadEvents)
 	text-decoration-color: rgb(244 249 255 / 90%);
 }
 
+.notice-card {
+	min-width: 260px;
+	max-width: 360px;
+	border-radius: 14px;
+	padding: 12px;
+	border: 1px solid #dbe3f0;
+}
+
+.notice-card-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.notice-card-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 34px;
+	height: 20px;
+	padding: 0 6px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.notice-card-title {
+	font-size: 14px;
+	font-weight: 700;
+	line-height: 1.3;
+}
+
+.notice-card-body {
+	display: grid;
+	gap: 6px;
+}
+
+.notice-card-line {
+	font-size: 12px;
+	line-height: 1.45;
+	word-break: break-all;
+}
+
+.notice-card-system {
+	background: linear-gradient(180deg, #f7fafd 0%, #f2f6fb 100%);
+	color: #1f2937;
+	border-color: #dce6f2;
+}
+
+.notice-card-system .notice-card-badge {
+	background: #e9f1fb;
+	color: #2f7fe7;
+}
+
+.notice-card-vip {
+	background:
+		radial-gradient(circle at top right, #fff7d6 0%, transparent 52%),
+		linear-gradient(155deg, #fff3c8 0%, #f6d477 45%, #ddb250 100%);
+	color: #4a3410;
+	border-color: #d5af57;
+	box-shadow: 0 6px 14px rgba(190, 144, 56, 0.22);
+}
+
+.notice-card-vip .notice-card-badge {
+	background: #6d4c12;
+	color: #ffe8a3;
+}
+
 .transfer-card {
-	min-width: 248px;
-	max-width: 308px;
-	border-radius: 8px;
-	border: 1px solid #2f80ed;
+	min-width: 260px;
+	max-width: 320px;
+	border-radius: 12px;
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
-	background: #2f80ed;
+	border: 1px solid transparent;
+	transition: all 0.2s ease;
+	user-select: none;
 }
 
 .transfer-card-clickable {
 	cursor: pointer;
 }
 
-.transfer-card-clickable:hover {
-	filter: brightness(1.02);
+.transfer-card-clickable:active {
+	opacity: 0.9;
+	transform: scale(0.98);
 }
 
-.transfer-card-clickable:active {
-	filter: brightness(0.98);
+/* 状态系列：待领取 (Pending) */
+.transfer-card-state-pending {
+	background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+	color: #ffffff;
+}
+
+/* 状态系列：已领取/已收款 (Accepted/Receipt) */
+.transfer-card-state-accepted,
+.transfer-card-state-receipt {
+	background: #f0f7ff;
+	color: #1890ff;
+	border-color: #d6eaff;
+}
+
+/* 状态系列：已退还 (Refunded) */
+.transfer-card-state-refunded {
+	background: #f5f5f5;
+	color: #8c8c8c;
+	border-color: #e8e8e8;
 }
 
 .transfer-card-me {
-	background: #2f80ed;
-	color: #f6fbff;
-	border-color: #2b74d7;
-	border-bottom-right-radius: 6px;
+	border-bottom-right-radius: 4px;
 }
 
 .transfer-card-other {
-	background: #2f80ed;
-	color: #f6fbff;
-	border-color: #2b74d7;
-	border-bottom-left-radius: 6px;
-}
-
-.transfer-card.transfer-card-state-accepted,
-.transfer-card.transfer-card-state-receipt {
-	background: #dce9fb;
-	border-color: #c2d7f8;
-	color: #2157a3;
-}
-
-.transfer-card.transfer-card-state-refunded {
-	background: #e6ebf3;
-	border-color: #d2dae8;
-	color: #4f5f79;
+	border-bottom-left-radius: 4px;
 }
 
 .transfer-card-content {
 	display: flex;
+	justify-content: space-between;
 	align-items: center;
-	gap: 10px;
-	padding: 12px;
-}
-
-.transfer-card-icon {
-	width: 34px;
-	height: 34px;
-	border-radius: 8px;
-	background: rgb(255 255 255 / 20%);
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 16px;
-	line-height: 1;
-	font-weight: 500;
-	flex-shrink: 0;
-}
-
-.transfer-card.transfer-card-state-accepted .transfer-card-icon,
-.transfer-card.transfer-card-state-receipt .transfer-card-icon {
-	background: #c8dbf7;
-	color: #2a5fa9;
-}
-
-.transfer-card.transfer-card-state-refunded .transfer-card-icon {
-	background: #d8dfeb;
-	color: #54637a;
+	padding: 16px;
+	gap: 12px;
 }
 
 .transfer-card-main {
-	min-width: 0;
 	flex: 1;
+	min-width: 0;
 }
 
 .transfer-card-title {
-	font-size: 12px;
-	opacity: 0.9;
+	font-size: 13px;
 	font-weight: 500;
+	opacity: 0.85;
+	margin-bottom: 4px;
 }
 
 .transfer-card-amount {
-	font-size: 20px;
-	font-weight: 600;
+	font-size: 22px;
+	font-weight: 700;
 	line-height: 1.2;
-	margin-top: 3px;
-	letter-spacing: 0;
 }
 
 .transfer-card-remark {
 	font-size: 12px;
-	line-height: 1.35;
-	opacity: 0.82;
-	margin-top: 4px;
+	margin-top: 6px;
+	opacity: 0.7;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
+.transfer-card-status-icon {
+	opacity: 0.2;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.transfer-card-state-pending .transfer-card-status-icon {
+	opacity: 0.35;
+	color: #ffffff;
+}
+
 .transfer-card-footer {
+	padding: 8px 16px;
+	font-size: 12px;
+	border-top: 1px solid rgba(0, 0, 0, 0.04);
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 10px;
-	padding: 7px 12px;
-	font-size: 12px;
-	line-height: 1.35;
-	background: #ffffff;
-	border-top: 1px solid #d9e6fb;
-	color: #2a5fa9;
 }
 
-.transfer-card-footer.is-pending {
-	color: #2559a0;
-	font-weight: 500;
+.transfer-card-state-pending .transfer-card-footer {
+	background: rgba(255, 255, 255, 0.1);
+	border-top: none;
+	color: rgba(255, 255, 255, 0.85);
 }
 
-.transfer-card-footer.is-accepting {
-	color: #3b6eb3;
+.transfer-card-state-accepted .transfer-card-footer,
+.transfer-card-state-receipt .transfer-card-footer {
+	background: rgba(24, 144, 255, 0.03);
+	color: #1890ff;
 }
 
-.transfer-card-footer.is-accepted {
-	color: #4a6ea8;
-}
-
-.transfer-card-footer.is-me {
-	color: #3969ab;
-}
-
-.transfer-card-footer.is-receipt {
-	color: #3f6298;
-	font-weight: 500;
-}
-
-.transfer-card-footer.is-refunded {
-	color: #55657d;
-	font-weight: 500;
-}
-
-.transfer-card.transfer-card-state-accepted .transfer-card-footer,
-.transfer-card.transfer-card-state-receipt .transfer-card-footer {
-	background: #f8fbff;
-	border-top-color: #d7e5fa;
-	color: #4d6ea4;
-}
-
-.transfer-card.transfer-card-state-refunded .transfer-card-footer {
-	background: #f5f7fb;
-	border-top-color: #dce3ef;
-	color: #66768e;
-}
-
-.transfer-card-state {
-	padding: 0 12px 8px;
-	font-size: 11px;
-	line-height: 1.35;
-	color: rgb(235 245 255 / 92%);
-	opacity: 1;
-}
-
-.transfer-card.transfer-card-state-accepted .transfer-card-state,
-.transfer-card.transfer-card-state-receipt .transfer-card-state {
-	color: #4e6fa5;
-}
-
-.transfer-card.transfer-card-state-refunded .transfer-card-state {
-	color: #66768e;
+.transfer-card-state-refunded .transfer-card-footer {
+	background: rgba(0, 0, 0, 0.02);
+	color: #8c8c8c;
 }
 
 .bubble-failed-badge {
@@ -625,7 +911,6 @@ onUpdated(attachLoadEvents)
 	font-weight: 700;
 	line-height: 1;
 	cursor: default;
-	box-shadow: 0 2px 6px rgb(239 68 68 / 28%);
 	padding: 0;
 }
 
@@ -656,5 +941,154 @@ onUpdated(attachLoadEvents)
 	background: currentColor;
 	flex-shrink: 0;
 	margin-right: 6px;
+}
+
+/* NextUI Style Modal */
+.transfer-modal-content {
+	border-radius: 28px;
+	overflow: hidden;
+	border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.modal-header-gradient {
+	height: 30px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+}
+
+.icon-wrapper {
+	width: 52px;
+	height: 52px;
+	border-radius: 18px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.header-text {
+	font-size: 16px;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+}
+
+.amount-large {
+	font-size: 38px;
+	font-family: 'Outfit', 'Inter', sans-serif;
+}
+
+.detail-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 13px;
+}
+
+.detail-label {
+	color: #94a3b8;
+}
+
+.detail-value {
+	color: #1e293b;
+	font-weight: 500;
+	max-width: 200px;
+}
+
+.dark .detail-value {
+	color: #e2e8f0;
+}
+
+.modal-btn-primary {
+	border-radius: 14px;
+	height: 48px;
+	font-weight: 600;
+	color: white;
+	border: none;
+	cursor: pointer;
+	transition: all 0.2s;
+	background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+}
+
+.modal-btn-primary:hover {
+	transform: perspective(1px) scale(1.02);
+	filter: brightness(1.1);
+}
+
+.modal-btn-primary:active {
+	transform: scale(0.98);
+}
+
+.modal-btn-primary:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+	transform: none;
+}
+
+.modal-btn-secondary {
+	border-radius: 14px;
+	height: 48px;
+	font-weight: 600;
+	color: #64748b;
+	border: none;
+	background: #f1f5f9;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.dark .modal-btn-secondary {
+	background: rgba(255, 255, 255, 0.05);
+	color: #94a3b8;
+}
+
+.modal-btn-ghost {
+	border-radius: 14px;
+	height: 48px;
+	font-weight: 600;
+	color: #64748b;
+	border: 1px solid #e2e8f0;
+	background: transparent;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.dark .modal-btn-ghost {
+	border-color: rgba(255, 255, 255, 0.1);
+	color: #94a3b8;
+}
+
+.status-badge {
+	padding: 4px 12px;
+	border-radius: 8px;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.status-badge.receipt,
+.status-badge.accepted {
+	background: #f0f7ff;
+	color: #1890ff;
+}
+
+.status-badge.refunded {
+	background: #f5f5f5;
+	color: #8c8c8c;
+}
+
+.status-badge.pending {
+	background: rgba(24, 144, 255, 0.1);
+	color: #1890ff;
+}
+
+.dark .status-badge.receipt,
+.dark .status-badge.accepted {
+	background: rgba(34, 197, 94, 0.1);
+}
+
+.vip-fill-red {
+	filter: brightness(0) saturate(100%) invert(23%) sepia(94%) saturate(7118%)
+		hue-rotate(353deg) brightness(97%) contrast(111%);
 }
 </style>

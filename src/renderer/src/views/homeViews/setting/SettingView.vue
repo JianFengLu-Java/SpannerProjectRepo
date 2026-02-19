@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="setting-page h-full w-full rounded-2xl flex flex-col overflow-hidden transition-colors duration-300 bg-page-bg text-text-main"
+		class="h-full w-full rounded-2xl flex flex-col overflow-hidden transition-colors duration-300 bg-page-bg text-text-main"
 	>
 		<div
 			class="px-6 border-b border-border-default transition-colors duration-300 setting-header"
@@ -82,7 +82,7 @@
 								<div class="setting-info">
 									<span class="setting-title">深色模式</span>
 									<span class="setting-desc"
-										>切换到更护眼的夜间视觉风格</span
+										>切换到夜间视觉风格</span
 									>
 								</div>
 								<div class="setting-control">
@@ -129,7 +129,8 @@
 										>应用内链接使用侧栏网页槽</span
 									>
 									<span class="setting-desc"
-										>开启后，应用内链接将通过侧栏临时 WebView 打开</span
+										>开启后，应用内链接将通过侧栏临时
+										WebView 打开</span
 									>
 								</div>
 								<div class="setting-control">
@@ -256,6 +257,31 @@
 						>
 							<div class="setting-item-card">
 								<div class="setting-info">
+									<span class="setting-title">安全 PIN</span>
+									<span class="setting-desc"
+										>6 位数字，用于聊天转账消费校验</span
+									>
+								</div>
+								<div class="setting-control">
+									<span class="setting-state">{{
+										securityPasswordSet
+											? 'PIN已设置'
+											: 'PIN未设置'
+									}}</span>
+									<n-button
+										type="primary"
+										@click="openSecurityPasswordModal"
+									>
+										{{
+											securityPasswordSet
+												? '修改 PIN'
+												: '设置 PIN'
+										}}
+									</n-button>
+								</div>
+							</div>
+							<div class="setting-item-card">
+								<div class="setting-info">
 									<span class="setting-title"
 										>清除应用缓存</span
 									>
@@ -333,6 +359,55 @@
 				</transition>
 			</div>
 		</div>
+
+		<n-modal
+			v-model:show="showSecurityPasswordModal"
+			preset="card"
+			:title="securityPasswordSet ? '修改安全 PIN' : '设置安全 PIN'"
+			style="width: min(440px, 94vw)"
+			:mask-closable="false"
+		>
+			<n-form label-placement="left" label-width="90">
+				<n-form-item v-if="securityPasswordSet" label="当前 PIN">
+					<n-input
+						v-model:value="oldSecurityPassword"
+						type="password"
+						show-password-on="mousedown"
+						:maxlength="6"
+						placeholder="请输入当前6位PIN"
+					/>
+				</n-form-item>
+				<n-form-item label="新 PIN">
+					<n-input
+						v-model:value="newSecurityPassword"
+						type="password"
+						show-password-on="mousedown"
+						:maxlength="6"
+						placeholder="请输入新的6位PIN"
+					/>
+				</n-form-item>
+				<n-form-item label="确认 PIN">
+					<n-input
+						v-model:value="confirmSecurityPassword"
+						type="password"
+						show-password-on="mousedown"
+						:maxlength="6"
+						placeholder="请再次输入新的6位PIN"
+					/>
+				</n-form-item>
+			</n-form>
+			<div class="mt-3 flex justify-end gap-2">
+				<n-button @click="showSecurityPasswordModal = false"
+					>取消</n-button
+				>
+				<n-button
+					type="primary"
+					:loading="securityPasswordLoading"
+					@click="submitSecurityPassword"
+					>确认</n-button
+				>
+			</div>
+		</n-modal>
 	</div>
 </template>
 
@@ -340,18 +415,32 @@
 import {
 	ref,
 	onMounted,
+	onUnmounted,
 	computed,
 	CSSProperties,
 	reactive,
 	nextTick,
 	ComponentPublicInstance,
+	watch,
 } from 'vue'
-import { NSwitch, NButton, NRadioGroup, NRadio, useMessage } from 'naive-ui'
+import {
+	NSwitch,
+	NButton,
+	NRadioGroup,
+	NRadio,
+	NModal,
+	NForm,
+	NFormItem,
+	NInput,
+	useMessage,
+} from 'naive-ui'
 import { useTitleStore } from '@renderer/stores/title'
 import { useThemeStore } from '@renderer/stores/theme'
 import { useAppSettingsStore } from '@renderer/stores/appSettings'
 import { useInAppBrowserStore } from '@renderer/stores/inAppBrowser'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
+import { useWalletStore } from '@renderer/stores/wallet'
+import { storeToRefs } from 'pinia'
 import { tokenManager } from '@renderer/services/tokenManager'
 import { useRouter } from 'vue-router'
 import {
@@ -367,11 +456,19 @@ const themeStore = useThemeStore()
 const appSettings = useAppSettingsStore()
 const inAppBrowserStore = useInAppBrowserStore()
 const userInfoStore = useUserInfoStore()
+const walletStore = useWalletStore()
+const { securityPasswordSet } = storeToRefs(walletStore)
 const message = useMessage()
 const router = useRouter()
 const activeKey = ref('appearance')
 const appVersion = ref('1.0.0')
 const menuRefs = ref<(HTMLElement | null)[]>([])
+const showSecurityPasswordModal = ref(false)
+const oldSecurityPassword = ref('')
+const newSecurityPassword = ref('')
+const confirmSecurityPassword = ref('')
+const securityPasswordLoading = ref(false)
+const PIN_PATTERN = /^\d{6}$/
 
 const settings = reactive({
 	autoStart: false,
@@ -553,6 +650,49 @@ const openExternal = (url: string): void => {
 	window.electron.ipcRenderer.send('open-external-url', url)
 }
 
+const openSecurityPasswordModal = (): void => {
+	oldSecurityPassword.value = ''
+	newSecurityPassword.value = ''
+	confirmSecurityPassword.value = ''
+	showSecurityPasswordModal.value = true
+}
+
+const submitSecurityPassword = async (): Promise<void> => {
+	if (securityPasswordLoading.value) return
+	const wasSet = securityPasswordSet.value
+	const oldPin = oldSecurityPassword.value.trim()
+	const newPin = newSecurityPassword.value.trim()
+	const confirmPin = confirmSecurityPassword.value.trim()
+	if (wasSet && !PIN_PATTERN.test(oldPin)) {
+		message.warning('请输入当前6位数字PIN')
+		return
+	}
+	if (!PIN_PATTERN.test(newPin)) {
+		message.warning('新PIN必须为6位数字')
+		return
+	}
+	if (newPin !== confirmPin) {
+		message.warning('两次输入的新PIN不一致')
+		return
+	}
+	securityPasswordLoading.value = true
+	try {
+		await walletStore.setSecurityPassword({
+			oldSecurityPassword: wasSet ? oldPin : undefined,
+			newSecurityPassword: newPin,
+		})
+		showSecurityPasswordModal.value = false
+		message.success(wasSet ? '安全PIN修改成功' : '安全PIN设置成功')
+	} catch (error) {
+		const maybeResponse = (
+			error as { response?: { data?: { message?: string } } }
+		).response
+		message.error(maybeResponse?.data?.message || 'PIN设置失败，请稍后重试')
+	} finally {
+		securityPasswordLoading.value = false
+	}
+}
+
 onMounted(async () => {
 	title.setTitle('设置')
 
@@ -569,6 +709,22 @@ onMounted(async () => {
 		console.error('Failed to fetch initial settings', e)
 	}
 })
+
+onUnmounted(() => {
+	showSecurityPasswordModal.value = false
+})
+
+watch(
+	() => userInfoStore.account,
+	(account) => {
+		if (!account) {
+			walletStore.reset()
+			return
+		}
+		void walletStore.fetchWallet(true)
+	},
+	{ immediate: true },
+)
 </script>
 
 <style scoped>
@@ -579,12 +735,7 @@ onMounted(async () => {
 			rgba(98, 164, 255, 0.11),
 			transparent 46%
 		),
-		linear-gradient(
-			158deg,
-			#f8fbff 0%,
-			#f1f6ff 45%,
-			#e8f1ff 100%
-		);
+		linear-gradient(158deg, #f8fbff 0%, #f1f6ff 45%, #e8f1ff 100%);
 }
 
 .dark .setting-page {
@@ -663,7 +814,6 @@ onMounted(async () => {
 .menu-item-active {
 	color: #2f7fe7;
 	background: rgba(54, 149, 255, 0.14);
-	border: 1px solid rgba(54, 149, 255, 0.2);
 }
 
 .dark .menu-item-active {

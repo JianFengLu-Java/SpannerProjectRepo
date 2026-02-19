@@ -39,8 +39,16 @@
 		color-scheme: dark;
 	}
 }
-.no-drag {
-	-webkit-app-region: no-drag;
+.drag,
+.drag *,
+.drag-region,
+.drag-region * {
+	-webkit-app-region: drag !important;
+}
+
+.no-drag,
+.no-drag * {
+	-webkit-app-region: no-drag !important;
 }
 @layer components {
 	/* 作用于 Tiptap 渲染出来的实际编辑区 */

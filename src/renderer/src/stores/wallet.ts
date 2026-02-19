@@ -25,7 +25,13 @@ interface WalletChangeDto {
 interface WalletFlowDto {
 	walletNo?: string
 	businessNo?: string
-	changeType?: 'RECHARGE' | 'CONSUME' | 'TRANSFER_OUT' | 'TRANSFER_IN' | string
+	changeType?:
+		| 'RECHARGE'
+		| 'CONSUME'
+		| 'TRANSFER_OUT'
+		| 'TRANSFER_IN'
+		| 'VIP_PURCHASE'
+		| string
 	amount?: number | string
 	beforeBalance?: number | string
 	afterBalance?: number | string
@@ -45,13 +51,23 @@ interface WalletFlowPageDto {
 interface WalletFlowQuery {
 	page?: number
 	size?: number
-	changeType?: 'RECHARGE' | 'CONSUME' | 'TRANSFER_OUT' | 'TRANSFER_IN'
+	changeType?:
+		| 'RECHARGE'
+		| 'CONSUME'
+		| 'TRANSFER_OUT'
+		| 'TRANSFER_IN'
+		| 'VIP_PURCHASE'
 }
 
 export interface WalletFlowRecord {
 	walletNo: string
 	businessNo: string
-	changeType: 'RECHARGE' | 'CONSUME' | 'TRANSFER_OUT' | 'TRANSFER_IN'
+	changeType:
+		| 'RECHARGE'
+		| 'CONSUME'
+		| 'TRANSFER_OUT'
+		| 'TRANSFER_IN'
+		| 'VIP_PURCHASE'
 	amountCents: number
 	beforeBalanceCents: number
 	afterBalanceCents: number
@@ -176,15 +192,23 @@ export const useWalletStore = defineStore('wallet', () => {
 	const isLoading = ref(false)
 	const initialized = ref(false)
 	const overviewFlowRecords = ref<WalletFlowRecord[]>([])
+	const flowLoadingCount = ref(0)
+	const overviewLoadingCount = ref(0)
+	const flowLoading = computed(() => flowLoadingCount.value > 0)
+	const overviewLoading = computed(() => overviewLoadingCount.value > 0)
 	const flowRecords = ref<WalletFlowRecord[]>([])
-	const flowLoading = ref(false)
 	const flowPage = ref(1)
 	const flowSize = ref(20)
 	const flowTotal = ref(0)
 	const flowTotalPages = ref(0)
 	const flowHasMore = ref(false)
 	const flowChangeType = ref<
-		'RECHARGE' | 'CONSUME' | 'TRANSFER_OUT' | 'TRANSFER_IN' | ''
+		| 'RECHARGE'
+		| 'CONSUME'
+		| 'TRANSFER_OUT'
+		| 'TRANSFER_IN'
+		| 'VIP_PURCHASE'
+		| ''
 	>('')
 	let walletFetchToken = 0
 	let overviewFlowFetchToken = 0
@@ -378,7 +402,8 @@ export const useWalletStore = defineStore('wallet', () => {
 			item.changeType === 'RECHARGE' ||
 			item.changeType === 'CONSUME' ||
 			item.changeType === 'TRANSFER_OUT' ||
-			item.changeType === 'TRANSFER_IN'
+			item.changeType === 'TRANSFER_IN' ||
+			item.changeType === 'VIP_PURCHASE'
 				? item.changeType
 				: 'CONSUME'
 		return {
@@ -396,7 +421,7 @@ export const useWalletStore = defineStore('wallet', () => {
 
 	const fetchFlows = async (patch: WalletFlowQuery = {}): Promise<void> => {
 		const currentToken = ++flowFetchToken
-		flowLoading.value = true
+		flowLoadingCount.value++
 		try {
 			const hasChangeTypePatch = Object.prototype.hasOwnProperty.call(
 				patch,
@@ -421,7 +446,8 @@ export const useWalletStore = defineStore('wallet', () => {
 					nextChangeType === 'RECHARGE' ||
 					nextChangeType === 'CONSUME' ||
 					nextChangeType === 'TRANSFER_OUT' ||
-					nextChangeType === 'TRANSFER_IN'
+					nextChangeType === 'TRANSFER_IN' ||
+					nextChangeType === 'VIP_PURCHASE'
 						? nextChangeType
 						: undefined,
 			}
@@ -462,13 +488,14 @@ export const useWalletStore = defineStore('wallet', () => {
 				params.changeType === 'RECHARGE' ||
 				params.changeType === 'CONSUME' ||
 				params.changeType === 'TRANSFER_OUT' ||
-				params.changeType === 'TRANSFER_IN'
+				params.changeType === 'TRANSFER_IN' ||
+				params.changeType === 'VIP_PURCHASE'
 					? params.changeType
 					: ''
+		} catch (error) {
+			console.error('Wallet fetchFlows failed:', error)
 		} finally {
-			if (currentToken === flowFetchToken) {
-				flowLoading.value = false
-			}
+			flowLoadingCount.value = Math.max(0, flowLoadingCount.value - 1)
 		}
 	}
 
@@ -476,28 +503,42 @@ export const useWalletStore = defineStore('wallet', () => {
 		size = flowSize.value || 20,
 	): Promise<void> => {
 		const currentToken = ++overviewFlowFetchToken
-		const safeSize = Math.min(100, Math.max(1, Math.floor(size || 20)))
-		const res = await request.get<ApiResponse<WalletFlowPageDto>>(
-			'/user/wallet/flows',
-			{
-				params: {
-					page: 1,
-					size: safeSize,
+		overviewLoadingCount.value++
+		try {
+			const safeSize = Math.min(100, Math.max(1, Math.floor(size || 20)))
+			const res = await request.get<ApiResponse<WalletFlowPageDto>>(
+				'/user/wallet/flows',
+				{
+					params: {
+						page: 1,
+						size: safeSize,
+					},
 				},
-			},
-		)
-		if (currentToken !== overviewFlowFetchToken) return
-		const records = Array.isArray(res.data?.data?.records)
-			? res.data.data.records
-			: []
-		overviewFlowRecords.value = records.map(mapFlow)
+			)
+			if (currentToken !== overviewFlowFetchToken) return
+			const records = Array.isArray(res.data?.data?.records)
+				? res.data.data.records
+				: []
+			overviewFlowRecords.value = records.map(mapFlow)
+		} catch (error) {
+			console.error('Wallet fetchOverviewFlows failed:', error)
+		} finally {
+			overviewLoadingCount.value = Math.max(
+				0,
+				overviewLoadingCount.value - 1,
+			)
+		}
 	}
 
 	const refreshOverview = async (): Promise<void> => {
-		await Promise.all([
-			fetchWallet(true),
-			fetchOverviewFlows(flowSize.value),
-		])
+		try {
+			await Promise.all([
+				fetchWallet(true),
+				fetchOverviewFlows(flowSize.value),
+			])
+		} catch (error) {
+			console.error('Wallet refreshOverview failed:', error)
+		}
 	}
 
 	const startAutoRefresh = (intervalMs = 5000): void => {
@@ -528,8 +569,8 @@ export const useWalletStore = defineStore('wallet', () => {
 		isLoading.value = false
 		initialized.value = false
 		overviewFlowRecords.value = []
-		flowRecords.value = []
-		flowLoading.value = false
+		flowLoadingCount.value = 0
+		overviewLoadingCount.value = 0
 		flowPage.value = 1
 		flowSize.value = 20
 		flowTotal.value = 0
@@ -550,6 +591,7 @@ export const useWalletStore = defineStore('wallet', () => {
 		overviewFlowRecords,
 		flowRecords,
 		flowLoading,
+		overviewLoading,
 		flowPage,
 		flowSize,
 		flowTotal,

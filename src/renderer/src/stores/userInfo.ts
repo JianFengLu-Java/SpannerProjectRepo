@@ -30,6 +30,11 @@ export const useUserInfoStore = defineStore(
 		const signature = ref('')
 		const age = ref<number | null>(null)
 		const userToken = ref('')
+		const vipActive = ref(false)
+		const vipExpireAt = ref('')
+		const growthValue = ref(0)
+		const userLevel = ref(1)
+		const nextLevelGrowth = ref(0)
 
 		interface UserInfoPayload {
 			account?: string
@@ -41,6 +46,13 @@ export const useUserInfoStore = defineStore(
 			address?: string
 			signature?: string
 			age?: number | null
+			vipActive?: boolean
+			isVip?: boolean
+			vipExpireAt?: string
+			growthValue?: number
+			userLevel?: number
+			vipLevel?: number
+			nextLevelGrowth?: number
 			userInfo?: {
 				account?: string
 				realName?: string
@@ -51,6 +63,13 @@ export const useUserInfoStore = defineStore(
 				address?: string
 				signature?: string
 				age?: number | null
+				vipActive?: boolean
+				isVip?: boolean
+				vipExpireAt?: string
+				growthValue?: number
+				userLevel?: number
+				vipLevel?: number
+				nextLevelGrowth?: number
 			}
 		}
 
@@ -74,6 +93,57 @@ export const useUserInfoStore = defineStore(
 					: typeof info.age === 'number' && Number.isFinite(info.age)
 						? info.age
 					: null
+			vipActive.value =
+				typeof profile.vipActive === 'boolean'
+					? profile.vipActive
+					: typeof profile.isVip === 'boolean'
+						? profile.isVip
+					: typeof info.vipActive === 'boolean'
+						? info.vipActive
+						: typeof info.isVip === 'boolean'
+							? info.isVip
+						: Boolean(
+								(typeof profile.vipExpireAt === 'string' &&
+									profile.vipExpireAt) ||
+									(typeof info.vipExpireAt === 'string' &&
+										info.vipExpireAt),
+							)
+			vipExpireAt.value =
+				typeof profile.vipExpireAt === 'string'
+					? profile.vipExpireAt
+					: typeof info.vipExpireAt === 'string'
+						? info.vipExpireAt
+						: ''
+			growthValue.value =
+				typeof profile.growthValue === 'number' &&
+				Number.isFinite(profile.growthValue)
+					? Math.max(0, Math.floor(profile.growthValue))
+					: typeof info.growthValue === 'number' &&
+						  Number.isFinite(info.growthValue)
+						? Math.max(0, Math.floor(info.growthValue))
+						: 0
+			userLevel.value =
+				typeof profile.userLevel === 'number' &&
+				Number.isFinite(profile.userLevel)
+					? Math.max(1, Math.floor(profile.userLevel))
+					: typeof profile.vipLevel === 'number' &&
+						  Number.isFinite(profile.vipLevel)
+						? Math.max(1, Math.floor(profile.vipLevel))
+					: typeof info.userLevel === 'number' &&
+						  Number.isFinite(info.userLevel)
+						? Math.max(1, Math.floor(info.userLevel))
+						: typeof info.vipLevel === 'number' &&
+							  Number.isFinite(info.vipLevel)
+							? Math.max(1, Math.floor(info.vipLevel))
+						: 1
+			nextLevelGrowth.value =
+				typeof profile.nextLevelGrowth === 'number' &&
+				Number.isFinite(profile.nextLevelGrowth)
+					? Math.max(0, Math.floor(profile.nextLevelGrowth))
+					: typeof info.nextLevelGrowth === 'number' &&
+						  Number.isFinite(info.nextLevelGrowth)
+						? Math.max(0, Math.floor(info.nextLevelGrowth))
+						: 0
 			userToken.value = token
 			window.localStorage.setItem('token', token)
 		}
@@ -109,6 +179,42 @@ export const useUserInfoStore = defineStore(
 			) {
 				age.value = patch.age
 			}
+			if (typeof patch.vipActive === 'boolean') {
+				vipActive.value = patch.vipActive
+			}
+			if (typeof patch.isVip === 'boolean') {
+				vipActive.value = patch.isVip
+			}
+			if (typeof patch.vipExpireAt === 'string') {
+				vipExpireAt.value = patch.vipExpireAt
+			}
+			if (
+				typeof patch.growthValue === 'number' &&
+				Number.isFinite(patch.growthValue)
+			) {
+				growthValue.value = Math.max(0, Math.floor(patch.growthValue))
+			}
+			if (
+				typeof patch.userLevel === 'number' &&
+				Number.isFinite(patch.userLevel)
+			) {
+				userLevel.value = Math.max(1, Math.floor(patch.userLevel))
+			}
+			if (
+				typeof patch.vipLevel === 'number' &&
+				Number.isFinite(patch.vipLevel)
+			) {
+				userLevel.value = Math.max(1, Math.floor(patch.vipLevel))
+			}
+			if (
+				typeof patch.nextLevelGrowth === 'number' &&
+				Number.isFinite(patch.nextLevelGrowth)
+			) {
+				nextLevelGrowth.value = Math.max(
+					0,
+					Math.floor(patch.nextLevelGrowth),
+				)
+			}
 		}
 
 		function logout(): void {
@@ -122,6 +228,11 @@ export const useUserInfoStore = defineStore(
 			signature.value = ''
 			age.value = null
 			userToken.value = ''
+			vipActive.value = false
+			vipExpireAt.value = ''
+			growthValue.value = 0
+			userLevel.value = 1
+			nextLevelGrowth.value = 0
 			tokenManager.clear()
 		}
 
@@ -136,6 +247,11 @@ export const useUserInfoStore = defineStore(
 			signature,
 			age,
 			userToken,
+			vipActive,
+			vipExpireAt,
+			growthValue,
+			userLevel,
+			nextLevelGrowth,
 			setUserInfo,
 			patchUserInfo,
 			logout,

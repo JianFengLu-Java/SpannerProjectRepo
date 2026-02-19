@@ -110,7 +110,9 @@
 									:src="chat.avatar"
 									:class="[
 										'border-2 border-white dark:border-zinc-700',
-										chat.online ? '' : 'grayscale opacity-70',
+										chat.online
+											? ''
+											: 'grayscale opacity-70',
 									]"
 								/>
 								<div
@@ -120,9 +122,26 @@
 							</div>
 						</n-badge>
 						<span
-							class="text-[10px] font-medium text-gray-500 dark:text-gray-300 truncate w-full text-center"
+							class="flex w-full items-center justify-center gap-1 overflow-hidden"
 						>
-							{{ chat.name }}
+							<span
+								class="truncate text-[10px] font-medium"
+								:class="
+									chat.chatType === 'GROUP'
+										? 'text-gray-500 dark:text-gray-300'
+										: isVipChat(chat)
+											? 'text-red-500 font-semibold'
+											: 'text-text-main'
+								"
+							>
+								{{ chat.name }}
+							</span>
+								<img
+									v-if="isVipChat(chat)"
+									:src="vipBadgeIcon"
+									alt="VIP"
+									class="h-4 w-4 block vip-fill-red shrink-0"
+								/>
 						</span>
 					</div>
 				</div>
@@ -172,7 +191,9 @@
 										:src="chat.avatar"
 										:class="[
 											'border border-white/50 dark:border-zinc-700',
-											chat.online ? '' : 'grayscale opacity-70',
+											chat.online
+												? ''
+												: 'grayscale opacity-70',
 										]"
 									/>
 								</n-badge>
@@ -189,11 +210,28 @@
 								<div
 									class="flex items-center justify-between mb-0.5"
 								>
-									<span
-										class="text-sm font-semibold text-text-main truncate"
+									<div
+										class="min-w-0 flex items-center gap-1"
 									>
-										{{ chat.name }}
-									</span>
+										<span
+											class="truncate text-sm font-semibold"
+											:class="
+												chat.chatType === 'GROUP'
+													? 'text-text-main'
+													: isVipChat(chat)
+														? 'text-red-500 font-bold'
+														: 'text-text-main'
+											"
+										>
+											{{ chat.name }}
+										</span>
+											<img
+												v-if="isVipChat(chat)"
+												:src="vipBadgeIcon"
+												alt="VIP"
+												class="h-4 w-4 block vip-fill-red shrink-0"
+											/>
+									</div>
 									<span
 										class="text-[10px] text-gray-400 shrink-0"
 									>
@@ -256,17 +294,8 @@
 					<span>返回聊天列表</span>
 				</button>
 			</div>
-			<ChatContext @toggle-friend-setting="toggleFriendSettingPanel" />
+			<ChatContext />
 		</div>
-
-		<ChatFriendSettingPanel
-			v-if="
-				showFriendSettingPanel &&
-				activeChatId &&
-				containerWidth >= FRIEND_SETTING_BREAKPOINT
-			"
-			@close="showFriendSettingPanel = false"
-		/>
 	</div>
 
 	<n-modal
@@ -312,10 +341,23 @@
 					>
 						<n-avatar :size="36" round :src="friend.avatar" />
 						<div class="min-w-0 flex-1">
-							<div
-								class="text-sm font-medium text-text-main truncate"
-							>
-								{{ friend.remark || friend.name }}
+							<div class="flex items-center gap-1 min-w-0">
+								<div
+									class="text-sm font-medium truncate"
+									:class="
+										friend.isVip
+											? 'text-red-500'
+											: 'text-text-main'
+									"
+								>
+									{{ friend.remark || friend.name }}
+								</div>
+									<img
+										v-if="friend.isVip"
+										:src="vipBadgeIcon"
+										alt="VIP"
+										class="h-4 w-4 block vip-fill-red"
+									/>
 							</div>
 							<div class="text-[11px] text-gray-400 truncate">
 								{{ friend.id }}
@@ -325,33 +367,6 @@
 				</div>
 			</n-spin>
 		</div>
-
-		<div class="mt-4 pt-3 border-t border-border-default/50">
-			<div class="text-xs text-gray-400 mb-2">或创建群聊</div>
-			<div class="flex flex-col gap-2">
-				<n-input
-					v-model:value="createGroupName"
-					placeholder="输入群名称"
-					maxlength="40"
-				/>
-				<n-input
-					v-model:value="createGroupAnnouncement"
-					type="textarea"
-					:autosize="{ minRows: 2, maxRows: 4 }"
-					placeholder="输入群公告（可选）"
-					maxlength="200"
-				/>
-				<n-button
-					type="primary"
-					:loading="isCreatingGroup"
-					:disabled="!createGroupName.trim()"
-					@click="createGroup"
-				>
-					创建群聊
-				</n-button>
-			</div>
-		</div>
-
 		<template #footer>
 			<div class="flex justify-end">
 				<n-button tertiary @click="showNewChatModal = false">
@@ -388,6 +403,7 @@ import {
 	Pin12Filled,
 	ChevronLeft24Regular,
 } from '@vicons/fluent'
+import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
 import {
 	NDropdown,
 	NIcon,
@@ -404,7 +420,6 @@ import {
 } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import ChatContext from './ChatContext.vue'
-import ChatFriendSettingPanel from './ChatFriendSettingPanel.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useElementSize } from '@vueuse/core'
 
@@ -438,29 +453,14 @@ const { friends } = storeToRefs(friendStore)
 
 const RIGHT_PANEL_MIN_WIDTH = 450
 const SESSION_LIST_MIN_WIDTH = 220
-const FRIEND_SETTING_PANEL_WIDTH = 300
-const FRIEND_SETTING_BREAKPOINT = 900
 
 type ChatFilterKey = 'all' | 'unread' | 'mentions'
 
 const currentFilter = ref<ChatFilterKey>('all')
 const showNewChatModal = ref(false)
 const newChatKeyword = ref('')
-const createGroupName = ref('')
-const createGroupAnnouncement = ref('')
-const isCreatingGroup = ref(false)
 const isPreparingFriends = ref(false)
-const showFriendSettingPanel = ref(false)
-
-const currentRightPanelMinWidth = computed(() => {
-	const shouldShowFriendSetting =
-		showFriendSettingPanel.value &&
-		!!activeChatId.value &&
-		containerWidth.value >= FRIEND_SETTING_BREAKPOINT
-	return shouldShowFriendSetting
-		? RIGHT_PANEL_MIN_WIDTH + FRIEND_SETTING_PANEL_WIDTH
-		: RIGHT_PANEL_MIN_WIDTH
-})
+const currentRightPanelMinWidth = computed(() => RIGHT_PANEL_MIN_WIDTH)
 
 const matchFilter = (chat: ChatItem): boolean => {
 	if (currentFilter.value === 'unread') {
@@ -496,6 +496,22 @@ const filteredPinnedChats = computed(() =>
 	pinnedChats.value.filter(matchFilter),
 )
 
+const isSystemNotificationChat = (chat: ChatItem): boolean =>
+	(chat.peerAccount || '').trim().toUpperCase() === 'SYSTEM'
+
+const isVipChat = (chat: ChatItem): boolean => {
+	if (chat.chatType === 'GROUP' || isSystemNotificationChat(chat)) return false
+	const peerAccount = (chat.peerAccount || '').trim()
+	const fallbackId = String(chat.id)
+	const friend = friends.value.find((item) => {
+		if (peerAccount) {
+			return item.id === peerAccount || item.uid === peerAccount
+		}
+		return item.id === fallbackId || item.uid === fallbackId
+	})
+	return Boolean(friend?.isVip)
+}
+
 const isIncomingTransferSummary = (chat: ChatItem): boolean => {
 	return (chat.lastMessage || '').trim().startsWith('[转账]')
 }
@@ -515,7 +531,8 @@ watch([containerWidth, sidebarWidthState, isSidebarExpanded], ([contWidth]) => {
 	// 只在容器宽度有效时才进行调整（避免初始化时的 0 值）
 	if (contWidth < 100) return
 
-	const availableForListByLayout = contWidth - currentRightPanelMinWidth.value - 1
+	const availableForListByLayout =
+		contWidth - currentRightPanelMinWidth.value - 1
 	// 只在列表宽度超出可用空间时才调整，否则保持用户设置的宽度
 	if (listWidth.value > availableForListByLayout) {
 		listWidth.value = Math.max(
@@ -539,8 +556,6 @@ const handleFilterSelect = (key: string | number): void => {
 
 const handleNewChat = async (): Promise<void> => {
 	showNewChatModal.value = true
-	createGroupName.value = ''
-	createGroupAnnouncement.value = ''
 	if (friends.value.length > 0) return
 
 	isPreparingFriends.value = true
@@ -560,35 +575,6 @@ const startChatWithFriend = async (friend: Friend): Promise<void> => {
 	chatStore.markAsRead(chatId)
 	showNewChatModal.value = false
 	newChatKeyword.value = ''
-}
-
-const createGroup = async (): Promise<void> => {
-	const groupName = createGroupName.value.trim()
-	if (!groupName) {
-		message.warning('请输入群名称')
-		return
-	}
-	isCreatingGroup.value = true
-	try {
-		const chat = await chatStore.createGroupChat({
-			groupName,
-			announcement: createGroupAnnouncement.value.trim(),
-		})
-		await chatStore.setActiveChat(chat.id)
-		chatStore.markAsRead(chat.id)
-		showNewChatModal.value = false
-		newChatKeyword.value = ''
-		createGroupName.value = ''
-		createGroupAnnouncement.value = ''
-		message.success('创建群聊成功')
-	} catch (error) {
-		const fallback = '创建群聊失败，请稍后再试'
-		const tip =
-			error instanceof Error && error.message ? error.message : fallback
-		message.error(tip)
-	} finally {
-		isCreatingGroup.value = false
-	}
 }
 
 const getChatListViewport = (): HTMLElement | null => {
@@ -737,23 +723,6 @@ const openInNewWindow = (chat: ChatItem): void => {
 	window.electron.ipcRenderer.send('open-chat-window', chat.id, chat.name)
 }
 
-const toggleFriendSettingPanel = (): void => {
-	if (!activeChatId.value) return
-	showFriendSettingPanel.value = !showFriendSettingPanel.value
-}
-
-watch(activeChatId, (nextId) => {
-	if (!nextId) {
-		showFriendSettingPanel.value = false
-	}
-})
-
-watch(containerWidth, (nextWidth) => {
-	if (nextWidth < FRIEND_SETTING_BREAKPOINT) {
-		showFriendSettingPanel.value = false
-	}
-})
-
 onMounted(() => {
 	titleStore.setTitle('欢迎你！' + userName)
 })
@@ -778,11 +747,14 @@ onUnmounted(() => {})
 	width: 4px;
 }
 :deep(.n-virtual-list)::-webkit-scrollbar-thumb {
-	background-color: rgba(0, 0, 0, 0.05);
 	border-radius: 2px;
 }
 :deep(.n-virtual-list):hover::-webkit-scrollbar-thumb {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
+.vip-fill-red {
+	filter: brightness(0) saturate(100%) invert(23%) sepia(94%) saturate(7118%)
+		hue-rotate(353deg) brightness(97%) contrast(111%);
+}
 </style>

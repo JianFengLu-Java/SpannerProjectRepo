@@ -197,9 +197,24 @@
 								</div>
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center justify-between">
-										<span class="text-sm font-medium text-text-main truncate">
-											{{ friend.remark || friend.name }}
-										</span>
+											<div class="min-w-0 flex items-center gap-1">
+												<span
+													class="text-sm font-medium truncate"
+													:class="
+														friend.isVip
+															? 'text-red-500'
+															: 'text-text-main'
+													"
+												>
+													{{ friend.remark || friend.name }}
+												</span>
+													<img
+														v-if="friend.isVip"
+														:src="vipBadgeIcon"
+														alt="VIP"
+														class="h-4 w-4 block vip-fill-red"
+													/>
+											</div>
 									</div>
 									<div class="text-[11px] text-gray-400 dark:text-gray-500 truncate pr-4">
 										{{ friend.signature || '[无签名]' }}
@@ -267,7 +282,8 @@
 					<n-icon size="20"><ChevronLeft24Regular /></n-icon>
 				</button>
 			</div>
-			<Transition v-if="contactModule === 'friends'" name="fade-scale" mode="out-in">
+			<Transition 
+			v-if="contactModule === 'friends'" name="fade-detail" mode="out-in">
 				<div
 					v-if="friendStore.selectedFriend"
 					:key="friendStore.selectedFriend.id"
@@ -319,14 +335,27 @@
 											<div
 												class="flex flex-wrap items-center gap-x-2 gap-y-1"
 											>
-												<h3
-													class="max-w-[340px] truncate text-xl font-semibold text-text-main"
-												>
-													{{
-														friendStore
-															.selectedFriend.name
-													}}
-												</h3>
+												<div class="flex min-w-0 items-center gap-1">
+													<h3
+														class="max-w-[340px] truncate text-xl font-semibold"
+														:class="
+															friendStore.selectedFriend.isVip
+																? 'text-red-500'
+																: 'text-text-main'
+														"
+													>
+														{{
+															friendStore
+																.selectedFriend.name
+														}}
+													</h3>
+													<img
+														v-if="friendStore.selectedFriend.isVip"
+														:src="vipBadgeIcon"
+														alt="VIP"
+														class="h-4 w-4 block vip-fill-red"
+													/>
+												</div>
 												<n-icon
 													v-if="
 														friendStore
@@ -613,7 +642,7 @@
 				</div>
 			</Transition>
 
-			<Transition v-else name="fade-scale" mode="out-in">
+			<Transition v-else name="fade-detail" mode="out-in">
 				<div
 					v-if="selectedGroupChat"
 					:key="String(selectedGroupChat.id)"
@@ -792,10 +821,23 @@
 									:src="request.avatarUrl"
 								/>
 								<div class="min-w-0 flex-1">
-									<div
-										class="truncate text-sm font-semibold text-text-main"
-									>
-										{{ request.realName }}
+									<div class="flex min-w-0 items-center gap-1">
+										<div
+											class="truncate text-sm font-semibold"
+											:class="
+												request.isVip
+													? 'text-red-500'
+													: 'text-text-main'
+											"
+										>
+											{{ request.realName }}
+										</div>
+										<img
+											v-if="request.isVip"
+											:src="vipBadgeIcon"
+											alt="VIP"
+											class="h-4 w-4 block vip-fill-red"
+										/>
 									</div>
 									<div
 										class="truncate text-xs text-gray-400 dark:text-gray-500"
@@ -915,10 +957,23 @@
 									:src="record.avatarUrl"
 								/>
 								<div class="min-w-0 flex-1">
-									<div
-										class="truncate text-sm font-semibold text-text-main"
-									>
-										{{ record.realName }}
+									<div class="flex min-w-0 items-center gap-1">
+										<div
+											class="truncate text-sm font-semibold"
+											:class="
+												record.isVip
+													? 'text-red-500'
+													: 'text-text-main'
+											"
+										>
+											{{ record.realName }}
+										</div>
+										<img
+											v-if="record.isVip"
+											:src="vipBadgeIcon"
+											alt="VIP"
+											class="h-4 w-4 block vip-fill-red"
+										/>
 									</div>
 									<div
 										class="truncate text-xs text-gray-400 dark:text-gray-500"
@@ -998,6 +1053,7 @@ import {
 	CalendarLtr24Regular,
 } from '@vicons/fluent'
 import { Male, Female } from '@vicons/ionicons5'
+import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
 import {
 	NIcon,
 	NInput,
@@ -1054,6 +1110,7 @@ interface RequestHistoryRecord {
 	account: string
 	realName: string
 	avatarUrl: string
+	isVip?: boolean
 	verificationMessage?: string | null
 	direction: 'INBOUND' | 'OUTBOUND'
 	status: FriendRequestStatus
@@ -1253,6 +1310,7 @@ const mapHistoryRecord = (
 		account: isOutbound ? item.targetAccount : item.applicantAccount,
 		realName: isOutbound ? item.targetName : item.applicantName,
 		avatarUrl: isOutbound ? item.targetAvatarUrl : item.applicantAvatarUrl,
+		isVip: isOutbound ? item.targetIsVip : item.applicantIsVip,
 		verificationMessage: item.verificationMessage,
 		direction: item.direction,
 		status: item.status,
@@ -1334,18 +1392,36 @@ const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
 			iconTextClass: 'text-blue-500 dark:text-blue-300',
 			priority: 'primary',
 		},
-		{
-			label: '手机号',
-			value: selectedFriend.phone || '未填',
-			icon: Chat24Regular,
-			iconBgClass: 'bg-cyan-50 dark:bg-cyan-900/30',
-			iconTextClass: 'text-cyan-500 dark:text-cyan-300',
-			priority: 'primary',
-		},
-		{
-			label: '性别',
-			value: formatGender(selectedFriend.gender),
-			icon: Edit24Regular,
+			{
+				label: '手机号',
+				value: selectedFriend.phone || '未填',
+				icon: Chat24Regular,
+				iconBgClass: 'bg-cyan-50 dark:bg-cyan-900/30',
+				iconTextClass: 'text-cyan-500 dark:text-cyan-300',
+				priority: 'primary',
+			},
+			{
+				label: '会员等级',
+				value: selectedFriend.isVip
+					? `VIP Lv.${selectedFriend.vipLevel || 1}`
+					: '普通用户',
+				icon: Tag24Regular,
+				iconBgClass: 'bg-amber-50 dark:bg-amber-900/30',
+				iconTextClass: 'text-amber-500 dark:text-amber-300',
+				priority: 'primary',
+			},
+			{
+				label: '成长值',
+				value: `${selectedFriend.growthValue || 0}`,
+				icon: CalendarLtr24Regular,
+				iconBgClass: 'bg-emerald-50 dark:bg-emerald-900/30',
+				iconTextClass: 'text-emerald-500 dark:text-emerald-300',
+				priority: 'secondary',
+			},
+			{
+				label: '性别',
+				value: formatGender(selectedFriend.gender),
+				icon: Edit24Regular,
 			iconBgClass: 'bg-fuchsia-50 dark:bg-fuchsia-900/30',
 			iconTextClass: 'text-fuchsia-500 dark:text-fuchsia-300',
 			priority: 'secondary',
@@ -1710,13 +1786,17 @@ watch(
 	background: rgba(255, 255, 255, 0.2);
 }
 
-.fade-scale-enter-active,
-.fade-scale-leave-active {
-	transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+.fade-detail-enter-active,
+.fade-detail-leave-active {
+	transition: opacity 0.3s ease;
 }
-.fade-scale-enter-from,
-.fade-scale-leave-to {
+.fade-detail-enter-from,
+.fade-detail-leave-to {
 	opacity: 0;
-	transform: scale(0.95) translateY(10px);
+}
+
+.vip-fill-red {
+	filter: brightness(0) saturate(100%) invert(23%) sepia(94%) saturate(7118%)
+		hue-rotate(353deg) brightness(97%) contrast(111%);
 }
 </style>

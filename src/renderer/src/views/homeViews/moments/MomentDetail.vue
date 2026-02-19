@@ -2,25 +2,25 @@
 	<div class="h-full flex flex-col bg-white dark:bg-zinc-900 overflow-hidden">
 		<!-- 顶部返回栏 -->
 		<div
-			class="p-4 border-b border-gray-100 dark:border-zinc-700 flex items-center justify-between sticky top-0 bg-white/80 dark:bg-zinc-900/85 backdrop-blur-md z-10"
+			class="p-4 border-b border-gray-100 dark:border-zinc-700 flex items-center justify-between sticky top-0 bg-white/80 dark:bg-zinc-900/85 backdrop-blur-md z-30"
 		>
 			<div class="flex items-center gap-3 no-drag">
+				<span class="font-bold text-gray-800 dark:text-gray-100"
+					>动态详情</span
+				>
+			</div>
+			<div class="flex items-center gap-2 no-drag">
 				<n-button
 					circle
 					secondary
-					class="hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+					class="no-drag relative z-40 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
 					@click="$emit('back')"
 				>
 					<template #icon>
 						<n-icon size="20"><ArrowLeft24Regular /></n-icon>
 					</template>
 				</n-button>
-				<span class="font-bold text-gray-800 dark:text-gray-100"
-					>动态详情</span
-				>
-			</div>
-			<div class="flex items-center gap-2 no-drag">
-				<n-button circle secondary>
+				<n-button class="no-drag" circle secondary>
 					<template #icon>
 						<n-icon size="20"><Share24Regular /></n-icon>
 					</template>
@@ -31,7 +31,7 @@
 					:options="manageOptions"
 					@select="handleManageSelect"
 				>
-					<n-button circle secondary>
+					<n-button class="no-drag" circle secondary>
 						<template #icon>
 							<n-icon size="20"
 								><MoreHorizontal24Regular
@@ -506,6 +506,11 @@ const handleAddFriend = async (): Promise<void> => {
 }
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
 	background: rgba(0, 0, 0, 0.1);
+}
+
+.no-drag,
+.no-drag * {
+	-webkit-app-region: no-drag;
 }
 
 :deep(.moment-rich-content p) {

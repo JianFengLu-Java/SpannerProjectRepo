@@ -148,7 +148,8 @@
 			>
 				<div
 					v-if="momentStore.selectedMoment"
-					class="h-full bg-white dark:bg-zinc-900 shadow-2xl relative z-10 pointer-events-auto"
+					ref="detailDrawerRef"
+					class="h-full bg-white dark:bg-zinc-900 shadow-2xl relative z-10 pointer-events-auto detail-drawer-no-drag"
 					:style="{ width: containerWidth > 1000 ? '550px' : '100%' }"
 				>
 					<MomentDetail
@@ -179,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Search24Regular, Add24Filled } from '@vicons/fluent'
 import { LeafOutline } from '@vicons/ionicons5'
 import { NIcon, NInput, NButton, NSpin, NModal, useMessage } from 'naive-ui'
@@ -194,6 +195,7 @@ const momentStore = useMomentStore()
 const message = useMessage()
 
 const containerRef = ref<HTMLElement | null>(null)
+const detailDrawerRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(containerRef)
 const { width: windowWidth } = useWindowSize()
 
@@ -299,6 +301,54 @@ const handleMomentClick = async (moment: Moment): Promise<void> => {
 }
 
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let detailNoDragObserver: MutationObserver | null = null
+let detailNoDragRafId: number | null = null
+
+const applyNoDragToDrawerTree = (): void => {
+	const root = detailDrawerRef.value
+	if (!root) return
+	root.style.setProperty('-webkit-app-region', 'no-drag', 'important')
+	const nodes = root.querySelectorAll<HTMLElement>('*')
+	nodes.forEach((node) => {
+		node.style.setProperty('-webkit-app-region', 'no-drag', 'important')
+	})
+}
+
+const scheduleApplyNoDragToDrawerTree = (): void => {
+	if (detailNoDragRafId !== null) {
+		cancelAnimationFrame(detailNoDragRafId)
+	}
+	detailNoDragRafId = requestAnimationFrame(() => {
+		detailNoDragRafId = null
+		applyNoDragToDrawerTree()
+	})
+}
+
+const startDetailNoDragGuard = (): void => {
+	if (!detailDrawerRef.value) return
+	scheduleApplyNoDragToDrawerTree()
+	if (detailNoDragObserver) {
+		detailNoDragObserver.disconnect()
+	}
+	detailNoDragObserver = new MutationObserver(() => {
+		scheduleApplyNoDragToDrawerTree()
+	})
+	detailNoDragObserver.observe(detailDrawerRef.value, {
+		childList: true,
+		subtree: true,
+	})
+}
+
+const stopDetailNoDragGuard = (): void => {
+	if (detailNoDragObserver) {
+		detailNoDragObserver.disconnect()
+		detailNoDragObserver = null
+	}
+	if (detailNoDragRafId !== null) {
+		cancelAnimationFrame(detailNoDragRafId)
+		detailNoDragRafId = null
+	}
+}
 
 const refreshMoments = (delay = 0): void => {
 	if (searchDebounceTimer) {
@@ -320,6 +370,18 @@ watch(
 	() => refreshMoments(300),
 )
 
+watch(
+	() => momentStore.selectedMomentId,
+	async (selectedMomentId) => {
+		if (!selectedMomentId) {
+			stopDetailNoDragGuard()
+			return
+		}
+		await nextTick()
+		startDetailNoDragGuard()
+	},
+)
+
 onMounted(() => {
 	void momentStore.fetchMoments({ reset: true })
 })
@@ -329,6 +391,7 @@ onUnmounted(() => {
 		clearTimeout(searchDebounceTimer)
 		searchDebounceTimer = null
 	}
+	stopDetailNoDragGuard()
 })
 </script>
 
@@ -400,5 +463,10 @@ onUnmounted(() => {
 	opacity: 1;
 	-webkit-backdrop-filter: blur(4px);
 	backdrop-filter: blur(4px);
+}
+
+.detail-drawer-no-drag,
+.detail-drawer-no-drag * {
+	-webkit-app-region: no-drag;
 }
 </style>
