@@ -108,17 +108,32 @@
 									:size="42"
 									round
 									:src="chat.avatar"
-									:class="[
-										'border-2 border-white dark:border-zinc-700',
-										chat.online
-											? ''
-											: 'grayscale opacity-70',
-									]"
+									class="border-2 border-white dark:border-zinc-700"
 								/>
 								<div
-									v-if="chat.online"
-									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700 bg-blue-500"
-								></div>
+									v-if="isSystemNotificationChat(chat)"
+									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-700 text-white text-[9px] leading-none flex items-center justify-center"
+								>
+									讯
+								</div>
+								<div
+									v-else-if="chat.chatType === 'GROUP'"
+									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-700 text-white text-[9px] leading-none flex items-center justify-center"
+								>
+									群
+								</div>
+								<div
+									v-else-if="chat.online"
+									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-blue-500 text-white text-[9px] leading-none flex items-center justify-center"
+								>
+									在
+								</div>
+								<div
+									v-else
+									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-500 text-white text-[9px] leading-none flex items-center justify-center"
+								>
+									离
+								</div>
 							</div>
 						</n-badge>
 						<span
@@ -135,6 +150,12 @@
 								"
 							>
 								{{ chat.name }}
+							</span>
+							<span
+								v-if="hasMentionFeedback(chat)"
+								class="shrink-0 rounded px-1 py-[1px] text-[9px] font-semibold text-red-500 bg-red-50"
+							>
+								@你
 							</span>
 								<img
 									v-if="isVipChat(chat)"
@@ -159,24 +180,22 @@
 					>
 				</div>
 
-				<n-virtual-list
-					ref="chatListVirtualListRef"
-					:items="filteredChatList"
-					:item-size="68"
-					class="h-full px-2 pb-4"
+				<div
+					ref="chatListScrollRef"
+					class="chat-list-scrollbar h-full overflow-y-auto px-2 pb-4"
 				>
-					<template #default="{ item: chat }">
-						<div
-							:key="chat.id"
-							class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-[6px] transition-all duration-200 group relative"
-							:class="[
-								activeChatId === chat.id
-									? 'bg-primary/10'
-									: 'hover:bg-black/5 dark:hover:bg-white/6',
-							]"
-							@click="selectChat(chat)"
-							@contextmenu.prevent="openContextMenu($event, chat)"
-						>
+					<div
+						v-for="chat in filteredChatList"
+						:key="chat.id"
+						class="flex items-center gap-3 px-3 py-2.5 mb-1 rounded-[6px] transition-all duration-200 group relative"
+						:class="[
+							activeChatId === chat.id
+								? 'bg-primary/10'
+								: 'hover:bg-black/5 dark:hover:bg-white/6',
+						]"
+						@click="selectChat(chat)"
+						@contextmenu.prevent="openContextMenu($event, chat)"
+					>
 							<!-- 头像与状态 -->
 							<div class="relative shrink-0">
 								<n-badge
@@ -189,18 +208,33 @@
 										:size="40"
 										round
 										:src="chat.avatar"
-										:class="[
-											'border border-white/50 dark:border-zinc-700',
-											chat.online
-												? ''
-												: 'grayscale opacity-70',
-										]"
+										class="border border-white/50 dark:border-zinc-700"
 									/>
 								</n-badge>
 								<div
-									v-if="chat.online"
-									class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-700 bg-blue-500"
-								></div>
+									v-if="isSystemNotificationChat(chat)"
+									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-700 text-white text-[9px] leading-none flex items-center justify-center"
+								>
+									讯
+								</div>
+								<div
+									v-else-if="chat.chatType === 'GROUP'"
+									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-700 text-white text-[9px] leading-none flex items-center justify-center"
+								>
+									群
+								</div>
+								<div
+									v-else-if="chat.online"
+									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-blue-500 text-white text-[9px] leading-none flex items-center justify-center"
+								>
+									在
+								</div>
+								<div
+									v-else
+									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-500 text-white text-[9px] leading-none flex items-center justify-center"
+								>
+									离
+								</div>
 							</div>
 
 							<!-- 聊天简述 -->
@@ -225,6 +259,12 @@
 										>
 											{{ chat.name }}
 										</span>
+										<span
+											v-if="hasMentionFeedback(chat)"
+											class="shrink-0 rounded px-1 py-[1px] text-[9px] font-semibold text-red-500 bg-red-50"
+										>
+											@你
+										</span>
 											<img
 												v-if="isVipChat(chat)"
 												:src="vipBadgeIcon"
@@ -242,12 +282,14 @@
 									<div
 										class="text-[11px] truncate pr-2"
 										:class="
-											isIncomingTransferSummary(chat)
+											hasMentionFeedback(chat)
+												? 'text-red-500'
+												: isIncomingTransferSummary(chat)
 												? 'text-red-500'
 												: 'text-gray-400'
 										"
 									>
-										{{ chat.lastMessage }}
+										{{ getLastMessagePreview(chat) }}
 									</div>
 									<!-- 置顶小图标 -->
 									<n-icon
@@ -259,9 +301,8 @@
 									</n-icon>
 								</div>
 							</div>
-						</div>
-					</template>
-				</n-virtual-list>
+					</div>
+				</div>
 			</div>
 		</div>
 
@@ -303,7 +344,7 @@
 		preset="card"
 		title="发起聊天"
 		:mask-closable="true"
-		class="max-w-[420px]"
+		class="app-modal-card max-w-[420px]"
 	>
 		<n-input
 			v-model:value="newChatKeyword"
@@ -403,12 +444,11 @@ import {
 	Pin12Filled,
 	ChevronLeft24Regular,
 } from '@vicons/fluent'
-import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
+import vipBadgeIcon from '@renderer/assets/VIP.svg'
 import {
 	NDropdown,
 	NIcon,
 	NAvatar,
-	NVirtualList,
 	NBadge,
 	NInput,
 	NTooltip,
@@ -423,10 +463,6 @@ import ChatContext from './ChatContext.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useElementSize } from '@vueuse/core'
 
-interface VirtualListInst {
-	$el?: HTMLElement
-}
-
 const containerRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(containerRef)
 
@@ -437,7 +473,7 @@ const listWidth = ref(savedWidth ? parseInt(savedWidth) : 280)
 
 const searchQuery = ref('')
 const message = useMessage()
-const chatListVirtualListRef = ref<VirtualListInst | null>(null)
+const chatListScrollRef = ref<HTMLElement | null>(null)
 
 const sidebarWidthState = inject<Ref<number>>('sideBarWidth', ref(200))
 const isSidebarExpanded = inject<Ref<boolean>>('isExpanded', ref(true))
@@ -462,11 +498,23 @@ const newChatKeyword = ref('')
 const isPreparingFriends = ref(false)
 const currentRightPanelMinWidth = computed(() => RIGHT_PANEL_MIN_WIDTH)
 
+const hasMentionFeedback = (chat: ChatItem): boolean => {
+	return (chat.mentionUnreadCount || 0) > 0
+}
+
+const getLastMessagePreview = (chat: ChatItem): string => {
+	if (hasMentionFeedback(chat)) {
+		return `[有人@你] ${chat.lastMessage || ''}`.trim()
+	}
+	return chat.lastMessage || ''
+}
+
 const matchFilter = (chat: ChatItem): boolean => {
 	if (currentFilter.value === 'unread') {
 		return (chat.unreadCount || 0) > 0
 	}
 	if (currentFilter.value === 'mentions') {
+		if (hasMentionFeedback(chat)) return true
 		const text = (chat.lastMessage || '').toLowerCase()
 		return /@我|@me|＠我/.test(text)
 	}
@@ -488,7 +536,7 @@ const filteredChatList = computed(() => {
 	return filteredByType.filter(
 		(c) =>
 			c.name.toLowerCase().includes(query) ||
-			c.lastMessage.toLowerCase().includes(query),
+			getLastMessagePreview(c).toLowerCase().includes(query),
 	)
 })
 
@@ -578,8 +626,7 @@ const startChatWithFriend = async (friend: Friend): Promise<void> => {
 }
 
 const getChatListViewport = (): HTMLElement | null => {
-	const virtualListRoot = chatListVirtualListRef.value?.$el
-	return virtualListRoot?.querySelector('.n-virtual-list-viewport') || null
+	return chatListScrollRef.value
 }
 
 const selectChat = async (chat: ChatItem): Promise<void> => {
@@ -739,17 +786,17 @@ onUnmounted(() => {})
 	scrollbar-width: none;
 }
 
-:deep(.n-virtual-list) {
+.chat-list-scrollbar {
 	scrollbar-width: thin;
 	scrollbar-color: rgba(0, 0, 0, 0.05) transparent;
 }
-:deep(.n-virtual-list)::-webkit-scrollbar {
+.chat-list-scrollbar::-webkit-scrollbar {
 	width: 4px;
 }
-:deep(.n-virtual-list)::-webkit-scrollbar-thumb {
+.chat-list-scrollbar::-webkit-scrollbar-thumb {
 	border-radius: 2px;
 }
-:deep(.n-virtual-list):hover::-webkit-scrollbar-thumb {
+.chat-list-scrollbar:hover::-webkit-scrollbar-thumb {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 

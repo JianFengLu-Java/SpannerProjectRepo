@@ -98,7 +98,7 @@ import { NAvatar, NButton, NTag, useMessage } from 'naive-ui'
 import { useChatStore } from '@renderer/stores/chat'
 import { useFriendStore } from '@renderer/stores/friend'
 import type { GroupMember } from '@renderer/services/groupChatApi'
-import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
+import vipBadgeIcon from '@renderer/assets/VIP.svg'
 import GroupChatSettingsDetail from './GroupChatSettingsDetail.vue'
 
 const emit = defineEmits<{
@@ -181,14 +181,24 @@ const disbandCurrentGroup = (): void => {
 		message.warning('仅群主可解散群聊')
 		return
 	}
-	chatStore.deleteChat(currentGroupChat.value.id)
-	message.success('群聊已解散（本地模拟）')
-	emit('close')
+	void (async () => {
+		try {
+			await chatStore.disbandGroupChat(currentGroupChat.value?.groupNo || '')
+			message.success('群聊已解散')
+			emit('close')
+		} catch (error) {
+			const tip =
+				error instanceof Error && error.message
+					? error.message
+					: '解散群聊失败，请稍后再试'
+			message.error(tip)
+		}
+	})()
 }
 
 const clearCurrentHistory = (): void => {
 	if (!activeChat.value) return
-	message.success('聊天记录已清空（模拟）')
+	message.success('聊天记录已清空')
 }
 
 const togglePinChat = (): void => {

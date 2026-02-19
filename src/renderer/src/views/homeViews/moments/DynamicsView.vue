@@ -87,7 +87,11 @@
 			</div>
 
 			<!-- 动态内容区 (瀑布流布局) -->
-			<div class="flex-1 overflow-y-auto px-6 pb-8 custom-scrollbar">
+			<div
+				ref="feedScrollRef"
+				class="flex-1 overflow-y-auto px-6 pb-8 custom-scrollbar"
+				@scroll="handleFeedScroll"
+			>
 				<div
 					v-if="momentStore.activeTab === 'friends'"
 					class="friend-list-shell mx-auto w-full"
@@ -130,41 +134,69 @@
 			</div>
 		</div>
 
-		<!-- 详情展示区域 (包含遮罩与抽屉) -->
-		<div
-			class="absolute inset-0 z-50 flex justify-end overflow-hidden pointer-events-none"
-		>
-			<!-- 侧边抽屉背景遮罩 (仅在大屏模式显示) -->
+		<div class="floating-actions">
+			<n-button
+				circle
+				type="primary"
+				strong
+				class="floating-btn"
+				@click="handleManualRefresh"
+			>
+				<template #icon>
+					<n-icon><ArrowClockwise24Regular /></n-icon>
+				</template>
+			</n-button>
+			<Transition name="float-fade">
+				<n-button
+					v-if="showBackToTop"
+					circle
+					type="default"
+					strong
+					class="floating-btn"
+					@click="backToTop"
+				>
+					<template #icon>
+						<n-icon><ArrowUp24Regular /></n-icon>
+					</template>
+				</n-button>
+			</Transition>
+		</div>
+
+		<!-- 详情展示区域 (弹窗) -->
+		<div class="absolute inset-0 z-50 pointer-events-none">
 			<Transition name="fade-backdrop">
 				<div
-					v-if="momentStore.selectedMoment && containerWidth > 1000"
-					class="absolute inset-0 bg-black/20 backdrop-blur-sm pointer-events-auto"
-				></div>
+					v-if="momentStore.selectedMoment"
+					class="absolute inset-0 bg-black/35 backdrop-blur-sm pointer-events-auto"
+					@click="momentStore.selectedMomentId = null"
+				/>
 			</Transition>
 
-			<!-- 详情抽屉内容 -->
-			<Transition
-				:name="containerWidth > 1000 ? 'drawer-slide' : 'detail-slide'"
-			>
+			<Transition name="detail-modal">
 				<div
 					v-if="momentStore.selectedMoment"
-					ref="detailDrawerRef"
-					class="h-full bg-white dark:bg-zinc-900 shadow-2xl relative z-10 pointer-events-auto detail-drawer-no-drag"
-					:style="{ width: containerWidth > 1000 ? '550px' : '100%' }"
+					ref="detailModalRef"
+					class="absolute inset-0 flex items-center justify-center p-2 sm:p-4 md:p-6 pointer-events-none"
 				>
-					<MomentDetail
-						:moment="momentStore.selectedMoment!"
-						@back="momentStore.selectedMomentId = null"
-					/>
+					<div
+						class="w-full h-full md:h-auto md:max-h-[90vh] bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden pointer-events-auto detail-modal-surface detail-modal-no-drag"
+						:style="detailModalStyle"
+					>
+						<MomentDetail
+							:moment="momentStore.selectedMoment!"
+							@back="momentStore.selectedMomentId = null"
+						/>
+					</div>
 				</div>
 			</Transition>
 		</div>
 
-		<n-modal
-			v-model:show="showPublishModal"
-			preset="card"
-			:style="publishModalStyle"
-			title="发布帖子"
+			<n-modal
+				v-model:show="showPublishModal"
+				preset="card"
+				class="app-modal-card"
+				:style="publishModalStyle"
+				title="发布帖子"
 			:mask-closable="false"
 			:bordered="false"
 			size="huge"
@@ -181,7 +213,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { Search24Regular, Add24Filled } from '@vicons/fluent'
+import {
+	Search24Regular,
+	Add24Filled,
+	ArrowClockwise24Regular,
+	ArrowUp24Regular,
+} from '@vicons/fluent'
 import { LeafOutline } from '@vicons/ionicons5'
 import { NIcon, NInput, NButton, NSpin, NModal, useMessage } from 'naive-ui'
 import { useElementSize, useWindowSize } from '@vueuse/core'
@@ -195,12 +232,14 @@ const momentStore = useMomentStore()
 const message = useMessage()
 
 const containerRef = ref<HTMLElement | null>(null)
-const detailDrawerRef = ref<HTMLElement | null>(null)
+const feedScrollRef = ref<HTMLElement | null>(null)
+const detailModalRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(containerRef)
 const { width: windowWidth } = useWindowSize()
 
 const showPublishModal = ref(false)
 const publishing = ref(false)
+const showBackToTop = ref(false)
 // activeTab, searchQuery, selectedMoment 已由于需要保持状态移至 Store
 
 const publishModalStyle = computed(() => {
@@ -243,6 +282,25 @@ const gridStyle = computed(() => {
 
 	return {
 		gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+	}
+})
+
+const detailModalStyle = computed(() => {
+	if (containerWidth.value <= 768) {
+		return {
+			width: 'calc(100vw - 16px)',
+			height: 'calc(100vh - 16px)',
+		}
+	}
+	if (containerWidth.value <= 1200) {
+		return {
+			width: 'min(980px, calc(100vw - 48px))',
+			height: 'min(88vh, 760px)',
+		}
+	}
+	return {
+		width: 'min(1100px, calc(100vw - 72px))',
+		height: 'min(88vh, 780px)',
 	}
 })
 
@@ -300,12 +358,34 @@ const handleMomentClick = async (moment: Moment): Promise<void> => {
 	}
 }
 
+const handleManualRefresh = async (): Promise<void> => {
+	try {
+		await momentStore.fetchMoments({ reset: true })
+		message.success('已刷新动态')
+	} catch (error) {
+		console.error('刷新动态失败', error)
+		message.error('刷新失败，请稍后重试')
+	}
+}
+
+const handleFeedScroll = (event: Event): void => {
+	const target = event.target as HTMLElement | null
+	showBackToTop.value = Boolean(target && target.scrollTop > 260)
+}
+
+const backToTop = (): void => {
+	feedScrollRef.value?.scrollTo({
+		top: 0,
+		behavior: 'smooth',
+	})
+}
+
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let detailNoDragObserver: MutationObserver | null = null
 let detailNoDragRafId: number | null = null
 
-const applyNoDragToDrawerTree = (): void => {
-	const root = detailDrawerRef.value
+const applyNoDragToModalTree = (): void => {
+	const root = detailModalRef.value
 	if (!root) return
 	root.style.setProperty('-webkit-app-region', 'no-drag', 'important')
 	const nodes = root.querySelectorAll<HTMLElement>('*')
@@ -314,26 +394,26 @@ const applyNoDragToDrawerTree = (): void => {
 	})
 }
 
-const scheduleApplyNoDragToDrawerTree = (): void => {
+const scheduleApplyNoDragToModalTree = (): void => {
 	if (detailNoDragRafId !== null) {
 		cancelAnimationFrame(detailNoDragRafId)
 	}
 	detailNoDragRafId = requestAnimationFrame(() => {
 		detailNoDragRafId = null
-		applyNoDragToDrawerTree()
+		applyNoDragToModalTree()
 	})
 }
 
 const startDetailNoDragGuard = (): void => {
-	if (!detailDrawerRef.value) return
-	scheduleApplyNoDragToDrawerTree()
+	if (!detailModalRef.value) return
+	scheduleApplyNoDragToModalTree()
 	if (detailNoDragObserver) {
 		detailNoDragObserver.disconnect()
 	}
 	detailNoDragObserver = new MutationObserver(() => {
-		scheduleApplyNoDragToDrawerTree()
+		scheduleApplyNoDragToModalTree()
 	})
-	detailNoDragObserver.observe(detailDrawerRef.value, {
+	detailNoDragObserver.observe(detailModalRef.value, {
 		childList: true,
 		subtree: true,
 	})
@@ -427,22 +507,16 @@ onUnmounted(() => {
 	}
 }
 
-/* 详情页滑入动效 */
-.detail-slide-enter-active,
-.detail-slide-leave-active,
-.drawer-slide-enter-active,
-.drawer-slide-leave-active {
+/* 详情弹窗动效 */
+.detail-modal-enter-active,
+.detail-modal-leave-active {
 	transition: all 0.45s cubic-bezier(0.32, 1, 0.23, 1);
 }
 
-.detail-slide-enter-from,
-.detail-slide-leave-to {
-	transform: translateY(100%);
-}
-
-.drawer-slide-enter-from,
-.drawer-slide-leave-to {
-	transform: translateX(100%);
+.detail-modal-enter-from,
+.detail-modal-leave-to {
+	opacity: 0;
+	transform: scale(0.96) translateY(20px);
 }
 
 /* 毛玻璃遮罩渐变动效 */
@@ -465,8 +539,48 @@ onUnmounted(() => {
 	backdrop-filter: blur(4px);
 }
 
-.detail-drawer-no-drag,
-.detail-drawer-no-drag * {
+.detail-modal-no-drag,
+.detail-modal-no-drag * {
 	-webkit-app-region: no-drag;
+}
+
+.detail-modal-surface {
+	border-radius: 1rem;
+	isolation: isolate;
+	transform: translateZ(0);
+	-webkit-mask-image: -webkit-radial-gradient(white, black);
+}
+
+.floating-actions {
+	position: absolute;
+	right: 16px;
+	bottom: 22px;
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	pointer-events: none;
+}
+
+.floating-btn {
+	pointer-events: auto;
+	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+
+.float-fade-enter-active,
+.float-fade-leave-active {
+	transition: all 0.22s ease;
+}
+
+.float-fade-enter-from,
+.float-fade-leave-to {
+	opacity: 0;
+	transform: translateY(6px) scale(0.95);
+}
+
+@media (min-width: 768px) {
+	.detail-modal-surface {
+		border-radius: 1.5rem;
+	}
 }
 </style>

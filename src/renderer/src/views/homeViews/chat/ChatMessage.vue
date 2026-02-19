@@ -7,11 +7,19 @@
 			hasResult ? 'has-result-tip' : '',
 		]"
 	>
-		<n-avatar round :src="avatar" class="mx-2 shrink-0 avatar-no-select" />
+		<n-avatar
+			round
+			:src="avatar"
+			class="mx-2 shrink-0 avatar-no-select"
+			@contextmenu="handleAvatarContextMenu"
+		/>
 
 		<div
-			class="flex flex-col max-w-[75%] min-w-0"
-			:class="isMe ? 'items-end' : 'items-start'"
+			class="flex flex-col min-w-0"
+			:class="[
+				isMe ? 'items-end' : 'items-start',
+				shouldRenderVipNoticeCard ? 'max-w-[92%]' : 'max-w-[75%]',
+			]"
 			@contextmenu="handleContextMenu"
 		>
 			<div
@@ -49,31 +57,24 @@
 					{{ result || '发送失败' }}
 				</n-tooltip>
 
-				<div
-					v-if="shouldRenderVipNoticeCard"
-					class="notice-card notice-card-vip avatar-no-select"
-					>
-						<div class="notice-card-head">
-								<span class="notice-card-badge">
-									<img
-										:src="vipBadgeIcon"
-										alt="VIP"
-										class="h-4 w-4 block vip-fill-red"
-									/>
-								</span>
-							<span class="notice-card-title">
-								{{ noticeTitle || '会员通知' }}
-							</span>
-						</div>
-					<div class="notice-card-body">
-						<p
-							v-for="(line, index) in noticeDetailLines"
-							:key="`${index}-${line}`"
-							class="notice-card-line"
-						>
-							{{ line }}
-						</p>
-					</div>
+				<div v-if="shouldRenderVipNoticeCard" class="avatar-no-select">
+					<MembershipTopUpNoticeCard
+						:status="vipNoticeStatus"
+						:amount="vipNoticeAmount"
+						:currency="vipNoticeCurrency"
+						:hide-amount="true"
+						success-text="开通成功"
+						:duration-days="vipNoticeDurationDays"
+						:level-before="vipNoticeLevelBefore"
+						:level-after="vipNoticeLevelAfter"
+						:paid-at="vipNoticePaidAt"
+						:order-id="vipNoticeOrderId"
+						:pay-method="vipNoticePayMethod"
+						:on-view-benefits="handleViewBenefits"
+						:on-view-order="handleViewOrder"
+						:on-retry-pay="handleRetryVipPay"
+						:on-contact-support="handleContactSupport"
+					/>
 				</div>
 
 				<div
@@ -337,7 +338,10 @@ import {
 	CheckmarkCircle24Filled,
 	ArrowReply24Filled,
 } from '@vicons/fluent'
-import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
+import vipBadgeIcon from '@renderer/assets/VIP.svg'
+import MembershipTopUpNoticeCard, {
+	type MembershipNoticeStatus,
+} from '@renderer/components/membershipNotice/MembershipTopUpNoticeCard.vue'
 import { NModal, NIcon, NSpin, useMessage } from 'naive-ui'
 import { useWalletStore } from '@renderer/stores/wallet'
 import { useChatStore } from '@renderer/stores/chat'
@@ -352,8 +356,10 @@ const props = defineProps<{
 	transferStatus?: 'pending' | 'accepting' | 'accepted' | 'refunded'
 	transferTargetName?: string
 	senderName?: string
+	senderAccount?: string
 	senderIsVip?: boolean
 	isMe: boolean
+	enableAvatarMenu?: boolean
 	avatar?: string
 	time: string
 	hasResult?: boolean
@@ -393,6 +399,315 @@ const noticeDetailLines = computed(() => {
 	return noticeLines.value.slice(1)
 })
 
+const extractNoticeFieldValue = (keywords: string[]): string | undefined => {
+	for (const rawLine of noticeLines.value) {
+		const line = rawLine.trim()
+		if (!line) continue
+		if (!keywords.some((keyword) => line.includes(keyword))) continue
+		const withColon = line.match(/[：:]\s*(.+)$/)
+		if (withColon?.[1]?.trim()) {
+			return withColon[1].trim()
+		}
+		for (const keyword of keywords) {
+			if (!line.includes(keyword)) continue
+			const normalized = line
+				.replace(keyword, '')
+				.replace(/^(已|为|是)\s*/, '')
+				.trim()
+			if (normalized) return normalized
+		}
+	}
+	return undefined
+}
+
+const extractNumeric = (value?: string): number | undefined => {
+	if (!value?.trim()) return undefined
+	const matched = value.replace(/,/g, '').match(/-?\d+(?:\.\d+)?/)
+	if (!matched) return undefined
+	const numeric = Number(matched[0])
+	return Number.isFinite(numeric) ? numeric : undefined
+}
+
+const parseDateLike = (value?: string): Date | null => {
+	if (!value?.trim()) return null
+	const normalized = value.trim().replace(/[./]/g, '-')
+	const parsed = new Date(normalized)
+	if (!Number.isFinite(parsed.getTime())) return null
+	return parsed
+}
+
+const looksLikeDateText = (value?: string): boolean => {
+	if (!value?.trim()) return false
+	return /\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(value)
+}
+
+const parseDurationDays = (value?: string): number => {
+	const raw = (value || '').trim()
+	if (!raw) return 0
+	if (looksLikeDateText(raw)) return 0
+
+	const byDay = raw.match(/([+\-]?\d+(?:\.\d+)?)\s*天/)
+	if (byDay) {
+		const parsed = Number(byDay[1])
+		if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed))
+	}
+
+	const byMonth = raw.match(/([+\-]?\d+(?:\.\d+)?)\s*(?:个)?月/)
+	if (byMonth) {
+		const parsed = Number(byMonth[1])
+		if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed * 30))
+	}
+
+	const byYear = raw.match(/([+\-]?\d+(?:\.\d+)?)\s*年/)
+	if (byYear) {
+		const parsed = Number(byYear[1])
+		if (Number.isFinite(parsed))
+			return Math.max(0, Math.floor(parsed * 365))
+	}
+
+	const upper = raw.toUpperCase()
+	if (
+		/(\bMONTHLY\b|月费|包月|月卡|一个月|1个月)/.test(raw) ||
+		upper.includes('MONTHLY')
+	) {
+		return 30
+	}
+	if (
+		/(\bQUARTERLY\b|季度|季卡|三个月|3个月)/.test(raw) ||
+		upper.includes('QUARTERLY')
+	) {
+		return 90
+	}
+	if (
+		/(\bYEARLY\b|年费|年卡|一年|12个月)/.test(raw) ||
+		upper.includes('YEARLY')
+	) {
+		return 365
+	}
+
+	const plain = raw.match(/^\d{1,4}$/)
+	if (plain) {
+		const parsed = Number(plain[0])
+		if (Number.isFinite(parsed) && parsed > 0 && parsed <= 1095) {
+			return Math.floor(parsed)
+		}
+	}
+
+	return 0
+}
+
+const vipNoticeStatus = computed<MembershipNoticeStatus>(() => {
+	const content = noticeText.value
+	if (/退款|退还/.test(content)) return 'refunded'
+	if (/处理中|确认中|稍后|等待/.test(content)) return 'processing'
+	if (/失败|未成功|未完成|异常|错误/.test(content)) return 'failed'
+	return 'success'
+})
+
+const vipNoticeAmountRaw = computed(
+	() => extractNoticeFieldValue(['充值金额', '支付金额', '金额']) || '',
+)
+
+const vipNoticePlan = computed(
+	() =>
+		extractNoticeFieldValue(['套餐名称', '会员套餐', '套餐', '方案']) || '',
+)
+
+const vipNoticeAmount = computed(() => {
+	const numeric = extractNumeric(vipNoticeAmountRaw.value)
+	return numeric && numeric > 0 ? numeric : 0
+})
+
+const vipNoticeCurrency = computed(() => {
+	const raw = vipNoticeAmountRaw.value
+	if (/¥|￥/.test(raw)) return '¥'
+	if (/\$/.test(raw)) return '$'
+	return '¥'
+})
+
+const vipNoticeDurationDays = computed(() => {
+	const raw = extractNoticeFieldValue(['时长', '会员时长', '有效期']) || ''
+	const byDurationField = parseDurationDays(raw)
+	if (byDurationField > 0) return byDurationField
+
+	const byPlan = parseDurationDays(vipNoticePlan.value)
+	if (byPlan > 0) return byPlan
+
+	const expireField =
+		extractNoticeFieldValue([
+			'会员到期时间',
+			'会员到期',
+			'到期时间',
+			'到期日期',
+			'到期',
+		]) || ''
+	const paidAtField =
+		extractNoticeFieldValue(['到账时间', '支付时间', '完成时间', '时间']) ||
+		props.time ||
+		''
+	const expireAt = parseDateLike(expireField)
+	const paidAt = parseDateLike(paidAtField)
+	if (expireAt && paidAt) {
+		const diffMs = expireAt.getTime() - paidAt.getTime()
+		const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000))
+		if (diffDays > 0 && diffDays <= 1095) return diffDays
+	}
+
+	const matched = noticeText.value.match(/([+-]?\d+)\s*天/)
+	if (!matched) return 0
+	const parsed = Number(matched[1])
+	if (!Number.isFinite(parsed)) return 0
+	const normalized = Math.max(0, Math.floor(parsed))
+	return normalized <= 1095 ? normalized : 0
+})
+
+const vipNoticeLevelBefore = computed(
+	() => extractNoticeFieldValue(['升级前等级', '原等级', '充值前等级']) || '',
+)
+
+const vipNoticeLevelAfter = computed(
+	() =>
+		extractNoticeFieldValue([
+			'当前等级',
+			'升级后等级',
+			'会员等级',
+			'用户等级',
+		]) || '',
+)
+
+const vipNoticePaidAt = computed(() => {
+	return (
+		extractNoticeFieldValue(['到账时间', '支付时间', '完成时间', '时间']) ||
+		props.time ||
+		''
+	)
+})
+
+const normalizeOrderId = (value?: string): string => {
+	if (!value) return ''
+	const trimmed = value.trim().replace(/[，。；,.]+$/g, '')
+	if (!trimmed) return ''
+	const pureTimeLike = /^\d{4}[-/]\d{2}[-/]\d{2}(\s+\d{2}:\d{2}(:\d{2})?)?$/
+	if (pureTimeLike.test(trimmed)) return ''
+	if (trimmed.length < 8) return ''
+	return trimmed
+}
+
+const vipNoticeOrderId = computed(() => {
+	const billNo =
+		normalizeOrderId(
+			extractNoticeFieldValue([
+				'账单号',
+				'账单编号',
+				'业务单号',
+				'流水号',
+				'billNo',
+				'businessNo',
+				'bizNo',
+			]) || '',
+		) || ''
+	if (billNo) return billNo
+
+	const explicit =
+		normalizeOrderId(
+			extractNoticeFieldValue(['订单号', '订单编号', '交易单号']) || '',
+		) || ''
+	if (explicit) return explicit
+	const matched = noticeText.value.match(
+		/\b(?:VIP[_-]?)?[A-Za-z0-9][A-Za-z0-9_-]{9,}\b/,
+	)
+	const fallback = normalizeOrderId(matched?.[0] || '')
+	return fallback || '--'
+})
+
+const normalizePayMethod = (value?: string): string => {
+	const raw = (value || '').trim()
+	if (!raw) return '未知支付方式'
+	const upper = raw.toUpperCase()
+	const compactUpper = upper.replace(/[\s_-]+/g, '')
+	if (
+		/余额|钱包|账户余额/.test(raw) ||
+		/(BALANCE|WALLET|ACCOUNTBALANCE|INTERNALBALANCE|CASHIERBALANCE)/.test(
+			compactUpper,
+		)
+	) {
+		return '余额支付'
+	}
+	if (/微信/.test(raw) || /(WECHAT|WXPAY|WEIXIN)/.test(compactUpper)) {
+		return '微信支付'
+	}
+	if (/支付宝/.test(raw) || /ALIPAY/.test(compactUpper)) return '支付宝'
+	if (/APPLE\s*PAY/i.test(raw) || /APPLEPAY/.test(compactUpper))
+		return 'Apple Pay'
+	return raw
+}
+
+const detectPayMethodFromText = (text: string): string => {
+	const raw = text.trim()
+	if (!raw) return ''
+	const upper = raw.toUpperCase()
+	const compactUpper = upper.replace(/[\s_-]+/g, '')
+	if (
+		/余额|钱包|账户余额/.test(raw) ||
+		/(BALANCE|WALLET|ACCOUNTBALANCE|INTERNALBALANCE|CASHIERBALANCE)/.test(
+			compactUpper,
+		)
+	) {
+		return '余额支付'
+	}
+	if (/微信/.test(raw) || /(WECHAT|WXPAY|WEIXIN)/.test(compactUpper)) {
+		return '微信支付'
+	}
+	if (/支付宝/.test(raw) || /ALIPAY/.test(compactUpper)) return '支付宝'
+	if (/APPLE\s*PAY/i.test(raw) || /APPLEPAY/.test(compactUpper))
+		return 'Apple Pay'
+	return ''
+}
+
+const vipNoticePayMethod = computed(() => {
+	const fromField = extractNoticeFieldValue([
+		'支付方式',
+		'支付渠道',
+		'支付类型',
+		'支付方式编码',
+		'支付渠道编码',
+		'渠道编码',
+		'payMethod',
+		'pay_method',
+		'paymentMethod',
+		'payment_method',
+		'paymentType',
+		'payment_type',
+		'payType',
+		'pay_type',
+		'channel',
+		'payChannel',
+		'pay_channel',
+	])
+	const fromTextMatched = noticeText.value.match(
+		/(?:支付(?:方式|渠道|类型|方式编码|渠道编码)|pay(?:ment)?(?:Method|Type)?|pay(?:_|)?channel|channel)\s*[:：=]\s*([^\n,，;；]+)/i,
+	)
+	const normalized = normalizePayMethod(fromField || fromTextMatched?.[1] || '')
+	if (normalized !== '未知支付方式') return normalized
+	return detectPayMethodFromText(noticeText.value) || '未知支付方式'
+})
+
+const handleViewBenefits = (): void => {
+	message.info('会员权益页待接入')
+}
+
+const handleViewOrder = (): void => {
+	message.info(`订单详情待接入：${vipNoticeOrderId.value}`)
+}
+
+const handleRetryVipPay = (): void => {
+	message.info('重新支付流程待接入')
+}
+
+const handleContactSupport = (): void => {
+	message.info('客服入口待接入')
+}
+
 const shouldRenderSystemNoticeCard = computed(
 	() => !!props.isSystemChat && !props.isMe && !props.isVipNotice,
 )
@@ -409,7 +724,22 @@ const emit = defineEmits<{
 		type: 'text' | 'image',
 		extra?: { text?: string; src?: string },
 	): void
+	(
+		e: 'avatar-contextmenu',
+		ev: MouseEvent,
+		extra: { senderAccount?: string; senderName?: string },
+	): void
 }>()
+
+const handleAvatarContextMenu = (e: MouseEvent): void => {
+	if (!props.enableAvatarMenu || props.isMe) return
+	e.preventDefault()
+	e.stopPropagation()
+	emit('avatar-contextmenu', e, {
+		senderAccount: props.senderAccount,
+		senderName: props.senderName,
+	})
+}
 
 const handleContextMenu = (e: MouseEvent): void => {
 	const target = e.target as HTMLElement
@@ -759,18 +1089,179 @@ onUpdated(attachLoadEvents)
 	color: #2f7fe7;
 }
 
-.notice-card-vip {
+.vip-notice-card {
+	min-width: 276px;
+	max-width: 380px;
+	border-radius: 16px;
+	padding: 12px;
 	background:
-		radial-gradient(circle at top right, #fff7d6 0%, transparent 52%),
-		linear-gradient(155deg, #fff3c8 0%, #f6d477 45%, #ddb250 100%);
-	color: #4a3410;
-	border-color: #d5af57;
-	box-shadow: 0 6px 14px rgba(190, 144, 56, 0.22);
+		radial-gradient(
+			circle at 88% 6%,
+			rgb(255 248 214 / 88%) 0%,
+			transparent 42%
+		),
+		linear-gradient(160deg, #fff4d1 0%, #ebca7a 45%, #c9953f 100%);
+	border: 1px solid #c3903e;
+	color: #4f330f;
+	box-shadow:
+		0 10px 20px rgb(121 84 24 / 20%),
+		inset 0 1px 0 rgb(255 255 255 / 45%);
 }
 
-.notice-card-vip .notice-card-badge {
-	background: #6d4c12;
-	color: #ffe8a3;
+.vip-notice-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.vip-notice-header-left {
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.vip-notice-icon-wrap {
+	width: 26px;
+	height: 26px;
+	border-radius: 9px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: rgb(87 54 10 / 22%);
+	border: 1px solid rgb(87 54 10 / 28%);
+}
+
+.vip-fill-gold {
+	filter: drop-shadow(0 1px 0 rgb(255 255 255 / 35%)) saturate(1.1)
+		hue-rotate(-4deg);
+}
+
+.vip-notice-title {
+	font-size: 14px;
+	font-weight: 800;
+	line-height: 1.25;
+}
+
+.vip-notice-subtitle {
+	margin-top: 2px;
+	font-size: 11px;
+	line-height: 1.3;
+	opacity: 0.88;
+}
+
+.vip-notice-chip {
+	flex-shrink: 0;
+	max-width: 128px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 10px;
+	line-height: 1.3;
+	font-weight: 700;
+	background: rgb(255 255 255 / 34%);
+	border: 1px solid rgb(87 54 10 / 18%);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vip-notice-context {
+	margin-top: 10px;
+	padding: 10px;
+	border-radius: 12px;
+	background: rgb(255 255 255 / 38%);
+	border: 1px solid rgb(87 54 10 / 16%);
+	backdrop-filter: blur(3px);
+}
+
+.vip-notice-growth-panel {
+	padding-bottom: 8px;
+	border-bottom: 1px dashed rgb(87 54 10 / 24%);
+}
+
+.vip-notice-growth-label {
+	font-size: 11px;
+	opacity: 0.74;
+}
+
+.vip-notice-growth-value-row {
+	margin-top: 4px;
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.vip-notice-growth-value {
+	font-size: 24px;
+	font-weight: 900;
+	letter-spacing: 0.3px;
+	line-height: 1;
+}
+
+.vip-notice-level-value {
+	font-size: 11px;
+	font-weight: 700;
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: rgb(87 54 10 / 12%);
+}
+
+.vip-notice-metrics {
+	margin-top: 8px;
+	display: grid;
+	gap: 4px;
+}
+
+.vip-notice-main-line {
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.4;
+	margin-bottom: 3px;
+}
+
+.vip-notice-metric-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	font-size: 11px;
+}
+
+.vip-notice-metric-label {
+	opacity: 0.76;
+}
+
+.vip-notice-metric-value {
+	max-width: 190px;
+	font-weight: 700;
+	text-align: right;
+	word-break: break-all;
+}
+
+.vip-notice-footer {
+	margin-top: 10px;
+	padding-top: 8px;
+	border-top: 1px solid rgb(87 54 10 / 16%);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.vip-notice-footer-meta {
+	font-size: 10px;
+	opacity: 0.72;
+}
+
+.vip-notice-footer-state {
+	font-size: 10px;
+	font-weight: 800;
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: rgb(87 54 10 / 14%);
+	color: #5a3a11;
 }
 
 .transfer-card {

@@ -1,25 +1,25 @@
 <template>
 	<div class="profile-center-page h-full w-full overflow-y-auto">
-		<div class="profile-center-shell mx-auto max-w-[980px] p-4 md:p-5">
-			<div class="profile-hero rounded-[24px] p-4 md:p-5">
-				<div class="profile-hero-top flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+		<div class="profile-center-shell mx-auto max-w-[980px] p-3 md:p-4">
+			<div class="profile-hero rounded-[22px] p-3.5 md:p-4">
+				<div class="profile-hero-top flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
 					<div class="flex items-start gap-4">
 						<n-avatar :size="64" round :src="user.avatarUrl" class="hero-avatar" />
 						<div class="min-w-0">
 							<div class="flex flex-wrap items-center gap-2">
-								<h1 class="text-xl font-semibold tracking-wide text-white/95 truncate">
+								<h1 class="text-lg font-semibold tracking-wide text-white/95 truncate">
 									{{ user.userName || '尊贵会员' }}
 								</h1>
 								<span class="rank-chip">{{ memberRankText }}</span>
 							</div>
-							<p class="mt-1 text-sm text-white/70">账号：{{ user.account || '-' }}</p>
-							<p class="mt-1 text-sm text-white/70">{{ vipStatusText }}</p>
+							<p class="mt-1 text-xs text-white/70">账号：{{ user.account || '-' }}</p>
+							<p class="mt-1 text-xs text-white/70">{{ vipStatusText }}</p>
 						</div>
 					</div>
 					<n-button
 						type="warning"
 						round
-						size="large"
+						size="medium"
 						class="hero-action-btn"
 						@click="openPurchaseModal"
 					>
@@ -59,7 +59,7 @@
 				</div>
 
 				<div class="progress-panel mt-3 rounded-2xl p-3">
-					<div class="flex items-center justify-between text-sm text-white/80">
+					<div class="flex items-center justify-between text-xs text-white/80">
 						<span>成长进度</span>
 						<span>{{ growthValue }}/{{ nextLevelGrowthLabel }}</span>
 					</div>
@@ -69,6 +69,8 @@
 						:show-indicator="false"
 						:percentage="progressPercent"
 						:height="7"
+						color="#ffde00"
+						rail-color="rgba(255,255,255,0.22)"
 					/>
 					<p class="mt-1.5 text-xs text-white/70">
 						{{ growthHintText }}
@@ -78,13 +80,13 @@
 
 			<div class="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
 				<div class="flex flex-col gap-4">
-					<section class="panel-card rounded-3xl p-4 md:p-5">
+					<section class="panel-card rounded-3xl p-3.5 md:p-4">
 						<div class="section-head">
 							<div>
 								<h2 class="section-title"><n-icon :size="16"><GiftOutline /></n-icon>权益入口</h2>
 								<p class="section-sub">围绕身份价值的高频权益快速直达</p>
 							</div>
-							<n-button quaternary size="small" @click="refreshVipData">刷新</n-button>
+							<n-button quaternary size="tiny" @click="refreshVipData">刷新</n-button>
 						</div>
 						<n-spin :show="isVipLoading">
 							<div class="mt-3 grid gap-2 sm:grid-cols-2">
@@ -93,6 +95,7 @@
 									:key="entry.title"
 									type="button"
 									class="entry-card"
+									@click="handleEntryClick(entry.title)"
 								>
 									<div class="entry-head">
 										<n-icon :size="15" class="entry-icon"><component :is="entry.icon" /></n-icon>
@@ -105,7 +108,7 @@
 						</n-spin>
 					</section>
 
-					<section class="panel-card rounded-3xl p-4 md:p-5">
+					<section class="panel-card rounded-3xl p-3.5 md:p-4">
 						<div class="section-head">
 							<div>
 								<h2 class="section-title"><n-icon :size="16"><ShieldCheckmarkOutline /></n-icon>专属服务</h2>
@@ -130,7 +133,7 @@
 				</div>
 
 				<div class="flex flex-col gap-4">
-					<section class="panel-card rounded-3xl p-4 md:p-5">
+					<section class="panel-card rounded-3xl p-3.5 md:p-4">
 						<div class="section-head">
 							<div>
 								<h2 class="section-title"><n-icon :size="16"><DiamondOutline /></n-icon>会员计划</h2>
@@ -139,20 +142,20 @@
 						</div>
 						<div class="mt-3 space-y-2.5">
 							<div class="plan-current">
-								<p class="text-xs text-gray-500 dark:text-gray-300">当前套餐</p>
-								<p class="mt-1.5 text-base font-semibold text-text-main">{{ selectedPlanLabel }}</p>
+								<p class="text-[11px] text-gray-500 dark:text-gray-300">当前套餐</p>
+								<p class="mt-1 text-sm font-semibold text-text-main">{{ selectedPlanLabel }}</p>
 								<p class="mt-1 text-xs text-gray-500 dark:text-gray-300">{{ selectedPlanDetail }}</p>
 							</div>
-							<n-button type="primary" size="large" class="w-full" @click="openPurchaseModal">
+							<n-button type="primary" size="medium" class="w-full" @click="openPurchaseModal">
 								{{ purchaseButtonText }}
 							</n-button>
 						</div>
 					</section>
 
-					<section class="panel-card rounded-3xl p-4 md:p-5">
+					<section class="panel-card rounded-3xl p-3.5 md:p-4">
 						<div class="section-head">
 							<div>
-								<h2 class="section-title"><n-icon :size="16"><PersonCircleOutline /></n-icon>个人资料</h2>
+								<h2 class="section-title"><n-icon :size="16"><PersonCircleOutline /></n-icon>用户中心</h2>
 								<p class="section-sub">用于身份识别与专属服务触达</p>
 							</div>
 						</div>
@@ -176,7 +179,7 @@
 						</div>
 					</section>
 
-					<section class="panel-card rounded-3xl p-4 md:p-5">
+					<section class="panel-card rounded-3xl p-3.5 md:p-4">
 						<div class="section-head">
 							<div>
 								<h2 class="section-title"><n-icon :size="16"><CalendarOutline /></n-icon>最近会员订单</h2>
@@ -189,13 +192,13 @@
 								class="py-2.5 flex items-center justify-between gap-2.5"
 							>
 								<div class="min-w-0">
-									<p class="text-sm font-medium text-text-main truncate">{{ order.planName || order.planCode }}</p>
+									<p class="text-xs font-medium text-text-main truncate">{{ order.planName || order.planCode }}</p>
 									<p class="mt-1 text-xs text-gray-500 dark:text-gray-300 truncate">
 										{{ formatDate(order.createdAt) }}
 									</p>
 								</div>
 								<div class="text-right shrink-0">
-									<p class="text-sm font-semibold text-text-main">￥{{ order.amount.toFixed(2) }}</p>
+									<p class="text-xs font-semibold text-text-main">￥{{ order.amount.toFixed(2) }}</p>
 									<p class="mt-1 text-xs text-amber-600">+{{ order.growthBonus }} 成长值</p>
 								</div>
 							</div>
@@ -286,6 +289,89 @@
 				</div>
 			</div>
 		</n-modal>
+
+		<n-modal
+			v-model:show="showGrowthTaskModal"
+			preset="card"
+			class="app-modal-card"
+			title="成长任务"
+			:style="{ width: 'min(680px, 94vw)' }"
+			:bordered="false"
+			segmented
+		>
+			<div class="section-head">
+				<div>
+					<p class="section-sub">任务触发、进度展示与奖励流水同步</p>
+				</div>
+				<n-button quaternary size="tiny" @click="refreshTaskData">刷新任务</n-button>
+			</div>
+			<n-spin :show="isTaskLoading">
+				<div class="task-progress-grid mt-3">
+					<div class="task-progress-card">
+						<p class="task-progress-title">发帖任务</p>
+						<p class="task-progress-reward">
+							+{{ postTaskConfig.rewardWalletCent / 100 }}元 / +{{ postTaskConfig.rewardGrowth }} 成长值
+						</p>
+						<p class="task-progress-meta">
+							每日上限：
+							{{ postTaskConfig.dailyLimit === null ? '不限' : postTaskConfig.dailyLimit }}
+						</p>
+					</div>
+					<div class="task-progress-card">
+						<p class="task-progress-title">评论任务</p>
+						<p class="task-progress-reward">
+							+{{ replyTaskConfig.rewardWalletCent / 100 }}元 / +{{ replyTaskConfig.rewardGrowth }} 成长值
+						</p>
+						<p class="task-progress-meta">
+							每日上限：
+							{{ replyTaskConfig.dailyLimit === null ? '不限' : replyTaskConfig.dailyLimit }}
+						</p>
+					</div>
+				</div>
+
+				<div class="task-progress-bar-panel mt-3">
+					<div class="task-progress-bar-head">
+						<span>今日发帖奖励进度</span>
+						<span>{{ todayPostProgressText }}</span>
+					</div>
+					<n-progress
+						class="mt-2"
+						type="line"
+						:show-indicator="false"
+						:percentage="todayPostProgressPercent"
+						:height="6"
+						color="#c3892f"
+						rail-color="rgba(132, 99, 46, 0.16)"
+					/>
+				</div>
+
+				<div class="task-desc-list mt-3">
+					<p v-for="desc in taskDescriptionList" :key="desc">{{ desc }}</p>
+				</div>
+
+				<div class="mt-3">
+					<p class="task-ledger-title">最近任务奖励</p>
+					<div v-if="latestTaskRewards.length" class="task-ledger-scroll mt-2 divide-y divide-border-default/65">
+						<div
+							v-for="item in latestTaskRewards"
+							:key="item.id"
+							class="py-2.5 flex items-center justify-between gap-2"
+						>
+							<div class="min-w-0">
+								<p class="text-xs font-medium text-text-main truncate">
+									{{ formatTaskTypeLabel(item.taskType) }}
+								</p>
+								<p class="mt-1 text-[11px] text-gray-500 dark:text-gray-300 truncate">
+									{{ formatDate(item.createdAt) }}
+								</p>
+							</div>
+							<p class="text-xs font-semibold text-amber-600 shrink-0">{{ item.rewardText }}</p>
+						</div>
+					</div>
+					<div v-else class="mt-2 text-xs text-gray-500 dark:text-gray-300">暂无任务奖励流水</div>
+				</div>
+			</n-spin>
+		</n-modal>
 	</div>
 </template>
 
@@ -319,9 +405,11 @@ import {
 import { storeToRefs } from 'pinia'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useVipStore } from '@renderer/stores/vip'
+import { useTaskRewardStore } from '@renderer/stores/taskReward'
 
 const user = useUserInfoStore()
 const vipStore = useVipStore()
+const taskRewardStore = useTaskRewardStore()
 const message = useMessage()
 
 const {
@@ -340,14 +428,28 @@ const {
 	orders,
 } = storeToRefs(vipStore)
 
+const {
+	taskConfig,
+	todayProgress,
+	walletRewardItems,
+	growthRewardItems,
+	isConfigLoading,
+	isProgressLoading,
+	isLedgerLoading,
+} = storeToRefs(taskRewardStore)
+
 const selectedPlanCode = ref<'MONTHLY' | 'QUARTERLY' | 'YEARLY' | string>('MONTHLY')
 const securityPassword = ref('')
 const pinInputs = ref<string[]>(['', '', '', '', '', ''])
 const pinRefs = ref<Array<HTMLInputElement | null>>([null, null, null, null, null, null])
 const purchaseNo = ref('')
 const showPurchaseModal = ref(false)
+const showGrowthTaskModal = ref(false)
 
 const isVipLoading = computed(() => profileLoading.value || plansLoading.value || ordersLoading.value)
+const isTaskLoading = computed(
+	() => isConfigLoading.value || isProgressLoading.value || isLedgerLoading.value,
+)
 
 const genderText = computed(() => {
 	if (user.gender === 'male') return '男'
@@ -399,6 +501,79 @@ const selectedPlanLabel = computed(() => selectedPlan.value?.planName || '暂无
 const selectedPlanDetail = computed(() => {
 	if (!selectedPlan.value) return '请先刷新会员数据'
 	return `￥${selectedPlan.value.price.toFixed(2)} / ${selectedPlan.value.months}个月，赠送成长值 +${selectedPlan.value.growthBonus}`
+})
+
+const postTaskConfig = computed(() => {
+	return (
+		taskConfig.value.find((item) => item.taskType === 'POST_CREATE') || {
+			taskType: 'POST_CREATE',
+			enabled: false,
+			rewardWalletCent: 0,
+			rewardGrowth: 0,
+			dailyLimit: null,
+		}
+	)
+})
+
+const replyTaskConfig = computed(() => {
+	return (
+		taskConfig.value.find((item) => item.taskType === 'REPLY_CREATE') || {
+			taskType: 'REPLY_CREATE',
+			enabled: false,
+			rewardWalletCent: 0,
+			rewardGrowth: 0,
+			dailyLimit: null,
+		}
+	)
+})
+
+const todayPostProgressText = computed(() => {
+	if (!todayProgress.value) return '-- / --'
+	return `${todayProgress.value.postGrantedCount}/${todayProgress.value.postDailyLimit}`
+})
+
+const todayPostProgressPercent = computed(() => {
+	const granted = todayProgress.value?.postGrantedCount || 0
+	const limit = todayProgress.value?.postDailyLimit || 0
+	if (limit <= 0) return granted > 0 ? 100 : 0
+	return Math.max(0, Math.min(100, (granted / limit) * 100))
+})
+
+const taskDescriptionList = computed(() => {
+	const post = postTaskConfig.value
+	const reply = replyTaskConfig.value
+	if (!(typeof user.userId === 'number' && Number.isFinite(user.userId) && user.userId > 0)) {
+		return [
+			'当前登录态未提供 userId，任务进度与流水查询暂不可用',
+			'发帖/评论后的奖励发放由后端自动触发，不依赖前端上报',
+			'如需展示今日进度，请在登录/用户信息接口返回 userId',
+		]
+	}
+	return [
+		`发帖任务：${post.enabled ? '已启用' : '未启用'}，奖励 +${(post.rewardWalletCent / 100).toFixed(2)}元 / +${post.rewardGrowth}成长值`,
+		`评论任务：${reply.enabled ? '已启用' : '未启用'}，奖励 +${(reply.rewardWalletCent / 100).toFixed(2)}元 / +${reply.rewardGrowth}成长值`,
+		`发帖今日剩余次数：${todayProgress.value?.postRemainingCount ?? '--'}，时区：${todayProgress.value?.timezone || '--'}`,
+	]
+})
+
+const latestTaskRewards = computed(() => {
+	const walletRows = walletRewardItems.value.map((item) => ({
+		id: `wallet_${item.ledgerId}`,
+		taskType: item.taskType,
+		createdAt: item.createdAt,
+		rewardText: `+${(item.changeCent / 100).toFixed(2)}元`,
+	}))
+	const growthRows = growthRewardItems.value.map((item) => ({
+		id: `growth_${item.ledgerId}`,
+		taskType: item.taskType,
+		createdAt: item.createdAt,
+		rewardText: `+${item.changeGrowth} 成长值`,
+	}))
+	return [...walletRows, ...growthRows].sort((a, b) => {
+		const aTime = new Date(a.createdAt).getTime()
+		const bTime = new Date(b.createdAt).getTime()
+		return bTime - aTime
+	})
 })
 
 const privilegeEntries = computed(() => [
@@ -465,7 +640,18 @@ const formatDate = (value: string): string => {
 const refreshVipData = async (): Promise<void> => {
 	if (!user.account) return
 	try {
-		await vipStore.refreshAll()
+		const [vipResult, taskResult] = await Promise.allSettled([
+			vipStore.refreshAll(),
+			taskRewardStore.refreshAll(
+				typeof user.userId === 'number' ? user.userId : undefined,
+			),
+		])
+		if (vipResult.status === 'rejected') {
+			throw vipResult.reason
+		}
+		if (taskResult.status === 'rejected') {
+			console.error('刷新任务数据失败', taskResult.reason)
+		}
 		const defaultPlan = plans.value[0]
 		if (defaultPlan?.planCode) {
 			selectedPlanCode.value = defaultPlan.planCode
@@ -473,6 +659,29 @@ const refreshVipData = async (): Promise<void> => {
 	} catch (error) {
 		console.error('刷新会员数据失败', error)
 	}
+}
+
+const refreshTaskData = async (): Promise<void> => {
+	if (!user.account) return
+	try {
+		await taskRewardStore.refreshAll(
+			typeof user.userId === 'number' ? user.userId : undefined,
+		)
+	} catch (error) {
+		console.error('刷新任务数据失败', error)
+	}
+}
+
+const formatTaskTypeLabel = (taskType: string): string => {
+	if (taskType === 'POST_CREATE') return '发帖任务'
+	if (taskType === 'REPLY_CREATE') return '评论任务'
+	return taskType || '任务奖励'
+}
+
+const handleEntryClick = (entryTitle: string): void => {
+	if (entryTitle !== '成长任务') return
+	showGrowthTaskModal.value = true
+	void refreshTaskData()
 }
 
 const handlePurchase = async (): Promise<void> => {
@@ -567,9 +776,19 @@ watch(
 	(account) => {
 		if (!account) {
 			vipStore.reset()
+			taskRewardStore.reset()
 			return
 		}
-		void refreshVipData()
+		void (async () => {
+			if (!(typeof user.userId === 'number' && Number.isFinite(user.userId) && user.userId > 0)) {
+				try {
+					await user.refreshCurrentUser()
+				} catch (error) {
+					console.warn('回填 userId 失败:', error)
+				}
+			}
+			await refreshVipData()
+		})()
 	},
 	{ immediate: true },
 )
@@ -623,10 +842,10 @@ watch(
 .rank-chip {
 	display: inline-flex;
 	align-items: center;
-	height: 24px;
-	padding: 0 10px;
+	height: 22px;
+	padding: 0 8px;
 	border-radius: 999px;
-	font-size: 12px;
+	font-size: 11px;
 	font-weight: 600;
 	color: #fdf2cf;
 	background: rgba(255, 226, 156, 0.16);
@@ -634,11 +853,12 @@ watch(
 }
 
 .hero-action-btn {
-	min-width: 132px;
+	min-width: 118px;
 	background: linear-gradient(135deg, #f7d79a 0%, #ddb163 100%);
 	border: none;
 	color: #452f0d;
 	font-weight: 700;
+	font-size: 12px;
 }
 
 .metric-card {
@@ -660,13 +880,13 @@ watch(
 }
 
 .metric-label {
-	font-size: 12px;
+	font-size: 11px;
 	color: rgba(255, 239, 206, 0.72);
 }
 
 .metric-value {
 	margin-top: 4px;
-	font-size: 17px;
+	font-size: 15px;
 	font-weight: 700;
 	color: #fff7e5;
 }
@@ -681,8 +901,8 @@ watch(
 }
 
 .progress-panel :deep(.n-progress-graph-line-fill) {
-	background: linear-gradient(90deg, #fff36a 0%, #ffd400 100%);
-	box-shadow: 0 0 12px rgba(255, 222, 0, 0.45);
+	background: linear-gradient(90deg, #fff159 0%, #ffde00 52%, #ffc800 100%);
+	box-shadow: 0 0 14px rgba(255, 222, 0, 0.5);
 }
 
 .panel-card {
@@ -690,7 +910,7 @@ watch(
 	background: rgba(255, 255, 255, 0.74);
 	backdrop-filter: blur(12px);
 	box-shadow:
-		0 10px 24px rgba(69, 49, 18, 0.09),
+		0 8px 18px rgba(69, 49, 18, 0.08),
 		inset 0 1px 0 rgba(255, 255, 255, 0.66);
 }
 
@@ -705,7 +925,7 @@ watch(
 .section-head {
 	display: flex;
 	justify-content: space-between;
-	gap: 12px;
+	gap: 10px;
 	align-items: flex-start;
 }
 
@@ -713,14 +933,14 @@ watch(
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 16px;
+	font-size: 14px;
 	font-weight: 700;
 	color: var(--text-main-color);
 }
 
 .section-sub {
 	margin-top: 2px;
-	font-size: 12px;
+	font-size: 11px;
 	color: rgba(89, 75, 53, 0.68);
 }
 
@@ -731,7 +951,7 @@ watch(
 .entry-card {
 	position: relative;
 	border-radius: 16px;
-	padding: 12px;
+	padding: 10px;
 	text-align: left;
 	background: linear-gradient(135deg, rgba(255, 245, 222, 0.86) 0%, rgba(247, 235, 207, 0.86) 100%);
 	border: 1px solid rgba(203, 170, 109, 0.3);
@@ -749,7 +969,7 @@ watch(
 }
 
 .entry-title {
-	font-size: 14px;
+	font-size: 13px;
 	font-weight: 600;
 	color: #5f441e;
 }
@@ -770,7 +990,7 @@ watch(
 
 .entry-desc {
 	margin-top: 4px;
-	font-size: 12px;
+	font-size: 11px;
 	line-height: 1.45;
 	color: rgba(93, 71, 37, 0.8);
 }
@@ -783,7 +1003,7 @@ watch(
 	display: inline-flex;
 	margin-top: 8px;
 	padding: 2px 8px;
-	font-size: 11px;
+	font-size: 10px;
 	border-radius: 999px;
 	color: #5f451d;
 	background: rgba(255, 234, 189, 0.72);
@@ -794,9 +1014,111 @@ watch(
 	background: rgba(140, 107, 53, 0.44);
 }
 
+.task-progress-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.task-progress-card {
+	border-radius: 14px;
+	padding: 10px;
+	border: 1px solid rgba(197, 159, 85, 0.24);
+	background: rgba(255, 249, 238, 0.82);
+}
+
+.dark .task-progress-card {
+	border-color: rgba(190, 146, 69, 0.3);
+	background: rgba(39, 30, 22, 0.78);
+}
+
+.task-progress-title {
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--text-main-color);
+}
+
+.task-progress-reward {
+	margin-top: 5px;
+	font-size: 11px;
+	color: #8a632c;
+}
+
+.task-progress-meta {
+	margin-top: 4px;
+	font-size: 10px;
+	color: rgba(114, 90, 55, 0.82);
+}
+
+.dark .task-progress-meta {
+	color: rgba(224, 205, 174, 0.68);
+}
+
+.task-progress-bar-panel {
+	border-radius: 14px;
+	padding: 10px;
+	background: rgba(255, 249, 238, 0.7);
+	border: 1px solid rgba(202, 168, 108, 0.22);
+}
+
+.dark .task-progress-bar-panel {
+	background: rgba(39, 30, 22, 0.72);
+	border-color: rgba(190, 146, 69, 0.28);
+}
+
+.task-progress-bar-head {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 11px;
+	color: rgba(95, 74, 46, 0.84);
+}
+
+.dark .task-progress-bar-head {
+	color: rgba(229, 212, 183, 0.76);
+}
+
+.task-desc-list {
+	border-radius: 14px;
+	padding: 10px;
+	background: rgba(255, 255, 255, 0.72);
+	border: 1px dashed rgba(202, 168, 108, 0.32);
+}
+
+.dark .task-desc-list {
+	background: rgba(35, 27, 19, 0.74);
+	border-color: rgba(189, 148, 76, 0.38);
+}
+
+.task-desc-list p {
+	font-size: 11px;
+	line-height: 1.5;
+	color: rgba(100, 80, 49, 0.86);
+}
+
+.task-desc-list p + p {
+	margin-top: 4px;
+}
+
+.dark .task-desc-list p {
+	color: rgba(229, 212, 183, 0.76);
+}
+
+.task-ledger-title {
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--text-main-color);
+}
+
+.task-ledger-scroll {
+	max-height: 220px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
 .service-card {
 	border-radius: 16px;
-	padding: 12px;
+	padding: 10px;
 	background: rgba(251, 246, 235, 0.92);
 	border: 1px solid rgba(210, 181, 124, 0.28);
 }
@@ -807,7 +1129,7 @@ watch(
 }
 
 .service-name {
-	font-size: 14px;
+	font-size: 13px;
 	font-weight: 600;
 	color: var(--text-main-color);
 }
@@ -824,7 +1146,7 @@ watch(
 
 .service-desc {
 	margin-top: 4px;
-	font-size: 12px;
+	font-size: 11px;
 	line-height: 1.45;
 	color: rgba(98, 80, 53, 0.78);
 }
@@ -835,13 +1157,13 @@ watch(
 
 .service-level {
 	margin-top: 8px;
-	font-size: 11px;
+	font-size: 10px;
 	color: #9a702b;
 }
 
 .plan-current {
 	border-radius: 14px;
-	padding: 12px;
+	padding: 10px;
 	border: 1px solid rgba(197, 159, 85, 0.25);
 	background: rgba(255, 255, 255, 0.78);
 }
@@ -869,7 +1191,7 @@ watch(
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 12px;
+	font-size: 11px;
 	color: rgba(119, 100, 71, 0.82);
 }
 
@@ -877,7 +1199,7 @@ watch(
 	color: var(--text-main-color);
 	text-align: right;
 	max-width: 65%;
-	font-size: 12px;
+	font-size: 11px;
 	word-break: break-word;
 }
 
@@ -886,7 +1208,7 @@ watch(
 }
 
 .next-transfer-modal {
-	border-radius: 32px;
+	border-radius: 8px !important;
 	overflow: hidden;
 	border: 1px solid rgba(0, 0, 0, 0.08);
 	box-shadow: none;
@@ -946,9 +1268,9 @@ watch(
 }
 
 .modal-btn-primary {
-	height: 48px;
+	height: 42px;
 	border-radius: 14px;
-	font-size: 13px;
+	font-size: 12px;
 	font-weight: 700;
 	color: #fff;
 	background: linear-gradient(135deg, #8f6730 0%, #6a4c21 100%);
@@ -969,9 +1291,9 @@ watch(
 }
 
 .modal-btn-ghost {
-	height: 48px;
+	height: 42px;
 	border-radius: 14px;
-	font-size: 13px;
+	font-size: 12px;
 	font-weight: 700;
 	color: #606266;
 	background: #f4f4f5;
@@ -985,7 +1307,7 @@ watch(
 
 @media (max-width: 768px) {
 	.profile-center-shell {
-		padding: 12px;
+		padding: 10px;
 	}
 
 	.metric-card {
@@ -994,6 +1316,10 @@ watch(
 
 	.metric-value {
 		font-size: 16px;
+	}
+
+	.task-progress-grid {
+		grid-template-columns: 1fr;
 	}
 }
 </style>

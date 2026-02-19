@@ -279,7 +279,7 @@
 									v-if="item.slotKey"
 									type="button"
 									:class="[
-										'absolute top-1 right-1 z-10 h-4 w-4 rounded-full bg-card-bg/92 border border-border-default/70 shadow-sm flex items-center justify-center text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)] hover:text-sidebar-select-item transition-colors opacity-100',
+										'absolute top-1 right-1 z-10 h-4 w-4 rounded-full bg-card-bg/92 border border-border-default/70 shadow-sm flex items-center justify-center text-[rgba(99,116,148,0.58)] dark:text-[rgba(165,176,198,0.64)] hover:text-sidebar-select-item transition-all duration-150 opacity-0 group-hover:opacity-100',
 									]"
 									@click.stop="destroySlot(item.slotKey)"
 								>
@@ -297,153 +297,149 @@
 
 		<n-modal
 			v-model:show="showSearchModal"
-			preset="card"
-			class="global-search-modal"
-			title="全局搜索"
-			:show-icon="false"
 			:mask-closable="true"
 			transform-origin="center"
-			style="width: 680px; max-width: calc(100vw - 24px)"
 		>
-			<div class="flex flex-col gap-4">
-				<n-input
-					ref="searchInputRef"
-					v-model:value="globalSearchQuery"
-					type="text"
-					placeholder="搜索联系人、群组、聊天记录..."
-					size="large"
-					clearable
-					class="rounded-[6px]"
-				>
-					<template #prefix>
-						<n-icon><SearchOutline /></n-icon>
-					</template>
-					<template #suffix>
-						<span
-							class="text-[11px] text-gray-400 dark:text-gray-500"
-						>
-							{{ isMac ? '⌘K' : 'Ctrl+K' }}
-						</span>
-					</template>
-				</n-input>
-
-				<div class="search-content min-h-[240px]">
-					<div v-if="!globalSearchQuery.trim()" class="space-y-3">
-						<div class="text-xs text-gray-400 dark:text-gray-500">
-							快捷入口
+			<div class="next-global-search-modal w-[min(92vw,680px)] max-h-[90vh] flex flex-col">
+				<div class="modal-header-section">
+					<div class="flex items-center justify-between w-full">
+						<div>
+							<div class="text-[15px] font-semibold text-white">全局搜索</div>
+							<div class="text-[11px] text-blue-100/90">
+								快速定位页面、联系人与聊天记录
+							</div>
 						</div>
-						<div class="grid grid-cols-3 gap-2.5">
-							<button
-								v-for="item in globalSearchQuickEntries"
-								:key="item.key"
-								type="button"
-								class="flex items-center gap-2 rounded-[6px] border border-border-default bg-page-bg px-3 py-2.5 text-left hover:bg-sidebar-select-bg/30 transition-colors"
-								@click="handleGlobalSearchEntryClick(item)"
-							>
-								<div
-									class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-[#3695ff]/10 text-[#2f7fe7]"
-								>
-									<n-icon size="16">
-										<component :is="item.icon" />
-									</n-icon>
-								</div>
-								<div class="min-w-0">
-									<div
-										class="truncate text-xs font-semibold text-text-main"
-									>
-										{{ item.label }}
-									</div>
-									<div
-										class="truncate text-[11px] text-gray-400 dark:text-gray-500"
-									>
-										{{ item.description }}
-									</div>
-								</div>
-							</button>
-						</div>
-					</div>
-
-					<div v-else class="space-y-2">
-						<div
-							class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500"
+						<button
+							type="button"
+							class="close-orb hover:bg-white/10 transition-colors"
+							@click="showSearchModal = false"
 						>
-							<span
-								>匹配结果 ({{
-									filteredGlobalSearchEntries.length
-								}})</span
-							>
-							<span v-if="isSearchingGlobalChatRecords">
-								正在检索聊天记录...
-							</span>
-						</div>
-						<div
-							v-if="filteredGlobalSearchEntries.length > 0"
-							class="max-h-[320px] space-y-1.5 overflow-y-auto pr-1"
-						>
-							<button
-								v-for="item in filteredGlobalSearchEntries"
-								:key="item.key"
-								type="button"
-								class="w-full flex items-center gap-3 rounded-[6px] border border-transparent bg-page-bg px-3 py-2 text-left hover:border-border-default hover:bg-sidebar-select-bg/25 transition-colors"
-								@click="handleGlobalSearchEntryClick(item)"
-							>
-								<div
-									class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-[#3695ff]/10 text-[#2f7fe7]"
-								>
-									<n-icon size="16">
-										<component :is="item.icon" />
-									</n-icon>
-								</div>
-								<div class="min-w-0 flex-1">
-									<div
-										class="truncate text-sm font-medium text-text-main"
-									>
-										{{ item.label }}
-									</div>
-									<div
-										class="truncate text-xs text-gray-400 dark:text-gray-500"
-									>
-										{{ item.description }}
-									</div>
-								</div>
-								<n-tag size="small" round :bordered="false">
-									{{ item.typeLabel }}
-								</n-tag>
-							</button>
-						</div>
-						<div
-							v-else
-							class="flex h-[220px] flex-col items-center justify-center rounded-[6px] border border-dashed border-border-default text-center text-gray-400 dark:text-gray-500"
-						>
-							<n-icon size="28" class="mb-2 opacity-70">
-								<SearchOutline />
+							<n-icon size="18" class="text-white/85">
+								<Close />
 							</n-icon>
-							<p class="text-sm">没有匹配结果</p>
-							<p class="text-xs">
-								试试其他关键词，例如“动态”或“设置”
-							</p>
-						</div>
+						</button>
+					</div>
+					<div class="mt-3">
+						<n-input
+							ref="searchInputRef"
+							v-model:value="globalSearchQuery"
+							type="text"
+							placeholder="搜索联系人、群组、聊天记录..."
+							size="large"
+							clearable
+							class="search-modal-input"
+						>
+							<template #prefix>
+								<n-icon><Search /></n-icon>
+							</template>
+							<template #suffix>
+								<span class="text-[11px] text-slate-400">
+									{{ isMac ? '⌘K' : 'Ctrl+K' }}
+								</span>
+							</template>
+						</n-input>
 					</div>
 				</div>
 
-				<div
-					class="flex items-center justify-between border-t border-border-default/70 pt-2 text-[11px] text-gray-400 dark:text-gray-500"
-				>
-					<div class="flex items-center gap-3">
-						<div class="flex items-center gap-1">
-							<span class="rounded-[4px] bg-page-bg px-1.5 py-0.5"
-								>Enter</span
-							>
-							<span>打开</span>
+				<div class="search-modal-body p-5 bg-white dark:bg-zinc-900 flex-1 overflow-y-auto">
+					<div class="search-content min-h-[240px]">
+						<div v-if="!globalSearchQuery.trim()" class="space-y-3">
+							<div class="text-xs text-gray-400 dark:text-gray-500">
+								快捷入口
+							</div>
+							<div class="grid grid-cols-3 gap-2.5">
+								<button
+									v-for="item in globalSearchQuickEntries"
+									:key="item.key"
+									type="button"
+									class="search-entry-btn"
+									@click="handleGlobalSearchEntryClick(item)"
+								>
+									<div class="search-entry-icon">
+										<n-icon size="16">
+											<component :is="item.icon" />
+										</n-icon>
+									</div>
+									<div class="min-w-0">
+										<div class="truncate text-xs font-semibold text-text-main">
+											{{ item.label }}
+										</div>
+										<div class="truncate text-[11px] text-gray-400 dark:text-gray-500">
+											{{ item.description }}
+										</div>
+									</div>
+								</button>
+							</div>
 						</div>
-						<div class="flex items-center gap-1">
-							<span class="rounded-[4px] bg-page-bg px-1.5 py-0.5"
-								>Esc</span
+
+						<div v-else class="space-y-2">
+							<div class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
+								<span>
+									匹配结果 ({{ filteredGlobalSearchEntries.length }})
+								</span>
+								<span v-if="isSearchingGlobalChatRecords">
+									正在检索聊天记录...
+								</span>
+							</div>
+							<div
+								v-if="filteredGlobalSearchEntries.length > 0"
+								class="max-h-[320px] space-y-1.5 overflow-y-auto pr-1"
 							>
-							<span>关闭</span>
+								<button
+									v-for="item in filteredGlobalSearchEntries"
+									:key="item.key"
+									type="button"
+									class="search-entry-btn search-entry-btn-result"
+									@click="handleGlobalSearchEntryClick(item)"
+								>
+									<div class="search-entry-icon">
+										<n-icon size="16">
+											<component :is="item.icon" />
+										</n-icon>
+									</div>
+									<div class="min-w-0 flex-1">
+										<div class="truncate text-sm font-medium text-text-main">
+											{{ item.label }}
+										</div>
+										<div class="truncate text-xs text-gray-400 dark:text-gray-500">
+											{{ item.description }}
+										</div>
+									</div>
+									<n-tag size="small" round :bordered="false">
+										{{ item.typeLabel }}
+									</n-tag>
+								</button>
+							</div>
+							<div
+								v-else
+								class="flex h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border-default text-center text-gray-400 dark:text-gray-500"
+							>
+								<n-icon size="28" class="mb-2 opacity-70">
+									<Search />
+								</n-icon>
+								<p class="text-sm">没有匹配结果</p>
+								<p class="text-xs">
+									试试其他关键词，例如“动态”或“设置”
+								</p>
+							</div>
 						</div>
 					</div>
-					<div>当前可搜索 {{ globalSearchEntries.length }} 项</div>
+
+					<div
+						class="mt-4 flex items-center justify-between border-t border-border-default/70 pt-3 text-[11px] text-gray-400 dark:text-gray-500"
+					>
+						<div class="flex items-center gap-3">
+							<div class="flex items-center gap-1">
+								<span class="search-shortcut-key">Enter</span>
+								<span>打开</span>
+							</div>
+							<div class="flex items-center gap-1">
+								<span class="search-shortcut-key">Esc</span>
+								<span>关闭</span>
+							</div>
+						</div>
+						<div>当前可搜索 {{ globalSearchEntries.length }} 项</div>
+					</div>
 				</div>
 			</div>
 		</n-modal>
@@ -484,7 +480,7 @@ import {
 	Close,
 	WalletOutline,
 } from '@vicons/ionicons5'
-import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
+import vipBadgeIcon from '@renderer/assets/VIP.svg'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { Add16Filled } from '@vicons/fluent'
 import FriendApplyModal from '@renderer/components/FriendApplyModal.vue'
@@ -765,7 +761,7 @@ const userMenuOptions = [
 			]),
 	},
 	{ type: 'divider' },
-	{ label: '个人资料中心', key: 'my-card' },
+	{ label: '用户中心', key: 'my-card' },
 	{ label: '编辑个人信息', key: 'edit-profile' },
 	{ type: 'divider' },
 	{
@@ -779,7 +775,7 @@ const handleUserMenuSelect = (key: string): void => {
 		showUserDropdown.value = false
 		sidebarSlotStore.openSlot({
 			slotKey: 'my-profile-card',
-			title: '个人资料中心',
+			title: '用户中心',
 			componentKey: 'profile-card',
 			icon: 'user',
 		})
@@ -1011,7 +1007,7 @@ const getCollapsedSlotLabel = (item: MenuItem): string => {
 const shouldShowSlotTooltip = (item: MenuItem): boolean => {
 	if (!item.label) return false
 	if (isWebSlotItem(item)) return item.label !== '网页'
-	if (isProfileCardSlotItem(item)) return item.label !== '个人资料中心'
+	if (isProfileCardSlotItem(item)) return item.label !== '用户中心'
 	return false
 }
 
@@ -1302,26 +1298,104 @@ function isMenuActive(item: MenuItem): boolean {
 	display: none;
 }
 
-:deep(.global-search-modal .n-card) {
+.next-global-search-modal {
+	border-radius: 8px !important;
+	overflow: hidden;
+	border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.modal-header-section {
+	padding: 12px 12px 14px;
+	display: flex;
+	flex-direction: column;
+	background: linear-gradient(180deg, #3695ff 0%, #2f7fe7 100%);
+}
+
+.close-orb {
+	width: 32px;
+	height: 32px;
+	border-radius: 10px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+:deep(.search-modal-input .n-input) {
+	border-radius: 14px;
+	border: 1px solid rgba(15, 23, 42, 0.08);
+	background: rgba(255, 255, 255, 0.96);
+}
+
+:deep(.search-modal-input .n-input .n-input__input-el),
+:deep(.search-modal-input .n-input .n-input__placeholder) {
+	font-size: 13px;
+}
+
+:deep(.search-modal-input .n-input.n-input--focus) {
+	border-color: rgba(54, 149, 255, 0.55);
+	box-shadow: 0 0 0 2px rgba(54, 149, 255, 0.15);
+}
+
+:deep(.dark .search-modal-input .n-input) {
+	border-color: rgba(63, 63, 70, 0.8);
+	background: rgba(24, 24, 27, 0.98);
+}
+
+.search-entry-btn {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 10px 12px;
+	text-align: left;
+	border-radius: 12px;
+	border: 1px solid rgba(148, 163, 184, 0.16);
+	background: #f8fafc;
+	transition: all 0.18s ease;
+}
+
+.search-entry-btn:hover {
+	border-color: rgba(54, 149, 255, 0.35);
+	background: rgba(54, 149, 255, 0.08);
+}
+
+.dark .search-entry-btn {
+	border-color: rgba(63, 63, 70, 0.75);
+	background: rgba(39, 39, 42, 0.62);
+}
+
+.dark .search-entry-btn:hover {
+	border-color: rgba(96, 165, 250, 0.45);
+	background: rgba(59, 130, 246, 0.18);
+}
+
+.search-entry-btn-result {
+	gap: 12px;
+	padding: 9px 12px;
+}
+
+.search-entry-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	flex-shrink: 0;
+	border-radius: 10px;
+	color: #2f7fe7;
+	background: rgba(54, 149, 255, 0.12);
+}
+
+.search-shortcut-key {
+	padding: 2px 6px;
 	border-radius: 6px;
-	border: 1px solid rgba(148, 163, 184, 0.18);
+	background: #f1f5f9;
+	color: #475569;
 }
 
-:deep(.global-search-modal .n-card-header) {
-	padding-bottom: 10px;
-	border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-}
-
-:deep(.global-search-modal .n-card__content) {
-	padding-top: 14px;
-}
-
-:deep(.dark .global-search-modal .n-card) {
-	border-color: rgba(82, 82, 91, 0.7);
-}
-
-:deep(.dark .global-search-modal .n-card-header) {
-	border-bottom-color: rgba(82, 82, 91, 0.7);
+.dark .search-shortcut-key {
+	background: #27272a;
+	color: #a1a1aa;
 }
 
 .vip-fill-red {

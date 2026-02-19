@@ -107,7 +107,28 @@ export const chatService = {
 		})
 	},
 
-	// 删除会话
+	// 清空会话消息，但保留会话入口
+	clearChat(userAccount: string, id: number): Promise<void> {
+		const db = getDb()
+		return new Promise((resolve, reject) => {
+			db.serialize(() => {
+				db.run(
+					'UPDATE user_chats SET lastMessage = ?, timestamp = ?, lastMessageAt = NULL, unreadCount = 0 WHERE userAccount = ? AND id = ?',
+					['', '', userAccount, id],
+				)
+				db.run(
+					'DELETE FROM user_messages WHERE userAccount = ? AND chatId = ?',
+					[userAccount, id],
+					(err: Error | null) => {
+						if (err) reject(err)
+						else resolve()
+					},
+				)
+			})
+		})
+	},
+
+	// 删除会话（会同时清空消息）
 	deleteChat(userAccount: string, id: number): Promise<void> {
 		const db = getDb()
 		return new Promise((resolve, reject) => {

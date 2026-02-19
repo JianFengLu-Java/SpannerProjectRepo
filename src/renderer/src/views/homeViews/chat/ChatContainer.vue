@@ -6,6 +6,7 @@ import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useFriendStore } from '@renderer/stores/friend'
 import ChatMessage from './ChatMessage.vue'
 import { resolveAvatarUrl } from '@renderer/utils/avatar'
+import { useMessage } from 'naive-ui'
 
 interface MenuContextExtra {
 	text?: string
@@ -21,6 +22,7 @@ const chatStore = useChatStore()
 const { activeChat, messageJumpTarget } = storeToRefs(chatStore)
 const userInfo = useUserInfoStore()
 const friendStore = useFriendStore()
+const message = useMessage()
 const { friends } = storeToRefs(friendStore)
 const groupMemberProfileMap = ref<
 	Record<string, { name?: string; avatar?: string }>
@@ -186,6 +188,7 @@ const contextData = ref<{
 	extra: MenuContextExtra
 	msg: Message
 } | null>(null)
+const avatarMenuData = ref<{ account: string; name?: string } | null>(null)
 const transferStatusMap = ref<
 	Record<string, 'pending' | 'accepting' | 'accepted'>
 >({})
@@ -250,6 +253,7 @@ const onShowMenu = (
 ): void => {
 	e.preventDefault()
 	showDropdown.value = false
+	avatarMenuData.value = null
 	contextData.value = { type, extra, msg }
 
 	if (type === 'image') {
@@ -280,8 +284,75 @@ const onShowMenu = (
 	})
 }
 
+const isFriendAccount = (account: string): boolean => {
+	const normalized = normalizeAccount(account)
+	if (!normalized) return false
+	return friends.value.some(
+		(item) => item.id === normalized || item.uid === normalized,
+	)
+}
+
+const onShowAvatarMenu = (
+	e: MouseEvent,
+	extra: { senderAccount?: string; senderName?: string },
+): void => {
+	e.preventDefault()
+	showDropdown.value = false
+	contextData.value = null
+	const account = normalizeAccount(extra.senderAccount)
+	if (!account) return
+	avatarMenuData.value = {
+		account,
+		name: extra.senderName?.trim() || account,
+	}
+	currentOptions.value = [
+		{ label: '@TA', key: 'mention-user' },
+		...(!isFriendAccount(account)
+			? [{ label: '添加好友', key: 'add-friend' }]
+			: []),
+	]
+	nextTick(() => {
+		xRef.value = e.clientX
+		yRef.value = e.clientY
+		showDropdown.value = true
+	})
+}
+
+const insertMentionFromAvatarMenu = (): void => {
+	const payload = avatarMenuData.value
+	const chatId = activeChat.value?.id
+	if (!payload || !chatId) return
+	window.dispatchEvent(
+		new CustomEvent('chat-insert-mention', {
+			detail: {
+				chatId,
+				account: payload.account,
+				name: payload.name || payload.account,
+			},
+		}),
+	)
+}
+
 const handleMenuSelect = (key: string): void => {
 	showDropdown.value = false
+	if (key === 'mention-user') {
+		insertMentionFromAvatarMenu()
+		return
+	}
+	if (key === 'add-friend') {
+		const payload = avatarMenuData.value
+		if (!payload?.account) return
+		void friendStore
+			.applyFriendRequest(payload.account)
+			.then(() => {
+				message.success('好友申请已发送')
+			})
+			.catch(() => {
+				message.error('发送好友申请失败，请稍后重试')
+			})
+		return
+	}
+	avatarMenuData.value = null
 	const { extra, msg } = contextData.value || {}
 
 	switch (key) {
@@ -670,6 +741,16 @@ watch(
 	},
 )
 
+watch(
+	() => [activeChat.value?.id, virtualMessages.value.length],
+	() => {
+		const target = messageJumpTarget.value
+		if (!target) return
+		if (!activeChat.value || activeChat.value.id !== target.chatId) return
+		jumpToTargetMessage()
+	},
+)
+
 onMounted(() => {
 	scrollToLatestMessage('auto')
 })
@@ -729,11 +810,16 @@ onBeforeUnmount(() => {
 							? resolveMessageName(item)
 							: ''
 					"
+					:sender-account="resolveMessageSenderAccount(item)"
 					:sender-is-vip="resolveMessageSenderIsVip(item)"
 					:is-me="item.senderId === 'me'"
+					:enable-avatar-menu="isGroupChatActive && item.senderId !== 'me'"
 					:avatar="resolveMessageAvatar(item)"
 					:time="item.timestamp"
 					@image-loaded="handleImageLoaded"
+					@avatar-contextmenu="
+						(e, extra) => onShowAvatarMenu(e, extra || {})
+					"
 					@contextmenu="
 						(e, type, extra) =>
 							onShowMenu(e, type, extra || {}, item)

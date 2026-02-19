@@ -27,6 +27,8 @@ interface WalletFlowDto {
 	businessNo?: string
 	changeType?:
 		| 'RECHARGE'
+		| 'REWARD'
+		| 'TASK_REWARD'
 		| 'CONSUME'
 		| 'TRANSFER_OUT'
 		| 'TRANSFER_IN'
@@ -37,6 +39,7 @@ interface WalletFlowDto {
 	afterBalance?: number | string
 	remark?: string
 	createdAt?: string
+	[key: string]: unknown
 }
 
 interface WalletFlowPageDto {
@@ -53,6 +56,8 @@ interface WalletFlowQuery {
 	size?: number
 	changeType?:
 		| 'RECHARGE'
+		| 'REWARD'
+		| 'TASK_REWARD'
 		| 'CONSUME'
 		| 'TRANSFER_OUT'
 		| 'TRANSFER_IN'
@@ -64,6 +69,8 @@ export interface WalletFlowRecord {
 	businessNo: string
 	changeType:
 		| 'RECHARGE'
+		| 'REWARD'
+		| 'TASK_REWARD'
 		| 'CONSUME'
 		| 'TRANSFER_OUT'
 		| 'TRANSFER_IN'
@@ -182,6 +189,19 @@ const formatAmount = (cents: number, currency: string): string => {
 	}
 }
 
+const pickStringField = (
+	row: Record<string, unknown>,
+	keys: string[],
+): string => {
+	for (const key of keys) {
+		const value = row[key]
+		if (typeof value === 'string' && value.trim()) {
+			return value.trim()
+		}
+	}
+	return ''
+}
+
 export const useWalletStore = defineStore('wallet', () => {
 	const walletNo = ref('')
 	const balanceCents = ref(0)
@@ -204,6 +224,8 @@ export const useWalletStore = defineStore('wallet', () => {
 	const flowHasMore = ref(false)
 	const flowChangeType = ref<
 		| 'RECHARGE'
+		| 'REWARD'
+		| 'TASK_REWARD'
 		| 'CONSUME'
 		| 'TRANSFER_OUT'
 		| 'TRANSFER_IN'
@@ -395,27 +417,59 @@ export const useWalletStore = defineStore('wallet', () => {
 	}
 
 	const mapFlow = (item: WalletFlowDto): WalletFlowRecord => {
-		const amountCents = parseAmountToCents(item.amount) || 0
-		const beforeBalanceCents = parseAmountToCents(item.beforeBalance) || 0
-		const afterBalanceCents = parseAmountToCents(item.afterBalance) || 0
+		const row = item as Record<string, unknown>
+		const amountRaw = row.amount ?? row.changeAmount ?? row.change_amount
+		const beforeBalanceRaw =
+			row.beforeBalance ?? row.before_balance ?? row.balanceBefore
+		const afterBalanceRaw =
+			row.afterBalance ?? row.after_balance ?? row.balanceAfter
+		const amountCents = parseAmountToCents(amountRaw) || 0
+		const beforeBalanceCents = parseAmountToCents(beforeBalanceRaw) || 0
+		const afterBalanceCents = parseAmountToCents(afterBalanceRaw) || 0
+		const rawType = pickStringField(row, [
+			'changeType',
+			'change_type',
+			'bizType',
+			'biz_type',
+			'taskType',
+			'task_type',
+		])
+		const normalizedType = rawType.toUpperCase()
+		const businessNo = pickStringField(row, [
+			'businessNo',
+			'business_no',
+			'bizNo',
+			'biz_no',
+			'bizId',
+			'biz_id',
+		])
+		const remark = pickStringField(row, ['remark', 'memo', 'description'])
+		const isRewardBusinessNo =
+			typeof businessNo === 'string' &&
+			businessNo.trim().toUpperCase().startsWith('TASK_REWARD_')
+		const isRewardRemark =
+			/任务奖励|奖励入账|TASK[_\s-]?REWARD|REWARD/i.test(remark)
+		const isRewardType =
+			normalizedType === 'REWARD' || normalizedType === 'TASK_REWARD'
 		const changeType =
-			item.changeType === 'RECHARGE' ||
-			item.changeType === 'CONSUME' ||
-			item.changeType === 'TRANSFER_OUT' ||
-			item.changeType === 'TRANSFER_IN' ||
-			item.changeType === 'VIP_PURCHASE'
-				? item.changeType
-				: 'CONSUME'
+			isRewardBusinessNo || isRewardRemark || isRewardType
+				? 'REWARD'
+				: normalizedType === 'RECHARGE' ||
+					  normalizedType === 'CONSUME' ||
+					  normalizedType === 'TRANSFER_OUT' ||
+					  normalizedType === 'TRANSFER_IN' ||
+					  normalizedType === 'VIP_PURCHASE'
+					? normalizedType
+					: 'CONSUME'
 		return {
-			walletNo: typeof item.walletNo === 'string' ? item.walletNo : '',
-			businessNo:
-				typeof item.businessNo === 'string' ? item.businessNo : '',
+			walletNo: pickStringField(row, ['walletNo', 'wallet_no']),
+			businessNo,
 			changeType,
 			amountCents,
 			beforeBalanceCents,
 			afterBalanceCents,
-			remark: typeof item.remark === 'string' ? item.remark : '',
-			createdAt: typeof item.createdAt === 'string' ? item.createdAt : '',
+			remark,
+			createdAt: pickStringField(row, ['createdAt', 'created_at']),
 		}
 	}
 
@@ -444,6 +498,8 @@ export const useWalletStore = defineStore('wallet', () => {
 				size: Math.min(100, Math.max(1, nextSize)),
 				changeType:
 					nextChangeType === 'RECHARGE' ||
+					nextChangeType === 'REWARD' ||
+					nextChangeType === 'TASK_REWARD' ||
 					nextChangeType === 'CONSUME' ||
 					nextChangeType === 'TRANSFER_OUT' ||
 					nextChangeType === 'TRANSFER_IN' ||
@@ -486,6 +542,8 @@ export const useWalletStore = defineStore('wallet', () => {
 			}
 			flowChangeType.value =
 				params.changeType === 'RECHARGE' ||
+				params.changeType === 'REWARD' ||
+				params.changeType === 'TASK_REWARD' ||
 				params.changeType === 'CONSUME' ||
 				params.changeType === 'TRANSFER_OUT' ||
 				params.changeType === 'TRANSFER_IN' ||

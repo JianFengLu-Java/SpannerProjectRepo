@@ -73,6 +73,17 @@ const routes = [
 		component: () =>
 			import('../views/homeViews/chat/ChatStandaloneView.vue'),
 	},
+	{
+		path: '/demo/membership-topup-notice',
+		name: 'MembershipTopUpNoticeDemo',
+		component: () => import('../views/demo/MembershipTopUpNoticeDemo.vue'),
+	},
+	{
+		path: '/demo/friend-detail',
+		name: 'FriendDetailDemo',
+		component: () =>
+			import('../views/homeViews/friend/FriendDetailPage.vue'),
+	},
 ]
 
 const router = createRouter({

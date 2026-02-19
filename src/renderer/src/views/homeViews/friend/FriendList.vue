@@ -227,7 +227,13 @@
 
 				<template v-else>
 					<div
-						v-if="!filteredGroupChats.length"
+						v-if="isLoadingGroupChats && !filteredGroupChats.length"
+						class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
+					>
+						加载群组中...
+					</div>
+					<div
+						v-else-if="!filteredGroupChats.length"
 						class="h-full flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
 					>
 						暂无群组
@@ -235,14 +241,14 @@
 					<div v-else class="space-y-1 pt-1">
 						<div
 							v-for="groupChat in filteredGroupChats"
-							:key="groupChat.id"
+							:key="groupChat.groupNo"
 							class="flex items-center gap-3 px-3 py-2 rounded-[6px] cursor-pointer transition-all duration-200"
 							:class="
-								selectedGroupChatId === groupChat.id
+								selectedGroupNo === groupChat.groupNo
 									? 'bg-primary/10'
 									: 'hover:bg-black/5 dark:hover:bg-white/6'
 							"
-							@click="selectGroupChat(groupChat.id)"
+							@click="selectGroupChat(groupChat.groupNo)"
 						>
 							<n-avatar round :size="34" :src="groupChat.avatar" />
 							<div class="min-w-0 flex-1">
@@ -272,7 +278,7 @@
 			></div>
 			<!-- 窄屏返回按钮 -->
 			<div
-				v-if="containerWidth < 500 && (friendStore.selectedFriendId || selectedGroupChatId)"
+				v-if="containerWidth < 500 && (friendStore.selectedFriendId || selectedGroupNo)"
 				class="absolute top-3 left-3 z-50"
 			>
 				<button
@@ -282,347 +288,18 @@
 					<n-icon size="20"><ChevronLeft24Regular /></n-icon>
 				</button>
 			</div>
-			<Transition 
-			v-if="contactModule === 'friends'" name="fade-detail" mode="out-in">
+			<Transition v-if="contactModule === 'friends'" name="fade-detail" mode="out-in">
 				<div
-					v-if="friendStore.selectedFriend"
-					:key="friendStore.selectedFriend.id"
+					v-if="selectedFriendDetailModel"
+					:key="selectedFriendDetailModel.id"
 					class="h-full overflow-y-auto custom-scrollbar"
 				>
-					<div
-						class="relative isolate px-3 pb-6 pt-4 sm:px-4 lg:px-5"
-					>
-						<div
-							class="pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-black/5 via-transparent to-transparent"
-						></div>
-						<div
-							class="relative mx-auto w-full max-w-5xl space-y-3"
-						>
-							<section
-								class="rounded-[6px] border border-border-default bg-card-bg p-3 backdrop-blur-md sm:p-4"
-							>
-								<div
-									class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
-								>
-									<div
-										class="flex min-w-0 items-start gap-3 sm:gap-4"
-									>
-										<div class="relative shrink-0">
-											<n-avatar
-												round
-												:size="
-													containerWidth >= 640
-														? 64
-														: 56
-												"
-												:src="
-													friendStore.selectedFriend
-														.avatar
-												"
-												class="border-[3px] border-white/85 dark:border-zinc-800"
-											/>
-											<div
-												class="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white dark:border-zinc-800"
-												:class="[
-													friendStore.selectedFriend
-														.status === 'online'
-														? 'bg-blue-500'
-														: 'bg-gray-400',
-												]"
-											></div>
-										</div>
-										<div class="min-w-0 space-y-2">
-											<div
-												class="flex flex-wrap items-center gap-x-2 gap-y-1"
-											>
-												<div class="flex min-w-0 items-center gap-1">
-													<h3
-														class="max-w-[340px] truncate text-xl font-semibold"
-														:class="
-															friendStore.selectedFriend.isVip
-																? 'text-red-500'
-																: 'text-text-main'
-														"
-													>
-														{{
-															friendStore
-																.selectedFriend.name
-														}}
-													</h3>
-													<img
-														v-if="friendStore.selectedFriend.isVip"
-														:src="vipBadgeIcon"
-														alt="VIP"
-														class="h-4 w-4 block vip-fill-red"
-													/>
-												</div>
-												<n-icon
-													v-if="
-														friendStore
-															.selectedFriend
-															.gender === 'male'
-													"
-													size="18"
-													color="#0ea5e9"
-												>
-													<Male />
-												</n-icon>
-												<n-icon
-													v-else-if="
-														friendStore
-															.selectedFriend
-															.gender === 'female'
-													"
-													size="18"
-													color="#f472b6"
-												>
-													<Female />
-												</n-icon>
-												<span
-													class="rounded-full px-2 py-0.5 text-[11px] font-medium"
-													:class="
-														friendStore
-															.selectedFriend
-															.status === 'online'
-															? 'bg-blue-500/15 text-blue-600'
-															: 'bg-page-bg text-text-main/70 border border-border-default'
-													"
-												>
-													{{
-														friendStore
-															.selectedFriend
-															.status === 'online'
-															? '在线'
-															: '离线'
-													}}
-												</span>
-											</div>
-											<p
-												class="line-clamp-2 text-[13px] leading-relaxed text-gray-500 dark:text-gray-300"
-											>
-												{{
-													friendStore.selectedFriend
-														.signature ||
-													'这个人太神秘了，还没有个性签名。'
-												}}
-											</p>
-											<div
-												class="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500"
-											>
-												<span
-													class="rounded-full border border-border-default bg-page-bg px-2 py-0.5 font-mono text-text-main/80"
-												>
-													UID:
-													{{
-														friendStore
-															.selectedFriend.uid
-													}}
-												</span>
-												<span
-													class="rounded-full border border-border-default bg-page-bg px-2 py-0.5 text-text-main/80"
-												>
-													{{
-														friendStore
-															.selectedFriend
-															.region ||
-														'未知地区'
-													}}
-												</span>
-											</div>
-										</div>
-									</div>
-
-									<div class="flex items-center gap-2">
-										<n-button
-											type="primary"
-											class="h-10 flex-1 rounded-[6px] px-4 text-sm font-semibold sm:flex-none"
-											@click="
-												startChat(
-													friendStore.selectedFriend!,
-												)
-											"
-										>
-											<template #icon>
-												<n-icon
-													><Chat24Regular
-												/></n-icon>
-											</template>
-											发消息
-										</n-button>
-										<n-dropdown
-											placement="bottom-end"
-											:options="friendActionOptions"
-											@select="handleFriendAction"
-										>
-											<n-button
-												secondary
-												class="h-10 w-10 rounded-[6px] px-0"
-											>
-												<n-icon size="20">
-													<MoreHorizontal24Regular />
-												</n-icon>
-											</n-button>
-										</n-dropdown>
-									</div>
-								</div>
-							</section>
-
-							<section
-								class="grid grid-cols-1 gap-3 lg:grid-cols-3"
-							>
-								<div
-									class="rounded-[6px] border border-border-default bg-card-bg p-3 backdrop-blur-sm lg:col-span-2"
-								>
-									<p
-										class="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-400 dark:text-gray-500"
-									>
-										资料信息
-									</p>
-									<div
-										class="grid grid-cols-1 gap-2 sm:grid-cols-2"
-									>
-										<div
-											v-for="item in selectedFriendPrimaryInfoItems"
-											:key="item.label"
-											class="flex items-center gap-2 rounded-[6px] border border-border-default bg-page-bg p-2"
-										>
-											<div
-												class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-												:class="item.iconBgClass"
-											>
-												<n-icon
-													:class="item.iconTextClass"
-													size="16"
-												>
-													<component
-														:is="item.icon"
-													/>
-												</n-icon>
-											</div>
-											<div class="min-w-0">
-												<p
-													class="text-[10px] text-gray-400 dark:text-gray-500"
-												>
-													{{ item.label }}
-												</p>
-												<p
-													class="truncate text-[13px] font-medium text-text-main"
-												>
-													{{ item.value }}
-												</p>
-											</div>
-										</div>
-										<div
-											v-if="
-												!selectedFriendPrimaryInfoItems.length
-											"
-											class="col-span-full rounded-[6px] border border-dashed border-border-default/70 dark:border-zinc-700/70 px-3 py-4 text-center text-xs text-gray-400 dark:text-gray-500"
-										>
-											暂无核心资料
-										</div>
-									</div>
-
-									<div
-										class="mt-2 rounded-[6px] border border-border-default bg-page-bg px-2.5 py-1.5"
-									>
-										<div
-											v-for="item in selectedFriendSecondaryInfoItems"
-											:key="`secondary-${item.label}`"
-											class="flex items-center gap-2 py-1 first:pt-0 last:pb-0"
-										>
-											<div
-												class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
-												:class="item.iconBgClass"
-											>
-												<n-icon
-													:class="item.iconTextClass"
-													size="12"
-												>
-													<component
-														:is="item.icon"
-													/>
-												</n-icon>
-											</div>
-											<p
-												class="shrink-0 text-[11px] text-gray-400 dark:text-gray-500"
-											>
-												{{ item.label }}
-											</p>
-											<p
-												class="truncate text-[12px] text-text-main/80"
-											>
-												{{ item.value }}
-											</p>
-										</div>
-										<div
-											v-if="
-												!selectedFriendSecondaryInfoItems.length
-											"
-											class="py-2 text-center text-xs text-gray-400 dark:text-gray-500"
-										>
-											暂无更多资料
-										</div>
-									</div>
-								</div>
-
-								<div class="space-y-2.5">
-									<div
-										v-if="
-											friendStore.selectedFriend.tags &&
-											friendStore.selectedFriend.tags
-												.length
-										"
-										class="rounded-[6px] border border-border-default bg-card-bg p-3 backdrop-blur-sm"
-									>
-										<p
-											class="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-400 dark:text-gray-500"
-										>
-											个人标签
-										</p>
-										<div class="flex flex-wrap gap-2">
-											<span
-												v-for="tag in friendStore
-													.selectedFriend.tags"
-												:key="tag"
-												class="rounded-full bg-blue-500/10 px-3 py-1 text-[11px] font-medium text-blue-700"
-											>
-												# {{ tag }}
-											</span>
-										</div>
-									</div>
-
-									<button
-										class="group w-full rounded-[6px] border border-border-default bg-card-bg p-3 text-left transition hover:bg-page-bg"
-										@click="
-											message.info('正在进入个人空间...')
-										"
-									>
-										<div
-											class="flex items-center justify-between gap-3"
-										>
-											<div>
-												<p
-													class="text-[13px] font-semibold text-text-main"
-												>
-													个人空间
-												</p>
-												<p
-													class="mt-0.5 text-[11px] text-gray-500"
-												>
-													查看相册、日志与动态
-												</p>
-											</div>
-											<n-icon
-												class="text-cyan-500 transition-transform group-hover:translate-x-0.5"
-											>
-												<ChevronRight12Filled />
-											</n-icon>
-										</div>
-									</button>
-								</div>
-							</section>
-						</div>
-					</div>
+					<FriendDetailPage
+						embedded
+						:friend-data="selectedFriendDetailModel"
+						@message="handleFriendDetailMessage"
+						@delete-friend="handleFriendDetailDelete"
+					/>
 				</div>
 
 				<div
@@ -645,7 +322,7 @@
 			<Transition v-else name="fade-detail" mode="out-in">
 				<div
 					v-if="selectedGroupChat"
-					:key="String(selectedGroupChat.id)"
+					:key="String(selectedGroupChat.groupNo)"
 					class="h-full overflow-y-auto custom-scrollbar"
 				>
 					<div class="relative isolate px-4 pb-6 pt-4">
@@ -672,6 +349,41 @@
 								</div>
 								<div class="mt-3 rounded-[6px] border border-border-default bg-page-bg p-3 text-xs text-gray-500">
 									{{ selectedGroupChat.announcement?.trim() || '暂无群公告' }}
+								</div>
+								<div class="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
+									<div class="rounded-[6px] border border-border-default bg-page-bg px-3 py-2">
+										邀请权限：{{
+											selectedGroupChat.inviteMode === 'ALL'
+												? '所有成员可邀请'
+												: selectedGroupChat.inviteMode === 'ADMIN_ONLY'
+													? '仅管理员可邀请'
+													: '-'
+										}}
+									</div>
+									<div class="rounded-[6px] border border-border-default bg-page-bg px-3 py-2">
+										入群验证：{{
+											selectedGroupChat.joinVerificationEnabled === true
+												? '开启'
+												: selectedGroupChat.joinVerificationEnabled === false
+													? '关闭'
+													: '-'
+										}}
+									</div>
+									<div class="rounded-[6px] border border-border-default bg-page-bg px-3 py-2">
+										公告权限：{{
+											selectedGroupChat.announcementPermission === 'OWNER_ONLY'
+												? '仅群主'
+												: selectedGroupChat.announcementPermission === 'OWNER_ADMIN'
+													? '群主/管理员'
+													: '-'
+										}}
+									</div>
+									<div class="rounded-[6px] border border-border-default bg-page-bg px-3 py-2">
+										群主账号：{{ selectedGroupChat.ownerAccount || '-' }}
+									</div>
+								</div>
+								<div class="mt-3 text-[11px] text-gray-400">
+									创建：{{ formatDateTime(selectedGroupChat.createdAt) }} · 更新：{{ formatDateTime(selectedGroupChat.updatedAt) }}
 								</div>
 								<div class="mt-3 flex gap-2">
 									<n-button type="primary" @click="openSelectedGroupChat">
@@ -711,10 +423,11 @@
 		/>
 
 		<!-- 新建分组弹窗 -->
-		<n-modal
-			v-model:show="showAddGroupModal"
-			preset="dialog"
-			title="新建分组"
+			<n-modal
+				v-model:show="showAddGroupModal"
+				preset="dialog"
+				class="app-modal-dialog"
+				title="新建分组"
 			:mask-closable="false"
 			positive-text="确认"
 			negative-text="取消"
@@ -728,10 +441,11 @@
 		</n-modal>
 
 		<!-- 修改分组弹窗 -->
-		<n-modal
-			v-model:show="showRenameGroupModal"
-			preset="dialog"
-			title="重命名分组"
+			<n-modal
+				v-model:show="showRenameGroupModal"
+				preset="dialog"
+				class="app-modal-dialog"
+				title="重命名分组"
 			:mask-closable="false"
 			positive-text="确认"
 			negative-text="取消"
@@ -744,10 +458,11 @@
 			/>
 		</n-modal>
 
-		<n-modal
-			v-model:show="showRemarkModal"
-			preset="dialog"
-			title="修改备注"
+			<n-modal
+				v-model:show="showRemarkModal"
+				preset="dialog"
+				class="app-modal-dialog"
+				title="修改备注"
 			:mask-closable="false"
 			positive-text="确认"
 			negative-text="取消"
@@ -762,10 +477,11 @@
 			/>
 		</n-modal>
 
-		<n-modal
-			v-model:show="showMoveGroupModal"
-			preset="dialog"
-			title="移动分组"
+			<n-modal
+				v-model:show="showMoveGroupModal"
+				preset="dialog"
+				class="app-modal-dialog"
+				title="移动分组"
 			:mask-closable="false"
 			positive-text="确认"
 			negative-text="取消"
@@ -781,6 +497,7 @@
 		<n-modal
 			v-model:show="showPendingRequestsModal"
 			preset="card"
+			class="app-modal-card"
 			title="好友申请"
 			:mask-closable="false"
 			:bordered="false"
@@ -1043,17 +760,12 @@ import {
 	FolderAdd24Regular,
 	ChevronRight12Filled,
 	ChevronLeft24Regular,
-	Chat24Regular,
-	MoreHorizontal24Regular,
 	PeopleCommunity24Regular,
 	Edit24Regular,
 	Delete24Regular,
 	Mail24Regular,
-	Tag24Regular,
-	CalendarLtr24Regular,
 } from '@vicons/fluent'
-import { Male, Female } from '@vicons/ionicons5'
-import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
+import vipBadgeIcon from '@renderer/assets/VIP.svg'
 import {
 	NIcon,
 	NInput,
@@ -1080,6 +792,12 @@ import {
 import { useChatStore, type ChatItem } from '@renderer/stores/chat'
 import { useElementSize } from '@vueuse/core'
 import FriendApplyModal from '@renderer/components/FriendApplyModal.vue'
+import FriendDetailPage from '@renderer/views/homeViews/friend/FriendDetailPage.vue'
+import type { FriendModel } from '@renderer/views/homeViews/friend/friendDetail.types'
+import {
+	groupChatApi,
+	type GroupRole,
+} from '@renderer/services/groupChatApi'
 
 const friendStore = useFriendStore()
 const chatStore = useChatStore()
@@ -1092,7 +810,26 @@ const listWidth = ref(260)
 
 const searchQuery = ref('')
 const contactModule = ref<'friends' | 'groups'>('friends')
-const selectedGroupChatId = ref<number | null>(null)
+interface GroupContactItem {
+	id: number
+	groupNo: string
+	name: string
+	avatar: string
+	memberCount?: number
+	maxMembers?: number
+	myRole?: GroupRole
+	announcement?: string
+	inviteMode?: string
+	joinVerificationEnabled?: boolean
+	announcementPermission?: string
+	ownerAccount?: string
+	createdAt?: string
+	updatedAt?: string
+}
+
+const selectedGroupNo = ref<string | null>(null)
+const joinedGroupChats = ref<GroupContactItem[]>([])
+const isLoadingGroupChats = ref(false)
 const showAddFriendModal = ref(false)
 const showAddGroupModal = ref(false)
 const showPendingRequestsModal = ref(false)
@@ -1164,25 +901,195 @@ const sortedGroups = computed(() => {
 	})
 })
 
-const groupChats = computed<ChatItem[]>(() =>
-	chatStore.chatlist.filter((item) => item.chatType === 'GROUP'),
-)
+const hashToPositiveInt = (seed: string): number => {
+	let hash = 2166136261
+	for (let i = 0; i < seed.length; i += 1) {
+		hash ^= seed.charCodeAt(i)
+		hash = Math.imul(hash, 16777619)
+	}
+	return (hash >>> 0) % 1000000000 + 1000000000
+}
 
-const filteredGroupChats = computed<ChatItem[]>(() => {
+const deriveGroupChatId = (groupNo: string): number => {
+	const normalized = groupNo.trim()
+	const numeric = Number(normalized)
+	if (Number.isFinite(numeric) && numeric > 0) {
+		return -Math.floor(numeric)
+	}
+	return -hashToPositiveInt(`group:${normalized}`)
+}
+
+const parseSafePositiveInt = (value: unknown): number | undefined => {
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return Math.max(0, Math.floor(value))
+	}
+	if (typeof value === 'string') {
+		const parsed = Number(value)
+		if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed))
+	}
+	return undefined
+}
+
+const loadJoinedGroups = async (): Promise<void> => {
+	isLoadingGroupChats.value = true
+	try {
+		const localGroupMap = new Map<string, ChatItem>(
+			chatStore.chatlist
+				.filter((item) => item.chatType === 'GROUP')
+				.map((item) => [item.groupNo?.trim() || '', item]),
+		)
+		const pageSize = 100
+		const maxPages = 50
+		let page = 1
+		let hasMore = true
+		const mergedMap = new Map<string, GroupContactItem>()
+		while (hasMore && page <= maxPages) {
+			const response = await groupChatApi.getJoinedGroups({
+				page,
+				size: pageSize,
+			})
+			const payload = response.data?.data
+			const records = Array.isArray(payload?.records)
+				? payload.records
+				: Array.isArray(payload?.list)
+					? payload.list
+					: []
+			for (const record of records) {
+				const groupNo = (record?.groupNo || '').trim()
+				if (!groupNo) continue
+				const local = localGroupMap.get(groupNo)
+				const remoteAvatar =
+					(record?.groupAvatarUrl || record?.avatarUrl || record?.avatar || '').trim()
+				const remoteMemberCount = parseSafePositiveInt(record?.memberCount)
+				const remoteMaxMembers = parseSafePositiveInt(record?.maxMembers)
+				const remoteRole =
+					typeof record?.myRole === 'string' ? record.myRole : undefined
+				const remoteSummary =
+					typeof record?.summary === 'string'
+						? record.summary
+						: typeof record?.announcement === 'string'
+							? record.announcement
+							: undefined
+				mergedMap.set(groupNo, {
+					id: local?.id ?? deriveGroupChatId(groupNo),
+					groupNo,
+					name: (record?.groupName || '').trim() || local?.name || `群聊 ${groupNo}`,
+					avatar: remoteAvatar || local?.avatar || '',
+					memberCount: remoteMemberCount ?? local?.memberCount,
+					maxMembers: remoteMaxMembers ?? local?.maxMembers,
+					myRole: (remoteRole as GroupRole | undefined) || local?.myRole,
+					announcement: remoteSummary || local?.announcement,
+					inviteMode:
+						typeof record?.inviteMode === 'string'
+							? record.inviteMode
+							: undefined,
+					joinVerificationEnabled:
+						typeof record?.joinVerificationEnabled === 'boolean'
+							? record.joinVerificationEnabled
+							: undefined,
+					announcementPermission:
+						typeof record?.announcementPermission === 'string'
+							? record.announcementPermission
+							: undefined,
+					ownerAccount:
+						typeof record?.ownerAccount === 'string'
+							? record.ownerAccount
+							: undefined,
+					createdAt:
+						typeof record?.createdAt === 'string'
+							? record.createdAt
+							: undefined,
+					updatedAt:
+						typeof record?.updatedAt === 'string'
+							? record.updatedAt
+							: undefined,
+				})
+			}
+			const hasMoreFromApi =
+				typeof payload?.hasMore === 'boolean' ? payload.hasMore : undefined
+			const totalPages = Number(payload?.totalPages || 0)
+			const reachedTail = records.length < pageSize
+			if (typeof hasMoreFromApi === 'boolean') {
+				hasMore = hasMoreFromApi
+			} else if (totalPages > 0) {
+				hasMore = page < totalPages
+			} else {
+				hasMore = !reachedTail
+			}
+			page += 1
+		}
+		joinedGroupChats.value = Array.from(mergedMap.values())
+	} catch (error) {
+		console.warn('加载我加入的群列表失败:', error)
+		joinedGroupChats.value = []
+	} finally {
+		isLoadingGroupChats.value = false
+	}
+}
+
+const filteredGroupChats = computed<GroupContactItem[]>(() => {
 	const keyword = searchQuery.value.trim().toLowerCase()
-	if (!keyword) return groupChats.value
-	return groupChats.value.filter((item) => {
+	if (!keyword) return joinedGroupChats.value
+	return joinedGroupChats.value.filter((item) => {
 		const candidate = `${item.name || ''} ${item.groupNo || ''}`.toLowerCase()
 		return candidate.includes(keyword)
 	})
 })
 
-const selectedGroupChat = computed<ChatItem | null>(() => {
-	if (!selectedGroupChatId.value) return null
+const selectedGroupChat = computed<GroupContactItem | null>(() => {
+	if (!selectedGroupNo.value) return null
 	return (
-		groupChats.value.find((item) => item.id === selectedGroupChatId.value) ||
+		joinedGroupChats.value.find(
+			(item) => item.groupNo === selectedGroupNo.value,
+		) ||
 		null
 	)
+})
+
+const selectedFriendDetailModel = computed<FriendModel | null>(() => {
+	const selectedFriend = friendStore.selectedFriend
+	if (!selectedFriend) return null
+	return {
+		id: selectedFriend.uid || selectedFriend.id,
+		nickname: selectedFriend.remark || selectedFriend.name,
+		avatar: selectedFriend.avatar,
+		bio: selectedFriend.signature || '',
+		region: selectedFriend.region || '',
+		gender:
+			selectedFriend.gender === 'male'
+				? '男'
+				: selectedFriend.gender === 'female'
+					? '女'
+					: '未知',
+		onlineStatus: selectedFriend.status,
+		lastActiveAt: selectedFriend.status === 'offline' ? '最近离线' : '',
+		badges: {
+			isVip: !!selectedFriend.isVip,
+			vipLevel: selectedFriend.isVip ? selectedFriend.vipLevel || 1 : undefined,
+			verified: false,
+			userLevel: undefined,
+		},
+		stats: {
+			growth: selectedFriend.growthValue || 0,
+		},
+		relationshipStatus:
+			selectedFriend.relationType === 'BLOCKED' ||
+			selectedFriend.groupId === 'blacklist'
+				? 'blocked_by_me'
+				: 'friend',
+		privacyLevel: 'public',
+		remarkName: selectedFriend.remark || '',
+		tags: selectedFriend.tags || [],
+		mutual: {
+			friendsCount: 0,
+			groupsCount: 0,
+		},
+		source: selectedFriend.createTime ? `添加于 ${formatDateTime(selectedFriend.createTime)}` : '联系人列表',
+		media: {
+			photos: [],
+			postsPreview: [],
+		},
+	}
 })
 
 const shouldShowListPanel = computed<boolean>(() => {
@@ -1190,7 +1097,7 @@ const shouldShowListPanel = computed<boolean>(() => {
 	if (contactModule.value === 'friends') {
 		return !friendStore.selectedFriendId
 	}
-	return !selectedGroupChatId.value
+	return !selectedGroupNo.value
 })
 
 const shouldShowDetailPanel = computed<boolean>(() => {
@@ -1198,22 +1105,13 @@ const shouldShowDetailPanel = computed<boolean>(() => {
 	if (contactModule.value === 'friends') {
 		return !!friendStore.selectedFriendId
 	}
-	return !!selectedGroupChatId.value
+	return !!selectedGroupNo.value
 })
 
 const onlineCount = (groupId: string): number => {
 	return (friendStore.groupedFriends[groupId] || []).filter(
 		(f) => f.status === 'online',
 	).length
-}
-
-interface FriendInfoItem {
-	label: string
-	value: string
-	icon: unknown
-	iconBgClass: string
-	iconTextClass: string
-	priority: 'primary' | 'secondary'
 }
 
 const filteredFriendsByGroup = (groupId: string): Friend[] => {
@@ -1233,20 +1131,21 @@ const selectFriend = (id: string): void => {
 	friendStore.selectedFriendId = id
 }
 
-const selectGroupChat = (chatId: number): void => {
-	selectedGroupChatId.value = chatId
+const selectGroupChat = (groupNo: string): void => {
+	selectedGroupNo.value = groupNo
 }
 
 const switchContactModule = (module: 'friends' | 'groups'): void => {
 	contactModule.value = module
 	searchQuery.value = ''
 	if (module === 'friends') {
-		selectedGroupChatId.value = null
+		selectedGroupNo.value = null
 		return
 	}
 	friendStore.selectedFriendId = null
-	if (!selectedGroupChatId.value && filteredGroupChats.value.length) {
-		selectedGroupChatId.value = filteredGroupChats.value[0].id
+	void loadJoinedGroups()
+	if (!selectedGroupNo.value && filteredGroupChats.value.length) {
+		selectedGroupNo.value = filteredGroupChats.value[0].groupNo
 	}
 }
 
@@ -1255,13 +1154,7 @@ const handleMobileBack = (): void => {
 		friendStore.selectedFriendId = null
 		return
 	}
-	selectedGroupChatId.value = null
-}
-
-const formatGender = (gender?: Friend['gender']): string => {
-	if (gender === 'male') return '男'
-	if (gender === 'female') return '女'
-	return '未知'
+	selectedGroupNo.value = null
 }
 
 const formatDateTime = (raw?: string): string => {
@@ -1269,13 +1162,6 @@ const formatDateTime = (raw?: string): string => {
 	const date = new Date(raw)
 	if (Number.isNaN(date.getTime())) return raw
 	return date.toLocaleString()
-}
-
-const formatRelationType = (relationType?: Friend['relationType']): string => {
-	if (relationType === 'ACCEPTED') return '好友'
-	if (relationType === 'PENDING') return '待处理'
-	if (relationType === 'BLOCKED') return '已拉黑'
-	return '无关系'
 }
 
 const requestStatusText = (status: FriendRequestStatus): string => {
@@ -1367,144 +1253,6 @@ const loadMoreHistory = async (): Promise<void> => {
 	await loadHistory(nextPage)
 }
 
-const selectedFriendInfoItems = computed<FriendInfoItem[]>(() => {
-	const selectedFriend = friendStore.selectedFriend
-	if (!selectedFriend) return []
-
-	const groupName =
-		friendStore.groups.find((group) => group.id === selectedFriend.groupId)
-			?.name || '未知分组'
-
-	return [
-		{
-			label: '账号',
-			value: selectedFriend.uid || '未填',
-			icon: Tag24Regular,
-			iconBgClass: 'bg-slate-50 dark:bg-slate-900/30',
-			iconTextClass: 'text-slate-500 dark:text-slate-300',
-			priority: 'primary',
-		},
-		{
-			label: '电子邮箱',
-			value: selectedFriend.email || '未填',
-			icon: Mail24Regular,
-			iconBgClass: 'bg-blue-50 dark:bg-blue-900/30',
-			iconTextClass: 'text-blue-500 dark:text-blue-300',
-			priority: 'primary',
-		},
-			{
-				label: '手机号',
-				value: selectedFriend.phone || '未填',
-				icon: Chat24Regular,
-				iconBgClass: 'bg-cyan-50 dark:bg-cyan-900/30',
-				iconTextClass: 'text-cyan-500 dark:text-cyan-300',
-				priority: 'primary',
-			},
-			{
-				label: '会员等级',
-				value: selectedFriend.isVip
-					? `VIP Lv.${selectedFriend.vipLevel || 1}`
-					: '普通用户',
-				icon: Tag24Regular,
-				iconBgClass: 'bg-amber-50 dark:bg-amber-900/30',
-				iconTextClass: 'text-amber-500 dark:text-amber-300',
-				priority: 'primary',
-			},
-			{
-				label: '成长值',
-				value: `${selectedFriend.growthValue || 0}`,
-				icon: CalendarLtr24Regular,
-				iconBgClass: 'bg-emerald-50 dark:bg-emerald-900/30',
-				iconTextClass: 'text-emerald-500 dark:text-emerald-300',
-				priority: 'secondary',
-			},
-			{
-				label: '性别',
-				value: formatGender(selectedFriend.gender),
-				icon: Edit24Regular,
-			iconBgClass: 'bg-fuchsia-50 dark:bg-fuchsia-900/30',
-			iconTextClass: 'text-fuchsia-500 dark:text-fuchsia-300',
-			priority: 'secondary',
-		},
-		{
-			label: '年龄',
-			value: selectedFriend.age ? `${selectedFriend.age} 岁` : '未知',
-			icon: CalendarLtr24Regular,
-			iconBgClass: 'bg-violet-50 dark:bg-violet-900/30',
-			iconTextClass: 'text-violet-500 dark:text-violet-300',
-			priority: 'secondary',
-		},
-		{
-			label: '个性签名',
-			value:
-				selectedFriend.signature?.trim() ||
-				'这个人太神秘了，还没有个性签名。',
-			icon: Edit24Regular,
-			iconBgClass: 'bg-rose-50 dark:bg-rose-900/30',
-			iconTextClass: 'text-rose-500 dark:text-rose-300',
-			priority: 'secondary',
-		},
-		{
-			label: '备注姓名',
-			value: selectedFriend.remark || '无备注',
-			icon: Edit24Regular,
-			iconBgClass: 'bg-amber-50 dark:bg-amber-900/30',
-			iconTextClass: 'text-amber-500 dark:text-amber-300',
-			priority: 'secondary',
-		},
-		{
-			label: '申请附言',
-			value: selectedFriend.verificationMessage || '无',
-			icon: Mail24Regular,
-			iconBgClass: 'bg-orange-50 dark:bg-orange-900/30',
-			iconTextClass: 'text-orange-500 dark:text-orange-300',
-			priority: 'secondary',
-		},
-		{
-			label: '添加时间',
-			value: formatDateTime(selectedFriend.createTime),
-			icon: CalendarLtr24Regular,
-			iconBgClass: 'bg-indigo-50 dark:bg-indigo-900/30',
-			iconTextClass: 'text-indigo-500 dark:text-indigo-300',
-			priority: 'secondary',
-		},
-		{
-			label: '所属分组',
-			value: groupName,
-			icon: Tag24Regular,
-			iconBgClass: 'bg-blue-50 dark:bg-blue-900/30',
-			iconTextClass: 'text-blue-500 dark:text-blue-300',
-			priority: 'primary',
-		},
-		{
-			label: '关系状态',
-			value: formatRelationType(selectedFriend.relationType),
-			icon: PeopleCommunity24Regular,
-			iconBgClass: 'bg-teal-50 dark:bg-teal-900/30',
-			iconTextClass: 'text-teal-500 dark:text-teal-300',
-			priority: 'secondary',
-		},
-	]
-})
-
-const selectedFriendPrimaryInfoItems = computed<FriendInfoItem[]>(() => {
-	const all = selectedFriendInfoItems.value
-	if (!all.length) return []
-	const primary = all.filter((item) => item.priority === 'primary')
-	if (primary.length) return primary
-	return all.slice(0, Math.min(4, all.length))
-})
-
-const selectedFriendSecondaryInfoItems = computed<FriendInfoItem[]>(() => {
-	const all = selectedFriendInfoItems.value
-	if (!all.length) return []
-	const secondary = all.filter((item) => item.priority === 'secondary')
-	if (secondary.length) return secondary
-	const primaryLabels = new Set(
-		selectedFriendPrimaryInfoItems.value.map((item) => item.label),
-	)
-	return all.filter((item) => !primaryLabels.has(item.label))
-})
 
 const startChat = async (friend: Friend): Promise<void> => {
 	const chatId = await chatStore.getOrCreateChat(friend)
@@ -1512,9 +1260,35 @@ const startChat = async (friend: Friend): Promise<void> => {
 	router.push({ name: 'chat' })
 }
 
+const handleFriendDetailMessage = async (profile: FriendModel): Promise<void> => {
+	const target = friendStore.friends.find(
+		(item) => item.id === profile.id || item.uid === profile.id,
+	)
+	if (!target) {
+		message.warning('未找到该好友，无法发起会话')
+		return
+	}
+	await startChat(target)
+}
+
+const handleFriendDetailDelete = async (profile: FriendModel): Promise<void> => {
+	try {
+		await friendStore.deleteFriend(profile.id)
+		message.success('好友已删除')
+	} catch {
+		message.error('删除失败，请稍后再试')
+	}
+}
+
 const openSelectedGroupChat = async (): Promise<void> => {
-	if (!selectedGroupChat.value) return
-	await chatStore.setActiveChat(selectedGroupChat.value.id)
+	const groupNo = selectedGroupChat.value?.groupNo?.trim() || ''
+	if (!groupNo) return
+	await chatStore.getGroupInfo(groupNo)
+	const groupChat = chatStore.chatlist.find(
+		(item) => item.chatType === 'GROUP' && item.groupNo?.trim() === groupNo,
+	)
+	if (!groupChat) return
+	await chatStore.setActiveChat(groupChat.id)
 	router.push({ name: 'chat' })
 }
 
@@ -1611,64 +1385,12 @@ const confirmRenameGroup = (): void => {
 	}
 }
 
-// 朋友详情页更多选项
-const friendActionOptions = computed(() => {
-	return [
-		{ label: '修改备注', key: 'rename' },
-		{ label: '移动分组', key: 'move' },
-		{ label: '加入黑名单', key: 'block' },
-		{ label: '删除好友', key: 'delete', text: true },
-	]
-})
-
 const moveGroupOptions = computed(() =>
 	sortedGroups.value.map((group) => ({
 		label: group.name,
 		value: group.id,
 	})),
 )
-
-const handleFriendAction = (key: string): void => {
-	const targetFriend = friendStore.selectedFriend
-	if (!targetFriend) return
-
-	if (key === 'rename') {
-		remarkValue.value = targetFriend.remark || ''
-		showRemarkModal.value = true
-		return
-	}
-	if (key === 'move') {
-		moveTargetGroupId.value = targetFriend.groupId || 'default'
-		showMoveGroupModal.value = true
-		return
-	}
-	if (key === 'block') {
-		const moved = friendStore.moveFriendToGroup(
-			targetFriend.id,
-			'blacklist',
-		)
-		if (!moved) {
-			message.error('加入黑名单失败，请稍后重试')
-			return
-		}
-		message.success('已加入黑名单分组')
-		return
-	}
-	if (key !== 'delete') return
-
-	if (!window.confirm(`确认删除好友 ${targetFriend.name} 吗？`)) {
-		return
-	}
-
-	void friendStore
-		.deleteFriend(targetFriend.uid)
-		.then(() => {
-			message.success('好友已删除')
-		})
-		.catch(() => {
-			message.error('删除失败，请稍后再试')
-		})
-}
 
 const confirmRemarkUpdate = (): void => {
 	const targetFriend = friendStore.selectedFriend
@@ -1752,16 +1474,18 @@ watch(
 )
 
 watch(
-	() => groupChats.value.map((item) => item.id).join(','),
+	() => joinedGroupChats.value.map((item) => item.groupNo).join(','),
 	() => {
 		if (contactModule.value !== 'groups') return
 		if (
-			selectedGroupChatId.value &&
-			groupChats.value.some((item) => item.id === selectedGroupChatId.value)
+			selectedGroupNo.value &&
+			joinedGroupChats.value.some(
+				(item) => item.groupNo === selectedGroupNo.value,
+			)
 		) {
 			return
 		}
-		selectedGroupChatId.value = groupChats.value[0]?.id || null
+		selectedGroupNo.value = joinedGroupChats.value[0]?.groupNo || null
 	},
 )
 </script>

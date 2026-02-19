@@ -4,7 +4,7 @@
 		preset="card"
 		title="创建群聊"
 		:mask-closable="true"
-		class="max-w-[420px]"
+		class="app-modal-card max-w-[420px]"
 	>
 		<div class="flex flex-col gap-3">
 			<div class="flex flex-col gap-2">

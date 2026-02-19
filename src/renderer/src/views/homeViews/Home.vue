@@ -257,6 +257,11 @@ onMounted(() => {
 	// 初始化视觉宽度
 	visualWidth.value = isExpanded.value ? sideBarWidth.value + 'px' : '76px'
 	inAppBrowserStore.startLifecycleManager()
+	if (userInfoStore.account) {
+		void userInfoStore.refreshCurrentUser().catch((error) => {
+			console.warn('刷新当前用户信息失败:', error)
+		})
+	}
 })
 
 onUnmounted(() => {

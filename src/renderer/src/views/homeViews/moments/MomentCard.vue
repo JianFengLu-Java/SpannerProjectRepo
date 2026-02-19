@@ -13,16 +13,12 @@
 				class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
 				loading="lazy"
 			/>
-			<div
+			<img
 				v-else
-				class="h-full w-full bg-linear-to-br from-slate-200 via-slate-100 to-blue-100 dark:from-zinc-800 dark:via-zinc-800 dark:to-slate-700 p-4 flex items-end"
-			>
-				<p
-					class="text-sm font-bold leading-snug text-slate-700 dark:text-slate-100 line-clamp-3"
-				>
-					{{ moment.title || '未命名动态' }}
-				</p>
-			</div>
+				:src="canvasCoverUrl"
+				class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+				loading="lazy"
+			/>
 			<div
 				class="absolute inset-0 bg-linear-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
 			></div>
@@ -105,6 +101,7 @@ import { Heart16Regular, Heart16Filled, Comment16Regular } from '@vicons/fluent'
 import { computed } from 'vue'
 import { NIcon, NAvatar } from 'naive-ui'
 import { Moment, useMomentStore } from '@renderer/stores/moment'
+import { createMomentCoverDataUrl } from '@renderer/utils/momentCover'
 
 const props = defineProps<{
 	moment: Moment
@@ -116,6 +113,9 @@ defineEmits<{
 
 const momentStore = useMomentStore()
 const hasCoverImage = computed(() => Boolean(props.moment.cover?.trim()))
+const canvasCoverUrl = computed(() =>
+	createMomentCoverDataUrl(props.moment.title),
+)
 
 const toggleLike = async (): Promise<void> => {
 	try {

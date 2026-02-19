@@ -388,12 +388,18 @@ const walletUpdatedText = computed(() => {
 const isInflowType = (
 	changeType?:
 		| 'RECHARGE'
+		| 'REWARD'
+		| 'TASK_REWARD'
 		| 'CONSUME'
 		| 'TRANSFER_OUT'
 		| 'TRANSFER_IN'
 		| 'VIP_PURCHASE'
 		| string,
-): boolean => changeType === 'RECHARGE' || changeType === 'TRANSFER_IN'
+): boolean =>
+	changeType === 'RECHARGE' ||
+	changeType === 'REWARD' ||
+	changeType === 'TASK_REWARD' ||
+	changeType === 'TRANSFER_IN'
 
 const formatMoney = (cents: number): string =>
 	walletStore.formatAmount(cents, currency.value)
@@ -401,6 +407,8 @@ const formatMoney = (cents: number): string =>
 const getRecordTypeLabel = (type: string): string => {
 	const labels: Record<string, string> = {
 		RECHARGE: '充值账户',
+		REWARD: '奖励入账',
+		TASK_REWARD: '奖励入账',
 		CONSUME: '商户消费',
 		TRANSFER_OUT: '转账（支出）',
 		TRANSFER_IN: '转账（收入）',

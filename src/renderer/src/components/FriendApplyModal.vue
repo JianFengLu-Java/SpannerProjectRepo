@@ -2,6 +2,7 @@
 	<n-modal
 		:show="show"
 		preset="card"
+		class="app-modal-card"
 		title="添加好友"
 		:mask-closable="false"
 		transform-origin="center"

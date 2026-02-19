@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import request from '@renderer/utils/request'
 import { resolveAvatarUrl } from '@renderer/utils/avatar'
+import { useTaskRewardStore } from '@renderer/stores/taskReward'
+import { uploadMomentCover } from '@renderer/utils/momentCover'
 
 type MomentTab = 'recommend' | 'friends' | 'nearby' | 'trending'
 type FriendStatusWithAuthor =
@@ -74,6 +76,7 @@ interface AddMomentPayload {
 	contentHtml: string
 	contentText: string
 	images: string[]
+	cover?: string
 }
 
 interface UpdateMomentPayload {
@@ -81,6 +84,7 @@ interface UpdateMomentPayload {
 	contentHtml: string
 	contentText: string
 	images: string[]
+	cover?: string
 }
 
 interface LikeActionResponse {
@@ -221,6 +225,7 @@ const normalizeMoment = (item: unknown): Moment => {
 }
 
 export const useMomentStore = defineStore('moment', () => {
+	const taskRewardStore = useTaskRewardStore()
 	const moments = ref<Moment[]>([])
 	const selectedMomentId = ref<string | null>(null)
 	const activeTab = ref<MomentTab>('recommend')
@@ -635,17 +640,32 @@ export const useMomentStore = defineStore('moment', () => {
 			persistCommentsToCache(momentId, moment.comments)
 			persistCurrentListToCache()
 		}
+		void taskRewardStore
+			.refreshAll()
+			.catch((error) => {
+				console.warn('任务数据刷新失败(评论后):', error)
+			})
 		return comment
 	}
 
 	const addMoment = async (payload: AddMomentPayload): Promise<Moment> => {
+		const coverUrl =
+			payload.cover?.trim() || (await uploadMomentCover(payload.title))
 		const response = await request.post<ApiResponse<Record<string, unknown>>>(
 			'/moments',
-			payload,
+			{
+				...payload,
+				cover: coverUrl,
+			},
 		)
 		const created = normalizeMoment(response.data.data)
 		moments.value.unshift(created)
 		persistCurrentListToCache()
+		void taskRewardStore
+			.refreshAll()
+			.catch((error) => {
+				console.warn('任务数据刷新失败(发帖后):', error)
+			})
 		return created
 	}
 

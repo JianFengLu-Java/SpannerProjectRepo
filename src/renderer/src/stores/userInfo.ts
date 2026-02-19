@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { tokenManager } from '@renderer/services/tokenManager'
+import request from '@renderer/utils/request'
 
 export const useUserInfoStore = defineStore(
 	'userInfo',
@@ -21,6 +22,7 @@ export const useUserInfoStore = defineStore(
 		}
 
 		const account = ref('')
+		const userId = ref<number | null>(null)
 		const userName = ref('')
 		const gender = ref('')
 		const email = ref('')
@@ -37,6 +39,10 @@ export const useUserInfoStore = defineStore(
 		const nextLevelGrowth = ref(0)
 
 		interface UserInfoPayload {
+			id?: number | string
+			userId?: number | string
+			userID?: number | string
+			uid?: number | string
 			account?: string
 			realName?: string
 			gender?: string
@@ -54,6 +60,10 @@ export const useUserInfoStore = defineStore(
 			vipLevel?: number
 			nextLevelGrowth?: number
 			userInfo?: {
+				id?: number | string
+				userId?: number | string
+				userID?: number | string
+				uid?: number | string
 				account?: string
 				realName?: string
 				gender?: string
@@ -73,11 +83,31 @@ export const useUserInfoStore = defineStore(
 			}
 		}
 
+		const parseUserId = (value: unknown): number | null => {
+			if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+				return Math.floor(value)
+			}
+			if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+				const parsed = Number(value.trim())
+				if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed)
+			}
+			return null
+		}
+
 		function setUserInfo(
 			info: UserInfoPayload,
 			token: string,
 		): void {
 			const profile = info.userInfo || info
+			userId.value =
+				parseUserId(profile.userId) ??
+				parseUserId(profile.userID) ??
+				parseUserId(profile.uid) ??
+				parseUserId(profile.id) ??
+				parseUserId(info.userId) ??
+				parseUserId(info.userID) ??
+				parseUserId(info.uid) ??
+				parseUserId(info.id)
 			account.value =
 				profile.account || info.account || resolveAccountFromToken(token)
 			userName.value = profile.realName || info.realName || ''
@@ -149,6 +179,14 @@ export const useUserInfoStore = defineStore(
 		}
 
 		function patchUserInfo(patch: UserInfoPayload): void {
+			const nextUserId =
+				parseUserId(patch.userId) ??
+				parseUserId(patch.userID) ??
+				parseUserId(patch.uid) ??
+				parseUserId(patch.id)
+			if (typeof nextUserId === 'number') {
+				userId.value = nextUserId
+			}
 			if (typeof patch.account === 'string') {
 				account.value = patch.account
 			}
@@ -219,6 +257,7 @@ export const useUserInfoStore = defineStore(
 
 		function logout(): void {
 			account.value = ''
+			userId.value = null
 			userName.value = ''
 			gender.value = ''
 			email.value = ''
@@ -236,8 +275,31 @@ export const useUserInfoStore = defineStore(
 			tokenManager.clear()
 		}
 
+		async function refreshCurrentUser(): Promise<void> {
+			const response = await request.get('/user/me')
+			const payload = response?.data as
+				| {
+						user?: UserInfoPayload
+						data?: { user?: UserInfoPayload } | UserInfoPayload
+				  }
+				| undefined
+			const source =
+				payload?.user ||
+				(typeof payload?.data === 'object' &&
+				payload?.data &&
+				'user' in payload.data
+					? (payload.data as { user?: UserInfoPayload }).user
+					: undefined) ||
+				(typeof payload?.data === 'object'
+					? (payload.data as UserInfoPayload)
+					: undefined)
+			if (!source) return
+			patchUserInfo(source)
+		}
+
 		return {
 			account,
+			userId,
 			userName,
 			gender,
 			email,
@@ -254,6 +316,7 @@ export const useUserInfoStore = defineStore(
 			nextLevelGrowth,
 			setUserInfo,
 			patchUserInfo,
+			refreshCurrentUser,
 			logout,
 		}
 	},

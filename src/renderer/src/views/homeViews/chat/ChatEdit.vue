@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
@@ -14,6 +14,7 @@ import {
 import { useMessage, NPopover, NIcon, NModal } from 'naive-ui'
 import { useChatStore } from '@renderer/stores/chat'
 import { useWalletStore } from '@renderer/stores/wallet'
+import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { storeToRefs } from 'pinia'
 import request from '@renderer/utils/request'
 import StarterKit from '@tiptap/starter-kit'
@@ -47,7 +48,9 @@ const props = defineProps<{
 
 const chatStore = useChatStore()
 const walletStore = useWalletStore()
+const userInfoStore = useUserInfoStore()
 const message = useMessage()
+const { activeChat } = storeToRefs(chatStore)
 const {
 	walletNo,
 	walletStatus,
@@ -75,6 +78,13 @@ const transferSecurityPassword = ref('')
 const transferLoading = ref(false)
 const pinInputs = ref<string[]>(['', '', '', '', '', ''])
 const pinRefs = ref<Array<HTMLInputElement | null>>([])
+const isLoadingMentionMembers = ref(false)
+const mentionMembersGroupNo = ref('')
+const showMentionPicker = ref(false)
+const mentionQuery = ref('')
+const mentionActiveIndex = ref(0)
+const mentionRange = ref<{ from: number; to: number } | null>(null)
+const mentionMembers = ref<Array<{ account: string; name: string }>>([])
 
 const handlePinInput = (index: number, e: Event): void => {
 	const val = (e.target as HTMLInputElement).value
@@ -118,6 +128,139 @@ const normalizedId = computed(() => {
 	}
 	return props.currentId
 })
+const isGroupChat = computed(() => activeChat.value?.chatType === 'GROUP')
+const activeGroupNo = computed(() => activeChat.value?.groupNo?.trim() || '')
+const normalizedSelfAccount = computed(() =>
+	(userInfoStore.account || '').trim().toLowerCase(),
+)
+const filteredMentionMembers = computed(() => {
+	const list = mentionMembers.value
+	const keyword = mentionQuery.value.trim().toLowerCase()
+	if (!keyword) return list.slice(0, 20)
+	return list
+		.filter((item) => {
+			const account = item.account.toLowerCase()
+			const name = (item.name || '').toLowerCase()
+			return account.includes(keyword) || name.includes(keyword)
+		})
+		.slice(0, 20)
+})
+
+const closeMentionPicker = (): void => {
+	showMentionPicker.value = false
+	mentionQuery.value = ''
+	mentionActiveIndex.value = 0
+	mentionRange.value = null
+}
+
+const loadMentionMembers = async (force = false): Promise<void> => {
+	const groupNo = activeGroupNo.value
+	if (!isGroupChat.value || !groupNo) {
+		mentionMembers.value = []
+		mentionMembersGroupNo.value = ''
+		closeMentionPicker()
+		return
+	}
+	if (
+		!force &&
+		mentionMembersGroupNo.value === groupNo &&
+		mentionMembers.value.length
+	) {
+		return
+	}
+	if (isLoadingMentionMembers.value) return
+	isLoadingMentionMembers.value = true
+	try {
+		const members = await chatStore.getGroupMembers(groupNo)
+		const selfAccount = normalizedSelfAccount.value
+		mentionMembers.value = members
+			.filter((item) => {
+				const account = (item.account || '').trim().toLowerCase()
+				if (!account) return false
+				return !selfAccount || account !== selfAccount
+			})
+			.map((item) => ({
+				account: item.account,
+				name: item.name?.trim() || item.account,
+			}))
+		mentionMembersGroupNo.value = groupNo
+	} catch (error) {
+		console.warn('加载群成员失败:', error)
+		mentionMembers.value = []
+	} finally {
+		isLoadingMentionMembers.value = false
+	}
+}
+
+const detectMentionTrigger = (instance: Editor): void => {
+	if (!isGroupChat.value) {
+		closeMentionPicker()
+		return
+	}
+	const { from, empty } = instance.state.selection
+	if (!empty) {
+		closeMentionPicker()
+		return
+	}
+	const textBefore = instance.state.doc.textBetween(
+		Math.max(0, from - 80),
+		from,
+		'\n',
+		'\n',
+	)
+	const matched = textBefore.match(/(?:^|\s)@([^\s@]*)$/)
+	if (!matched) {
+		closeMentionPicker()
+		return
+	}
+	const atIndex = textBefore.lastIndexOf('@')
+	if (atIndex < 0) {
+		closeMentionPicker()
+		return
+	}
+	const query = matched[1] || ''
+	mentionQuery.value = query
+	mentionRange.value = {
+		from: from - (textBefore.length - atIndex),
+		to: from,
+	}
+	mentionActiveIndex.value = 0
+	showMentionPicker.value = true
+}
+
+const applyMentionMember = (member: {
+	account: string
+	name: string
+}): void => {
+	if (!editor.value || !mentionRange.value) return
+	const displayName = (member.name || member.account).trim() || member.account
+	editor.value
+		.chain()
+		.focus()
+		.deleteRange(mentionRange.value)
+		.insertContent(`@${displayName} `)
+		.run()
+	closeMentionPicker()
+}
+
+const selectMentionByIndex = (index: number): void => {
+	const item = filteredMentionMembers.value[index]
+	if (!item) return
+	applyMentionMember(item)
+}
+
+const handleMentionButtonClick = async (): Promise<void> => {
+	if (!isGroupChat.value) {
+		message.warning('仅群聊支持 @ 提及')
+		return
+	}
+	if (!mentionMembers.value.length) {
+		await loadMentionMembers(true)
+	}
+	if (!editor.value) return
+	editor.value.chain().focus().insertContent('@').run()
+	detectMentionTrigger(editor.value)
+}
 
 const bubbleMenuTippyOptions = computed(() => {
 	const getBoundary = (): HTMLElement | null => {
@@ -235,6 +378,10 @@ const editor = useEditor({
 			addKeyboardShortcuts() {
 				return {
 					Enter: () => {
+						if (showMentionPicker.value) {
+							selectMentionByIndex(mentionActiveIndex.value)
+							return true
+						}
 						if (showLinkInput.value) {
 							confirmLink()
 							return true
@@ -243,11 +390,30 @@ const editor = useEditor({
 						return true
 					},
 					Escape: () => {
+						if (showMentionPicker.value) {
+							closeMentionPicker()
+							return true
+						}
 						if (showLinkInput.value) {
 							cancelLink()
 							return true
 						}
 						return false
+					},
+					ArrowDown: () => {
+						if (!showMentionPicker.value) return false
+						const size = filteredMentionMembers.value.length
+						if (!size) return true
+						mentionActiveIndex.value = (mentionActiveIndex.value + 1) % size
+						return true
+					},
+					ArrowUp: () => {
+						if (!showMentionPicker.value) return false
+						const size = filteredMentionMembers.value.length
+						if (!size) return true
+						mentionActiveIndex.value =
+							(mentionActiveIndex.value - 1 + size) % size
+						return true
 					},
 					'Shift-Enter': () => this.editor.commands.splitBlock(),
 					// 添加常用快捷键
@@ -315,6 +481,7 @@ const editor = useEditor({
 	},
 	onBlur: () => {
 		isFocus.value = false
+		closeMentionPicker()
 		syncDraft()
 	},
 	onUpdate: ({ editor }) => {
@@ -322,10 +489,25 @@ const editor = useEditor({
 		const hasImage = editor.getHTML().includes('<img')
 
 		canSend.value = !isTextEmpty || hasImage
+		detectMentionTrigger(editor)
 		checkLayoutWithImages()
 		editor.commands.scrollIntoView()
 	},
 })
+
+const handleInsertMentionEvent = (event: Event): void => {
+	const custom = event as CustomEvent<{
+		chatId?: number
+		account?: string
+		name?: string
+	}>
+	const detail = custom.detail || {}
+	if (!editor.value || !normalizedId.value) return
+	if (Number(detail.chatId) !== Number(normalizedId.value)) return
+	const name = (detail.name || detail.account || '').trim()
+	if (!name) return
+	editor.value.chain().focus().insertContent(`@${name} `).run()
+}
 
 // BubbleMenu 显示条件
 const shouldShowBubbleMenu = ({ editor }: { editor: Editor }): boolean => {
@@ -415,6 +597,7 @@ const handleSendMessage = (): void => {
 
 	const htmlContent = editor.value.getHTML()
 	chatStore.sendMessage(htmlContent)
+	closeMentionPicker()
 
 	// 发送成功后清空编辑器
 	editor.value.commands.clearContent()
@@ -424,6 +607,20 @@ const handleSendMessage = (): void => {
 		chatStore.saveDraft(normalizedId.value, null)
 	}
 }
+
+watch(
+	() => [isGroupChat.value, activeGroupNo.value],
+	([groupMode]) => {
+		if (!groupMode) {
+			mentionMembers.value = []
+			mentionMembersGroupNo.value = ''
+			closeMentionPicker()
+			return
+		}
+		void loadMentionMembers()
+	},
+	{ immediate: true },
+)
 
 const parseInputAmountToCents = (value: number | null): number | null => {
 	if (typeof value !== 'number' || !Number.isFinite(value)) return null
@@ -642,12 +839,14 @@ onMounted(() => {
 	})
 
 	checkLayout()
+	window.addEventListener('chat-insert-mention', handleInsertMentionEvent)
 })
 
 onUnmounted(() => {
 	syncDraft()
 	resizeObserver?.disconnect()
 	editor.value?.destroy()
+	window.removeEventListener('chat-insert-mention', handleInsertMentionEvent)
 })
 </script>
 
@@ -662,7 +861,7 @@ onUnmounted(() => {
 			<div ref="containerRef" class="flex flex-wrap items-end relative">
 				<!-- 链接输入框 -->
 				<div v-if="showLinkInput"
-					class="absolute bottom-full left-0 right-0 mb-2 p-2 bg-page-bg border border-border-main rounded-lg shadow-lg z-50">
+					class="absolute bottom-full left-0 right-0 mb-2 p-2 bg-page-bg border border-border-main rounded-lg z-50">
 					<div class="flex items-center gap-2">
 						<input v-model="linkUrl" type="url" placeholder="输入链接地址"
 							class="link-input flex-1 px-3 py-1.5 text-sm border border-border-main rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -675,17 +874,52 @@ onUnmounted(() => {
 						</n-button>
 					</div>
 				</div>
+				<div
+					v-if="showMentionPicker"
+					class="absolute bottom-full left-0 right-0 mb-2 px-1 z-50"
+				>
+					<div class="rounded-xl border border-border-main bg-page-bg shadow-lg max-h-56 overflow-y-auto">
+						<div
+							v-if="isLoadingMentionMembers"
+							class="px-3 py-2 text-xs text-gray-400"
+						>
+							正在加载群成员...
+						</div>
+						<div
+							v-else-if="!filteredMentionMembers.length"
+							class="px-3 py-2 text-xs text-gray-400"
+						>
+							未找到匹配成员
+						</div>
+						<button
+							v-for="(member, index) in filteredMentionMembers"
+							:key="member.account"
+							type="button"
+							class="w-full text-left px-3 py-2 text-sm transition-colors"
+							:class="
+								index === mentionActiveIndex
+									? 'bg-blue-50 text-blue-700 dark:bg-sky-500/15 dark:text-sky-300'
+									: 'text-text-main hover:bg-black/5 dark:hover:bg-white/5'
+							"
+							@mousedown.prevent="applyMentionMember(member)"
+							@mouseenter="mentionActiveIndex = index"
+						>
+							<span class="font-medium">{{ member.name }}</span>
+							<span class="ml-2 text-xs text-gray-400">{{ member.account }}</span>
+						</button>
+					</div>
+				</div>
 
 				<div class="flex-1 min-w-[120px] px-1 min-h-9 cursor-text flex items-start" @click="focusEditor">
 					<!-- BubbleMenu -->
 					<BubbleMenu v-if="editor" :editor="editor" :should-show="shouldShowBubbleMenu"
 						:tippy-options="bubbleMenuTippyOptions">
 						<div
-							class="flex items-center bg-white/80 dark:bg-zinc-800/85 backdrop-blur-md shadow-xl border border-gray-200/80 dark:border-zinc-700 rounded-xl p-1.5 gap-1 animate-bubble-in">
+							class="flex items-center bg-white/80 dark:bg-zinc-800/85 backdrop-blur-md border border-gray-200/80 dark:border-zinc-700 rounded-xl p-1.5 gap-1 animate-bubble-in">
 							<button type="button" title="加粗 (Ctrl+B)"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
-									'text-blue-600 bg-blue-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50':
 										editor.isActive('bold'),
 								}" @click="
 									editor.chain().focus().toggleBold().run()
@@ -698,7 +932,7 @@ onUnmounted(() => {
 							<button type="button" title="斜体 (Ctrl+I)"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
-									'text-blue-600 bg-blue-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50':
 										editor.isActive('italic'),
 								}" @click="
 									editor.chain().focus().toggleItalic().run()
@@ -711,7 +945,7 @@ onUnmounted(() => {
 							<button type="button" title="下划线 (Ctrl+U)"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
-									'text-blue-600 bg-blue-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50':
 										editor.isActive('underline'),
 								}" @click="
 									editor
@@ -728,7 +962,7 @@ onUnmounted(() => {
 							<button type="button" title="删除线"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
-									'text-blue-600 bg-blue-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50':
 										editor.isActive('strike'),
 								}" @click="
 									editor.chain().focus().toggleStrike().run()
@@ -743,7 +977,7 @@ onUnmounted(() => {
 							<button type="button" title="代码"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
 								:class="{
-									'text-blue-600 bg-blue-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50':
 										editor.isActive('code'),
 								}" @click="
 									editor.chain().focus().toggleCode().run()
@@ -756,7 +990,7 @@ onUnmounted(() => {
 							<button type="button" title="链接 (Ctrl+K)"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
 								:class="{
-									'text-blue-600 bg-blue-100/50 shadow-inner':
+									'text-blue-600 bg-blue-100/50':
 										editor.isActive('link'),
 								}" @click="setLink">
 								<n-icon size="18">
@@ -793,7 +1027,12 @@ onUnmounted(() => {
 							" />
 						</button>
 
-						<button type="button" class="composer-action-btn" title="@提及">
+						<button
+							type="button"
+							class="composer-action-btn"
+							title="@提及"
+							@click="handleMentionButtonClick"
+						>
 							<n-icon size="18">
 								<At />
 							</n-icon>
@@ -1046,19 +1285,9 @@ onUnmounted(() => {
 	animation: bubbleMenuShow 0.2s ease forwards;
 }
 
-:deep(.tiptap .bubble-menu > div) {
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
 /* 确保链接输入框在正确层级 */
 .link-input {
 	z-index: 10000;
-}
-
-.composer-shell {
-	box-shadow:
-		0 1px 0 rgba(15, 23, 42, 0.04),
-		0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
 .composer-toolbar {
@@ -1135,7 +1364,6 @@ onUnmounted(() => {
 .composer-send-btn:disabled {
 	opacity: 0.45;
 	cursor: not-allowed;
-	box-shadow: none;
 }
 
 /* NextUI Modal Styles */

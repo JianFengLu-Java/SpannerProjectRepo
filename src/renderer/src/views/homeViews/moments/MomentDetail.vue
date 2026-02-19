@@ -42,54 +42,13 @@
 			</div>
 		</div>
 
-		<!-- 详情滚动区域 -->
-		<div class="flex-1 overflow-y-auto custom-scrollbar">
-			<div class="max-w-4xl mx-auto p-6">
-				<!-- 作者信息 -->
-				<div class="flex items-center justify-between mb-6 no-drag">
-					<div class="flex items-center gap-3">
-						<n-avatar
-							round
-							:size="48"
-							:src="moment.author.avatar"
-							class="border-2 border-primary/10"
-						/>
-						<div class="flex flex-col">
-							<span
-								class="font-bold text-gray-900 dark:text-gray-100"
-								>{{ moment.author.name }}</span
-							>
-							<span
-								class="text-xs text-gray-400 dark:text-gray-500"
-								>{{ moment.timestamp }}</span
-							>
-						</div>
-					</div>
-					<n-button
-						round
-						type="primary"
-						secondary
-						size="small"
-						class="px-5 font-bold"
-						:loading="isApplyingFriend"
-						:disabled="isAuthor || isFriend || isPendingFriendRequest || !authorAccount"
-						@click="handleAddFriend"
-					>
-						{{ friendActionText }}
-					</n-button>
-				</div>
-
-				<!-- 图片展示（左右滑动） -->
-				<div
-					v-if="
-						(moment.images && moment.images.length > 0) ||
-						(moment.cover && moment.cover.trim())
-					"
-					class="mb-6 rounded-[24px] overflow-hidden border border-gray-100 dark:border-zinc-700"
-				>
+		<!-- 主体区域：左图右详情 -->
+		<div class="flex-1 min-h-0 detail-main">
+			<div class="detail-media-panel no-drag">
+				<div class="h-full w-full">
 					<div
 						v-if="moment.images && moment.images.length > 0"
-						class="moment-image-carousel-wrap"
+						class="moment-image-carousel-wrap h-full"
 					>
 						<n-carousel
 							draggable
@@ -106,142 +65,187 @@
 							</div>
 						</n-carousel>
 					</div>
-					<div v-else-if="moment.cover && moment.cover.trim()" class="moment-image-slide">
-						<img :src="moment.cover" class="moment-image" />
+					<div v-else class="moment-image-slide h-full">
+						<img :src="detailPreviewCover" class="moment-image" />
 					</div>
 				</div>
+			</div>
 
-				<!-- 文字内容 -->
-				<div class="px-2 mb-8">
-					<h1
-						class="text-xl font-black text-gray-900 dark:text-gray-100 mb-4 leading-tight"
-					>
-						{{ moment.title }}
-					</h1>
-					<div
-						v-if="moment.contentHtml"
-						class="moment-rich-content text-gray-600 dark:text-gray-300 leading-relaxed"
-						v-html="moment.contentHtml"
-					></div>
-					<p
-						v-else
-						class="text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap"
-					>
-						{{ moment.content }}
-					</p>
-				</div>
-
-				<!-- 互动数据 -->
-				<div
-					class="flex items-center gap-6 px-2 py-4 border-y border-gray-50 dark:border-zinc-800 mb-8"
-				>
-					<div
-						class="flex items-center gap-1.5 cursor-pointer group"
-						@click="handleLike"
-					>
-						<n-icon
-							:size="22"
-							:class="[
-								moment.isLiked
-									? 'text-red-500'
-									: 'text-gray-400 group-hover:text-red-400',
-							]"
-							class="transition-colors"
-						>
-							<Heart24Filled v-if="moment.isLiked" />
-							<Heart24Regular v-else />
-						</n-icon>
-						<span
-							class="text-sm font-bold"
-							:class="[
-								moment.isLiked
-									? 'text-red-500'
-									: 'text-gray-500',
-							]"
-							>{{ moment.likes }}</span
-						>
-					</div>
-					<div
-						class="flex items-center gap-1.5 text-gray-400 dark:text-gray-500"
-					>
-						<n-icon :size="22"><Comment24Regular /></n-icon>
-						<span class="text-sm font-bold">{{
-							moment.commentsCount ?? moment.comments.length
-						}}</span>
-					</div>
-					<div
-						class="flex items-center gap-1.5 text-gray-400 dark:text-gray-500"
-					>
-						<n-icon :size="22"><Star24Regular /></n-icon>
-						<span class="text-sm font-bold">收藏</span>
-					</div>
-				</div>
-
-				<!-- 评论区 -->
-				<div class="px-2 pb-20">
-					<h3
-						class="text-lg font-black text-gray-900 dark:text-gray-100 mb-6"
-					>
-						全部评论 ({{
-							moment.commentsCount ?? moment.comments.length
-						}})
-					</h3>
-
-					<div v-if="moment.comments.length > 0" class="space-y-6">
-						<div
-							v-for="comment in moment.comments"
-							:key="comment.id"
-							class="flex gap-3"
-						>
+			<div class="detail-info-panel custom-scrollbar">
+				<div class="p-5 md:p-6 pb-20">
+					<div class="flex items-center justify-between mb-5 no-drag">
+						<div class="flex items-center gap-3">
 							<n-avatar
 								round
-								:size="32"
-								:src="comment.author.avatar"
-								class="shrink-0"
+								:size="44"
+								:src="moment.author.avatar"
+								class="border-2 border-primary/10"
 							/>
-							<div class="flex-1">
-								<div
-									class="flex justify-between items-start mb-1"
+							<div class="flex flex-col">
+								<span
+									class="font-bold text-gray-900 dark:text-gray-100"
+									>{{ moment.author.name }}</span
 								>
-									<span
-										class="text-sm font-bold text-gray-700 dark:text-gray-200"
-										>{{ comment.author.name }}</span
-									>
+								<span
+									class="text-xs text-gray-400 dark:text-gray-500"
+									>{{ moment.timestamp }}</span
+								>
+							</div>
+						</div>
+						<n-button
+							round
+							type="primary"
+							secondary
+							size="small"
+							class="px-4 font-bold"
+							:loading="isApplyingFriend"
+							:disabled="
+								isAuthor ||
+								isFriend ||
+								isPendingFriendRequest ||
+								!authorAccount
+							"
+							@click="handleAddFriend"
+						>
+							{{ friendActionText }}
+						</n-button>
+					</div>
+
+					<section class="detail-section">
+						<h2 class="detail-section-title">标题</h2>
+						<h1
+							class="text-xl font-black text-gray-900 dark:text-gray-100 leading-tight"
+						>
+							{{ moment.title || '未命名动态' }}
+						</h1>
+					</section>
+
+					<section class="detail-section">
+						<h2 class="detail-section-title">内容</h2>
+						<div
+							v-if="moment.contentHtml"
+							class="moment-rich-content text-gray-600 dark:text-gray-300 leading-relaxed"
+							v-html="moment.contentHtml"
+						/>
+						<p
+							v-else
+							class="text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap"
+						>
+							{{ moment.content }}
+						</p>
+					</section>
+
+					<div
+						class="flex items-center gap-6 py-4 border-y border-gray-100 dark:border-zinc-800 mb-6"
+					>
+						<div
+							class="flex items-center gap-1.5 cursor-pointer group"
+							@click="handleLike"
+						>
+							<n-icon
+								:size="22"
+								:class="[
+									moment.isLiked
+										? 'text-red-500'
+										: 'text-gray-400 group-hover:text-red-400',
+								]"
+								class="transition-colors"
+							>
+								<Heart24Filled v-if="moment.isLiked" />
+								<Heart24Regular v-else />
+							</n-icon>
+							<span
+								class="text-sm font-bold"
+								:class="[
+									moment.isLiked
+										? 'text-red-500'
+										: 'text-gray-500',
+								]"
+								>{{ moment.likes }}</span
+							>
+						</div>
+						<div
+							class="flex items-center gap-1.5 text-gray-400 dark:text-gray-500"
+						>
+							<n-icon :size="22"><Comment24Regular /></n-icon>
+							<span class="text-sm font-bold">{{
+								moment.commentsCount ?? moment.comments.length
+							}}</span>
+						</div>
+						<div
+							class="flex items-center gap-1.5 text-gray-400 dark:text-gray-500"
+						>
+							<n-icon :size="22"><Star24Regular /></n-icon>
+							<span class="text-sm font-bold">收藏</span>
+						</div>
+					</div>
+
+					<section class="detail-section mb-0">
+						<h2 class="detail-section-title">
+							评论 ({{
+								moment.commentsCount ?? moment.comments.length
+							}})
+						</h2>
+
+						<div
+							v-if="moment.comments.length > 0"
+							class="space-y-5"
+						>
+							<div
+								v-for="comment in moment.comments"
+								:key="comment.id"
+								class="flex gap-3"
+							>
+								<n-avatar
+									round
+									:size="32"
+									:src="comment.author.avatar"
+									class="shrink-0"
+								/>
+								<div class="flex-1">
 									<div
-										class="flex items-center gap-1 text-gray-400 dark:text-gray-500 hover:text-red-400 cursor-pointer transition-colors"
+										class="flex justify-between items-start mb-1"
 									>
-										<n-icon :size="14"
-											><Heart16Regular
-										/></n-icon>
-										<span class="text-[10px]">{{
-											comment.likes
-										}}</span>
+										<span
+											class="text-sm font-bold text-gray-700 dark:text-gray-200"
+											>{{ comment.author.name }}</span
+										>
+										<div
+											class="flex items-center gap-1 text-gray-400 dark:text-gray-500 hover:text-red-400 cursor-pointer transition-colors"
+										>
+											<n-icon :size="14"
+												><Heart16Regular
+											/></n-icon>
+											<span class="text-[10px]">{{
+												comment.likes
+											}}</span>
+										</div>
 									</div>
-								</div>
-								<p
-									class="text-[13px] text-gray-600 dark:text-gray-300 leading-snug mb-2"
-								>
-									{{ comment.text }}
-								</p>
-								<div class="flex items-center gap-4">
-									<span
-										class="text-[10px] text-gray-400 dark:text-gray-500"
-										>{{ comment.timestamp }}</span
+									<p
+										class="text-[13px] text-gray-600 dark:text-gray-300 leading-snug mb-2"
 									>
-									<span
-										class="text-[10px] font-bold text-gray-400 dark:text-gray-500 cursor-pointer hover:text-primary transition-colors"
-										>回复</span
-									>
+										{{ comment.text }}
+									</p>
+									<div class="flex items-center gap-4">
+										<span
+											class="text-[10px] text-gray-400 dark:text-gray-500"
+											>{{ comment.timestamp }}</span
+										>
+										<span
+											class="text-[10px] font-bold text-gray-400 dark:text-gray-500 cursor-pointer hover:text-primary transition-colors"
+											>回复</span
+										>
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
-					<div
-						v-else
-						class="py-10 text-center text-gray-400 dark:text-gray-500 text-sm"
-					>
-						成为第一个评论的人吧～
-					</div>
+						<div
+							v-else
+							class="py-10 text-center text-gray-400 dark:text-gray-500 text-sm"
+						>
+							成为第一个评论的人吧～
+						</div>
+					</section>
 				</div>
 			</div>
 		</div>
@@ -271,11 +275,12 @@
 			</n-button>
 		</div>
 
-		<n-modal
-			v-model:show="showEditModal"
-			preset="card"
-			:style="editModalStyle"
-			title="编辑动态"
+			<n-modal
+				v-model:show="showEditModal"
+				preset="card"
+				class="app-modal-card"
+				:style="editModalStyle"
+				title="编辑动态"
 			:mask-closable="false"
 			:bordered="false"
 			size="huge"
@@ -324,6 +329,7 @@ import type { DropdownOption } from 'naive-ui'
 import { Moment, useMomentStore } from '@renderer/stores/moment'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useFriendStore } from '@renderer/stores/friend'
+import { createMomentCoverDataUrl } from '@renderer/utils/momentCover'
 import MomentPublishEditor from './MomentPublishEditor.vue'
 
 const props = defineProps<{
@@ -345,6 +351,7 @@ const isUpdatingMoment = ref(false)
 const isDeletingMoment = ref(false)
 const isApplyingFriend = ref(false)
 const editEditorKey = ref(0)
+const friendStatusOverride = ref<string | null>(null)
 const { width: windowWidth } = useWindowSize()
 
 const editModalStyle = computed(() => {
@@ -370,9 +377,15 @@ const isAuthor = computed(() => {
 })
 
 const authorAccount = computed(() => props.moment.author.account?.trim() || '')
+const detailPreviewCover = computed(() => {
+	return props.moment.cover?.trim() || createMomentCoverDataUrl(props.moment.title)
+})
+const effectiveFriendStatus = computed(
+	() => friendStatusOverride.value ?? props.moment.friendStatusWithAuthor,
+)
 
 const isFriend = computed(() => {
-	if (props.moment.friendStatusWithAuthor === 'FRIEND') {
+	if (effectiveFriendStatus.value === 'FRIEND') {
 		return true
 	}
 	return friendStore.friends.some(
@@ -381,7 +394,7 @@ const isFriend = computed(() => {
 })
 
 const isPendingFriendRequest = computed(() => {
-	return props.moment.friendStatusWithAuthor === 'PENDING_OUTBOUND'
+	return effectiveFriendStatus.value === 'PENDING_OUTBOUND'
 })
 
 const friendActionText = computed(() => {
@@ -445,7 +458,10 @@ const handleUpdateMoment = async (payload: {
 }): Promise<void> => {
 	isUpdatingMoment.value = true
 	try {
-		await momentStore.updateMoment(props.moment.id, payload)
+		await momentStore.updateMoment(props.moment.id, {
+			...payload,
+			cover: props.moment.cover,
+		})
 		showEditModal.value = false
 		message.success('动态更新成功')
 	} catch (error) {
@@ -485,7 +501,7 @@ const handleAddFriend = async (): Promise<void> => {
 	isApplyingFriend.value = true
 	try {
 		await friendStore.applyFriendRequest(authorAccount.value)
-		props.moment.friendStatusWithAuthor = 'PENDING_OUTBOUND'
+		friendStatusOverride.value = 'PENDING_OUTBOUND'
 		message.success('好友申请已发送')
 	} catch (error) {
 		console.error('发送好友申请失败', error)
@@ -513,6 +529,41 @@ const handleAddFriend = async (): Promise<void> => {
 	-webkit-app-region: no-drag;
 }
 
+.detail-main {
+	display: grid;
+	grid-template-columns: minmax(320px, 44%) minmax(0, 56%);
+	height: 100%;
+	min-height: 0;
+}
+
+.detail-media-panel {
+	height: 100%;
+	background: #0b0b0b;
+	border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.detail-info-panel {
+	height: 100%;
+	overflow-y: auto;
+}
+
+.detail-section {
+	margin-bottom: 1.25rem;
+}
+
+.detail-section-title {
+	font-size: 0.78rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: rgb(156 163 175);
+	margin-bottom: 0.5rem;
+}
+
+.dark .detail-section-title {
+	color: rgb(113 113 122);
+}
+
 :deep(.moment-rich-content p) {
 	margin: 0;
 }
@@ -534,12 +585,12 @@ const handleAddFriend = async (): Promise<void> => {
 
 .moment-image-carousel {
 	width: 100%;
-	height: min(62vh, 520px);
+	height: 100%;
 }
 
 .moment-image-slide {
 	width: 100%;
-	height: min(62vh, 520px);
+	height: 100%;
 	background: #0b0b0b;
 	display: flex;
 	align-items: center;
@@ -551,5 +602,17 @@ const handleAddFriend = async (): Promise<void> => {
 	height: 100%;
 	object-fit: contain;
 	background: #0b0b0b;
+}
+
+@media (max-width: 900px) {
+	.detail-main {
+		grid-template-columns: 1fr;
+		grid-template-rows: minmax(220px, 34vh) minmax(0, 1fr);
+	}
+
+	.detail-media-panel {
+		border-right: 0;
+		border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+	}
 }
 </style>

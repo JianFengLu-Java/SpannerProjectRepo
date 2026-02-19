@@ -360,13 +360,14 @@
 			</div>
 		</div>
 
-		<n-modal
-			v-model:show="showSecurityPasswordModal"
-			preset="card"
-			:title="securityPasswordSet ? '修改安全 PIN' : '设置安全 PIN'"
-			style="width: min(440px, 94vw)"
-			:mask-closable="false"
-		>
+			<n-modal
+				v-model:show="showSecurityPasswordModal"
+				preset="card"
+				class="app-modal-card"
+				:title="securityPasswordSet ? '修改安全 PIN' : '设置安全 PIN'"
+				style="width: min(440px, 94vw)"
+				:mask-closable="false"
+			>
 			<n-form label-placement="left" label-width="90">
 				<n-form-item v-if="securityPasswordSet" label="当前 PIN">
 					<n-input

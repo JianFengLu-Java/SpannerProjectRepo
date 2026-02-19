@@ -212,7 +212,10 @@ const flowTabs = [
 ]
 
 const isInflowType = (changeType?: string): boolean =>
-	changeType === 'RECHARGE' || changeType === 'TRANSFER_IN'
+	changeType === 'RECHARGE' ||
+	changeType === 'REWARD' ||
+	changeType === 'TASK_REWARD' ||
+	changeType === 'TRANSFER_IN'
 
 const getRecordDirectionSign = (changeType: string): '+' | '-' => (isInflowType(changeType) ? '+' : '-')
 
@@ -222,6 +225,8 @@ const formatMoney = (cents: number): string =>
 const getRecordTypeLabel = (type: string): string => {
 	const labels: Record<string, string> = {
 		RECHARGE: '充值账户',
+		REWARD: '奖励入账',
+		TASK_REWARD: '奖励入账',
 		CONSUME: '商户消费',
 		TRANSFER_OUT: '转账（支出）',
 		TRANSFER_IN: '转账（收入）',

@@ -89,10 +89,12 @@
 			placement="right"
 			:width="friendSettingDrawerWidth"
 			:to="chatContextRootRef || undefined"
-			:block-scroll="false"
-			:trap-focus="false"
-			:auto-focus="false"
-			:show-mask="false"
+			display-directive="show"
+			:block-scroll="true"
+			:mask-closable="false"
+			:trap-focus="true"
+			:auto-focus="true"
+			:show-mask="true"
 			class="chat-friend-setting-drawer"
 		>
 			<n-drawer-content
@@ -336,7 +338,7 @@ import { NIcon, NDrawer, NDrawerContent, useMessage } from 'naive-ui'
 import { useFriendStore } from '@renderer/stores/friend'
 import ChatFriendSettingPanel from './ChatFriendSettingPanel.vue'
 import { useElementSize } from '@vueuse/core'
-import vipBadgeIcon from '@renderer/assets/vip-fill-svgrepo-com.svg'
+import vipBadgeIcon from '@renderer/assets/VIP.svg'
 
 const chatStore = useChatStore()
 const friendStore = useFriendStore()
@@ -592,10 +594,8 @@ defineExpose({
 	getBoundaryElement,
 })
 
-watch(activeChatId, (nextId) => {
-	if (!nextId) {
-		showFriendSettingDrawer.value = false
-	}
+watch(activeChatId, () => {
+	showFriendSettingDrawer.value = false
 })
 </script>
 
@@ -629,6 +629,12 @@ watch(activeChatId, (nextId) => {
 :deep(.chat-friend-setting-drawer .n-drawer-container) {
 	position: absolute !important;
 	inset: 0;
+}
+
+:deep(.chat-friend-setting-drawer .n-drawer-mask) {
+	background: rgba(15, 23, 42, 0.38) !important;
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
 }
 
 :deep(.chat-friend-setting-drawer .n-drawer-content-wrapper) {

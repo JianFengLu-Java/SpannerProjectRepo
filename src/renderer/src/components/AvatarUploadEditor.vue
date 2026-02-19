@@ -11,7 +11,7 @@
 		<n-modal
 			v-model:show="showCropper"
 			preset="card"
-			class="avatar-editor-modal"
+			class="app-modal-card avatar-editor-modal"
 			:title="title"
 			style="width: 600px"
 			:segmented="{ content: 'soft', footer: 'soft' }"
@@ -184,7 +184,20 @@ const handleCropSave = (): void => {
 				new File([blob], 'avatar.png', { type: 'image/png' }),
 			)
 			const res = await axios.post(props.uploadUrl, formData)
-			const fileUrl = String(res?.data?.fileUrl || '').trim()
+			const payload = res?.data as
+				| {
+						fileUrl?: string
+						url?: string
+						data?: { fileUrl?: string; url?: string }
+				  }
+				| undefined
+			const fileUrl = String(
+				payload?.fileUrl ||
+					payload?.url ||
+					payload?.data?.fileUrl ||
+					payload?.data?.url ||
+					'',
+			).trim()
 			if (!fileUrl) {
 				throw new Error('头像上传未返回 fileUrl')
 			}

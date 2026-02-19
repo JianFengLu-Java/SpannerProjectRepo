@@ -102,6 +102,10 @@ export function setupIpcHandlers(): void {
 		return chatService.deleteChat(userAccount, id)
 	})
 
+	ipcMain.handle('db-clear-chat', (_, userAccount: string, id: number) => {
+		return chatService.clearChat(userAccount, id)
+	})
+
 	ipcMain.handle(
 		'db-get-messages',
 		(_, userAccount: string, chatId: number) => {

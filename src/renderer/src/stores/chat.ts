@@ -25,6 +25,7 @@ import {
 	type GroupHistoryMessageDto,
 	type GroupHistoryPageData,
 	type GroupMember,
+	type GroupQuitResult,
 	type GroupRole,
 } from '@renderer/services/groupChatApi'
 import {
@@ -220,6 +221,8 @@ export const useChatStore = defineStore('chat', () => {
 	const LOCAL_HISTORY_INITIAL_CHUNK_SIZE = 40
 	let loadingFriendsPromise: Promise<boolean> | null = null
 	let messageJumpToken = 0
+	const groupSessionSyncAtMap = new Map<string, number>()
+	const GROUP_SESSION_SYNC_INTERVAL_MS = 60 * 1000
 	const shouldLogChatMergeDebug = (): boolean => {
 		if (!import.meta.env.DEV) return false
 		try {
@@ -328,6 +331,24 @@ export const useChatStore = defineStore('chat', () => {
 				item.chatType === 'GROUP' &&
 				item.groupNo?.trim() === normalized,
 		)
+	}
+
+	const resolveGroupAvatar = (
+		detail?: Partial<GroupDetail> & {
+			groupAvatarUrl?: string
+			avatarUrl?: string
+			avatar?: string
+		},
+		fallback = '',
+	): string => {
+		const remoteAvatar = (
+			detail?.groupAvatarUrl ||
+			detail?.avatarUrl ||
+			detail?.avatar ||
+			''
+		).trim()
+		if (remoteAvatar) return resolveAvatarUrl(remoteAvatar)
+		return (fallback || '').trim()
 	}
 
 	const findPrivateChatByAccount = (
@@ -487,6 +508,38 @@ export const useChatStore = defineStore('chat', () => {
 			.trim()
 			.slice(0, 30)
 		return plainText || '[图片]'
+	}
+
+	const escapeRegExp = (value: string): string =>
+		value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+	const isMentioningCurrentUser = (
+		content: string,
+		currentAccount: string,
+		currentName?: string,
+	): boolean => {
+		const plainText = (content || '')
+			.replace(/<br\s*\/?>/gi, ' ')
+			.replace(/<[^>]*>?/gm, ' ')
+			.replace(/\s+/g, ' ')
+			.trim()
+		if (!plainText) return false
+
+		const keywords = new Set<string>(['我', 'me'])
+		const account = currentAccount.trim()
+		const name = (currentName || '').trim()
+		if (account) keywords.add(account)
+		if (name) keywords.add(name)
+
+		for (const keyword of keywords) {
+			if (!keyword) continue
+			const pattern = new RegExp(
+				`(?:^|\\s)[@＠]\\s*${escapeRegExp(keyword)}(?=$|\\s|[，。,.!！?？:：;；、])`,
+				'i',
+			)
+			if (pattern.test(plainText)) return true
+		}
+		return false
 	}
 
 	const getMessagePreview = (message: {
@@ -999,6 +1052,10 @@ export const useChatStore = defineStore('chat', () => {
 				isPinned,
 			)
 		},
+		clearChat(id: number): void {
+			const account = getCurrentAccount()
+			window.electron.ipcRenderer.invoke('db-clear-chat', account, id)
+		},
 		deleteChat(id: number): void {
 			const account = getCurrentAccount()
 			window.electron.ipcRenderer.invoke('db-delete-chat', account, id)
@@ -1430,7 +1487,7 @@ export const useChatStore = defineStore('chat', () => {
 			memberCount: detail.memberCount,
 			announcement: detail.announcement,
 			name: detail.groupName || existing?.name || `群聊 ${groupNo}`,
-			avatar: existing?.avatar || '',
+			avatar: resolveGroupAvatar(detail, existing?.avatar || ''),
 			lastMessage: existing?.lastMessage || '',
 			timestamp: existing?.timestamp || formatTimeFromIso(),
 			lastMessageAt:
@@ -1451,6 +1508,57 @@ export const useChatStore = defineStore('chat', () => {
 		return nextChat.id
 	}
 
+	const scheduleGroupSessionSyncByNo = (groupNo: string): void => {
+		const normalized = groupNo.trim()
+		if (!normalized) return
+		const now = Date.now()
+		const lastSyncAt = groupSessionSyncAtMap.get(normalized) || 0
+		if (now - lastSyncAt < GROUP_SESSION_SYNC_INTERVAL_MS) return
+		groupSessionSyncAtMap.set(normalized, now)
+		void syncGroupSessionByNo(normalized)
+	}
+
+	const fetchGroupDetailForSession = async (
+		groupNo: string,
+	): Promise<GroupDetail | null> => {
+		const normalized = groupNo.trim()
+		if (!normalized) return null
+		const response = await groupChatApi.getGroup(normalized)
+		const detail = response.data?.data
+		if (!detail) return null
+		try {
+			const profileRes = await groupChatApi.getGroupProfile(normalized)
+			const profile = profileRes.data?.data
+			const avatarFromProfile = profile?.groupAvatarUrl?.trim() || ''
+			if (avatarFromProfile) detail.groupAvatarUrl = avatarFromProfile
+			const groupNameFromProfile = profile?.groupName?.trim() || ''
+			if (groupNameFromProfile) detail.groupName = groupNameFromProfile
+		} catch (profileError) {
+			console.warn(
+				'读取群 profile 失败，回退 settings/detail:',
+				normalized,
+				profileError,
+			)
+			try {
+				const settingsRes = await groupChatApi.getGroupSettingsDetail(
+					normalized,
+				)
+				const profile = settingsRes.data?.data?.groupProfile
+				const avatarFromProfile = profile?.groupAvatarUrl?.trim() || ''
+				if (avatarFromProfile) detail.groupAvatarUrl = avatarFromProfile
+				const groupNameFromProfile = profile?.groupName?.trim() || ''
+				if (groupNameFromProfile) detail.groupName = groupNameFromProfile
+			} catch (error) {
+				console.warn(
+					'补充群资料失败(使用基础群信息继续):',
+					normalized,
+					error,
+				)
+			}
+		}
+		return detail
+	}
+
 	const ensureGroupSession = async (
 		groupNo: string,
 	): Promise<number | null> => {
@@ -1458,12 +1566,12 @@ export const useChatStore = defineStore('chat', () => {
 		if (!normalized) return null
 		const existing = findGroupChatByNo(normalized)
 		if (existing) {
+			scheduleGroupSessionSyncByNo(normalized)
 			await hydrateSingleChatPreviewFromLatestMessage(existing)
 			return existing.id
 		}
 		try {
-			const response = await groupChatApi.getGroup(normalized)
-			const detail = response.data?.data
+			const detail = await fetchGroupDetailForSession(normalized)
 			if (detail) {
 				return await upsertGroupSession(detail)
 			}
@@ -1494,14 +1602,54 @@ export const useChatStore = defineStore('chat', () => {
 		const normalized = groupNo.trim()
 		if (!normalized) return
 		try {
-			const response = await groupChatApi.getGroup(normalized)
-			const detail = response.data?.data
+			const detail = await fetchGroupDetailForSession(normalized)
 			if (detail) {
 				await upsertGroupSession(detail)
 			}
 		} catch (error) {
 			console.warn('同步群信息失败:', normalized, error)
 		}
+	}
+
+	const fetchAllJoinedGroupNos = async (
+		keyword?: string,
+	): Promise<string[]> => {
+		const normalizedKeyword = keyword?.trim() || undefined
+		const pageSize = 100
+		const maxPages = 50
+		const groupNoSet = new Set<string>()
+		let page = 1
+		let hasMore = true
+		while (hasMore && page <= maxPages) {
+			const response = await groupChatApi.getJoinedGroups({
+				page,
+				size: pageSize,
+				keyword: normalizedKeyword,
+			})
+			const payload = response.data?.data
+			const records = Array.isArray(payload?.records)
+				? payload.records
+				: Array.isArray(payload?.list)
+					? payload.list
+					: []
+			for (const item of records) {
+				const groupNo = item?.groupNo?.trim()
+				if (groupNo) groupNoSet.add(groupNo)
+			}
+			const hasMoreFromApi =
+				typeof payload?.hasMore === 'boolean' ? payload.hasMore : undefined
+			const totalPages = Number(payload?.totalPages || 0)
+			const reachedTail = records.length < pageSize
+			if (typeof hasMoreFromApi === 'boolean') {
+				hasMore = hasMoreFromApi
+			} else if (totalPages > 0) {
+				hasMore = page < totalPages
+			} else {
+				hasMore = !reachedTail
+			}
+			page += 1
+		}
+		return Array.from(groupNoSet)
 	}
 
 	const handleIncomingGroupWsMessage = async (
@@ -1515,6 +1663,7 @@ export const useChatStore = defineStore('chat', () => {
 		}
 		const chatId = await ensureGroupSession(payload.groupNo)
 		if (!chatId) return
+		scheduleGroupSessionSyncByNo(payload.groupNo)
 		const incomingClientMessageId = payload.clientMessageId?.trim() || ''
 		const incomingServerMessageId = payload.messageId?.trim() || ''
 		const existingList = messages.value[chatId] || []
@@ -1565,12 +1714,22 @@ export const useChatStore = defineStore('chat', () => {
 		const chat = chatlist.value.find((item) => item.id === chatId)
 		const isReadingCurrentChat =
 			isChatViewActive() && activeChatId.value === chatId
+		const mentionMe =
+			newMessage.senderId === 'other' &&
+			isMentioningCurrentUser(
+				newMessage.text || '',
+				currentAccount,
+				userInfoStore.userName || '',
+			)
 		if (chat && newMessage.senderId === 'other' && !isReadingCurrentChat) {
 			chat.unreadCount = (chat.unreadCount || 0) + 1
+			if (mentionMe) {
+				chat.mentionUnreadCount = (chat.mentionUnreadCount || 0) + 1
+			}
 			db.saveChat(chat)
 			triggerSystemMessageReminder({
 				chatName: chat.name || '群聊',
-				messageText: preview,
+				messageText: mentionMe ? `[有人@你] ${preview}` : preview,
 			})
 		}
 	}
@@ -2142,8 +2301,11 @@ export const useChatStore = defineStore('chat', () => {
 					case 'unpinChat':
 						unpinChatLocal(data.chatId)
 						break
+					case 'clearChat':
+						clearChatLocal(data.chatId)
+						break
 					case 'deleteChat':
-						deleteChatLocal(data.chatId)
+						removeChatLocal(data.chatId)
 						break
 					case 'markAsRead':
 						markAsReadLocal(data.chatId)
@@ -2283,6 +2445,7 @@ export const useChatStore = defineStore('chat', () => {
 		const chat = chatlist.value.find((c) => c.id === id)
 		if (chat) {
 			chat.unreadCount = 0
+			chat.mentionUnreadCount = 0
 			db.saveChat(chat) // 存入 DB
 		}
 	}
@@ -2305,7 +2468,26 @@ export const useChatStore = defineStore('chat', () => {
 		}
 	}
 
-	const deleteChatLocal = (chatId: number): void => {
+	const clearChatLocal = (chatId: number): void => {
+		const chat = chatlist.value.find((c) => c.id === chatId)
+		if (chat) {
+			chat.lastMessage = ''
+			chat.timestamp = ''
+			chat.lastMessageAt = undefined
+			chat.unreadCount = 0
+			chat.mentionUnreadCount = 0
+			db.saveChat(chat)
+		}
+		messages.value[chatId] = []
+		localHistoryCursorMap.value.set(chatId, {
+			nextOffsetFromLatest: 0,
+			hasMore: false,
+		})
+		historyPaginationMap.value.delete(chatId)
+		db.clearChat(chatId)
+	}
+
+	const removeChatLocal = (chatId: number): void => {
 		chatlist.value = chatlist.value.filter((c) => c.id !== chatId)
 		pinnedChats.value = pinnedChats.value.filter((c) => c.id !== chatId)
 		localHistoryCursorMap.value.delete(chatId)
@@ -2493,7 +2675,12 @@ export const useChatStore = defineStore('chat', () => {
 	}
 
 	const deleteChat = (chatId: number): void => {
-		deleteChatLocal(chatId)
+		removeChatLocal(chatId)
+		syncAction('deleteChat', { chatId })
+	}
+
+	const removeChat = (chatId: number): void => {
+		removeChatLocal(chatId)
 		syncAction('deleteChat', { chatId })
 	}
 
@@ -2597,8 +2784,7 @@ export const useChatStore = defineStore('chat', () => {
 		if (!normalized) {
 			throw new Error('群号不能为空')
 		}
-		const response = await groupChatApi.getGroup(normalized)
-		const detail = response.data?.data
+		const detail = await fetchGroupDetailForSession(normalized)
 		if (!detail) {
 			throw new Error('查询群信息失败')
 		}
@@ -2611,8 +2797,21 @@ export const useChatStore = defineStore('chat', () => {
 		if (!normalized) return []
 		const response = await groupChatApi.getGroupMembers(normalized)
 		const payload = response.data?.data
-		const members = Array.isArray(payload?.members) ? payload.members : []
-		const countFromApi = payload?.count
+		const pagedRecords =
+			payload && 'records' in payload && Array.isArray(payload.records)
+				? payload.records
+				: []
+		const legacyMembers =
+			payload && 'members' in payload && Array.isArray(payload.members)
+				? payload.members
+				: []
+		const members = pagedRecords.length ? pagedRecords : legacyMembers
+		const countFromApi =
+			payload && 'count' in payload
+				? payload.count
+				: payload && 'total' in payload
+					? payload.total
+					: undefined
 		const memberCount =
 			typeof countFromApi === 'number' && Number.isFinite(countFromApi)
 				? Math.max(0, Math.floor(countFromApi))
@@ -2645,10 +2844,23 @@ export const useChatStore = defineStore('chat', () => {
 		if (!normalized) {
 			throw new Error('群号不能为空')
 		}
-		await groupChatApi.quitGroup(normalized)
+		const response = await groupChatApi.quitGroup(normalized)
+		const result = response.data?.data as GroupQuitResult | null
+		const chat = findGroupChatByNo(normalized)
+		if (chat && result?.shouldRemoveLocalSession !== false) {
+			removeChat(chat.id)
+		}
+	}
+
+	const disbandGroupChat = async (groupNo: string): Promise<void> => {
+		const normalized = groupNo.trim()
+		if (!normalized) {
+			throw new Error('群号不能为空')
+		}
+		await groupChatApi.disbandGroup(normalized)
 		const chat = findGroupChatByNo(normalized)
 		if (chat) {
-			deleteChat(chat.id)
+			removeChat(chat.id)
 		}
 	}
 
@@ -2727,6 +2939,25 @@ export const useChatStore = defineStore('chat', () => {
 		await syncGroupSessionByNo(normalizedGroupNo)
 	}
 
+	const refreshAllGroupSessions = async (): Promise<void> => {
+		const groupNosFromLocal = chatlist.value
+			.filter((chat) => chat.chatType === 'GROUP')
+			.map((chat) => chat.groupNo?.trim() || '')
+			.filter(Boolean)
+		let groupNosFromRemote: string[] = []
+		try {
+			groupNosFromRemote = await fetchAllJoinedGroupNos()
+		} catch (error) {
+			console.warn('拉取我加入的群列表失败，回退本地群列表:', error)
+		}
+		const groupNos = Array.from(
+			new Set([...groupNosFromLocal, ...groupNosFromRemote]),
+		)
+		for (const groupNo of groupNos) {
+			await syncGroupSessionByNo(groupNo)
+		}
+	}
+
 	return {
 		activeChatId,
 		activeChat,
@@ -2756,11 +2987,13 @@ export const useChatStore = defineStore('chat', () => {
 		getGroupMembers,
 		joinGroupChat,
 		quitGroupChat,
+		disbandGroupChat,
 		inviteGroupFriend,
 		updateGroupAnnouncement,
 		setGroupAdmin,
 		removeGroupAdmin,
 		kickGroupMember,
+		refreshAllGroupSessions,
 		pullChatHistory,
 		loadMoreChatHistory,
 		queryChatHistory,
@@ -2785,6 +3018,7 @@ export interface ChatItem {
 	lastMessageAt?: string
 	online: boolean
 	unreadCount?: number
+	mentionUnreadCount?: number
 	isPinned?: boolean
 }
 
