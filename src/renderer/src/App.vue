@@ -3,6 +3,7 @@ import { computed, watchEffect, ref, onMounted } from 'vue' // 引入 watchEffec
 import {
 	darkTheme,
 	NConfigProvider,
+	NDialogProvider,
 	NMessageProvider,
 } from 'naive-ui'
 import Dragable from './components/Dragable.vue'
@@ -52,12 +53,14 @@ onMounted(() => {
 				class="shrink-0 absolute top-0 z-1000!"
 			/>
 			<div class="h-full w-full overflow-hidden flex flex-row">
-				<n-message-provider
-					:container-style="{ marginTop: '22px' }"
-					:max="5"
-				>
-					<router-view />
-				</n-message-provider>
+				<n-dialog-provider>
+					<n-message-provider
+						:container-style="{ marginTop: '22px' }"
+						:max="5"
+					>
+						<router-view />
+					</n-message-provider>
+				</n-dialog-provider>
 			</div>
 		</div>
 	</n-config-provider>

@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
-export type SidebarSlotIcon = 'user' | 'chat' | 'moments' | 'setting' | 'web'
+export type SidebarSlotIcon =
+	| 'user'
+	| 'chat'
+	| 'moments'
+	| 'setting'
+	| 'web'
+	| 'cloudDocs'
 
 export interface SidebarSlotDefinition {
 	slotKey: string

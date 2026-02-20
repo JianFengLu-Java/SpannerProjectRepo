@@ -65,6 +65,18 @@ const routes = [
 				component: () =>
 					import('../views/homeViews/setting/SettingView.vue'),
 			},
+			{
+				path: 'cloud-docs',
+				name: 'cloudDocs',
+				component: () =>
+					import('../views/homeViews/cloudDocs/CloudDocsManageView.vue'),
+			},
+			{
+				path: 'cloud-docs/:docId',
+				name: 'cloudDocsEditor',
+				component: () =>
+					import('../views/homeViews/cloudDocs/CloudDocEditorView.vue'),
+			},
 		],
 	},
 	{

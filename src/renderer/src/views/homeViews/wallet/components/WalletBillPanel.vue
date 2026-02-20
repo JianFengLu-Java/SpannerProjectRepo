@@ -64,10 +64,17 @@
 								<div class="flex items-center gap-4 flex-1">
 									<div 
 										class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-border-default/50" 
-										:class="isInflowType(record.changeType) ? 'bg-emerald-500/5 text-emerald-500' : 'bg-gray-500/5 text-gray-400'"
+										:class="
+											getRecordIconMode(record.changeType) === 'reward'
+												? 'bg-amber-500/10 text-amber-500'
+												: getRecordIconMode(record.changeType) === 'inflow'
+													? 'bg-emerald-500/5 text-emerald-500'
+													: 'bg-gray-500/5 text-gray-400'
+										"
 									>
 										<n-icon size="20">
-											<ArrowDownLeft24Filled v-if="isInflowType(record.changeType)" />
+											<GiftOutline v-if="getRecordIconMode(record.changeType) === 'reward'" />
+											<ArrowDownLeft24Filled v-else-if="getRecordIconMode(record.changeType) === 'inflow'" />
 											<ArrowUpRight24Filled v-else />
 										</n-icon>
 									</div>
@@ -176,6 +183,7 @@ import {
 	Receipt24Regular,
 	Receipt24Filled,
 } from '@vicons/fluent'
+import { GiftOutline } from '@vicons/ionicons5'
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWalletStore, type WalletFlowRecord } from '@renderer/stores/wallet'
@@ -217,6 +225,9 @@ const isInflowType = (changeType?: string): boolean =>
 	changeType === 'TASK_REWARD' ||
 	changeType === 'TRANSFER_IN'
 
+const isRewardType = (changeType?: string): boolean =>
+	changeType === 'REWARD' || changeType === 'TASK_REWARD'
+
 const getRecordDirectionSign = (changeType: string): '+' | '-' => (isInflowType(changeType) ? '+' : '-')
 
 const formatMoney = (cents: number): string =>
@@ -233,6 +244,12 @@ const getRecordTypeLabel = (type: string): string => {
 		VIP_PURCHASE: '会员购买',
 	}
 	return labels[type] || '其他交易'
+}
+
+const getRecordIconMode = (type: string): 'reward' | 'inflow' | 'outflow' => {
+	if (isRewardType(type)) return 'reward'
+	if (isInflowType(type)) return 'inflow'
+	return 'outflow'
 }
 
 const formatDateTime = (value: string, short = false): string => {

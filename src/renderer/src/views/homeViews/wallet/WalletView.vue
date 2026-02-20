@@ -112,15 +112,22 @@
 									@click="openDetail(record)"
 								>
 									<div class="flex items-center gap-4 flex-1">
-										<div 
-											class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" 
-											:class="isInflowType(record.changeType) ? 'bg-emerald-500/10 text-emerald-500' : 'bg-orange-500/10 text-orange-500'"
-										>
-											<n-icon size="22">
-												<ArrowDownLeft24Filled v-if="isInflowType(record.changeType)" />
-												<ArrowUpRight24Filled v-else />
-											</n-icon>
-										</div>
+								<div 
+									class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" 
+									:class="
+										getRecordIconMode(record.changeType) === 'reward'
+											? 'bg-amber-500/10 text-amber-500'
+											: getRecordIconMode(record.changeType) === 'inflow'
+												? 'bg-emerald-500/10 text-emerald-500'
+												: 'bg-orange-500/10 text-orange-500'
+									"
+								>
+									<n-icon size="22">
+										<GiftOutline v-if="getRecordIconMode(record.changeType) === 'reward'" />
+										<ArrowDownLeft24Filled v-else-if="getRecordIconMode(record.changeType) === 'inflow'" />
+										<ArrowUpRight24Filled v-else />
+									</n-icon>
+								</div>
 										<div class="min-w-0 flex-1">
 											<p class="text-sm font-bold truncate">{{ getRecordTypeLabel(record.changeType) }}</p>
 											<p class="text-xs text-gray-500 truncate">{{ formatDateTime(record.createdAt) }}</p>
@@ -319,6 +326,7 @@ import {
 	Dismiss24Regular,
 	Receipt24Filled,
 } from '@vicons/fluent'
+import { GiftOutline } from '@vicons/ionicons5'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWalletStore, type WalletFlowRecord } from '@renderer/stores/wallet'
@@ -401,6 +409,18 @@ const isInflowType = (
 	changeType === 'TASK_REWARD' ||
 	changeType === 'TRANSFER_IN'
 
+const isRewardType = (
+	changeType?:
+		| 'RECHARGE'
+		| 'REWARD'
+		| 'TASK_REWARD'
+		| 'CONSUME'
+		| 'TRANSFER_OUT'
+		| 'TRANSFER_IN'
+		| 'VIP_PURCHASE'
+		| string,
+): boolean => changeType === 'REWARD' || changeType === 'TASK_REWARD'
+
 const formatMoney = (cents: number): string =>
 	walletStore.formatAmount(cents, currency.value)
 
@@ -415,6 +435,12 @@ const getRecordTypeLabel = (type: string): string => {
 		VIP_PURCHASE: '会员购买',
 	}
 	return labels[type] || '其他交易'
+}
+
+const getRecordIconMode = (type: string): 'reward' | 'inflow' | 'outflow' => {
+	if (isRewardType(type)) return 'reward'
+	if (isInflowType(type)) return 'inflow'
+	return 'outflow'
 }
 
 const formatDateTime = (value: string): string => {

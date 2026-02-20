@@ -473,12 +473,13 @@ import {
 	Chatbubbles,
 	Person,
 	Settings,
-	SearchOutline as Search,
+	Search,
 	Add,
-	ApertureOutline,
-	GlobeOutline,
+	Aperture,
+	Globe,
 	Close,
-	WalletOutline,
+	Wallet,
+	DocumentText,
 } from '@vicons/ionicons5'
 import vipBadgeIcon from '@renderer/assets/VIP.svg'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
@@ -796,10 +797,11 @@ const handleUserMenuSelect = (key: string): void => {
 const iconMap: Record<string, Component> = {
 	chat: Chatbubbles,
 	user: Person,
-	moments: ApertureOutline,
-	wallet: WalletOutline,
+	moments: Aperture,
+	wallet: Wallet,
 	setting: Settings,
-	web: GlobeOutline,
+	web: Globe,
+	cloudDocs: DocumentText,
 }
 
 const routeMenus = computed<MenuItem[]>(() => [
@@ -840,6 +842,13 @@ const routeMenus = computed<MenuItem[]>(() => [
 		icon: 'setting',
 		label: '设置',
 	},
+	{
+		key: 'cloud-docs',
+		type: 'route',
+		name: 'cloudDocs',
+		icon: 'cloudDocs',
+		label: '云文档',
+	},
 ])
 
 const slotMenus = computed<MenuItem[]>(() =>
@@ -871,7 +880,7 @@ const globalSearchEntries = computed<GlobalSearchEntry[]>(() => {
 		label: item.label || '临时标签页',
 		description: '切换到已打开标签页',
 		typeLabel: '标签页',
-		icon: iconMap[item.icon] || GlobeOutline,
+		icon: iconMap[item.icon] || Globe,
 		keywords: [item.label || '', item.icon, item.slotKey || ''],
 		action: () => {
 			go(item)
@@ -998,9 +1007,13 @@ const isWebSlotItem = (item: MenuItem): boolean => item.icon === 'web'
 const isProfileCardSlotItem = (item: MenuItem): boolean =>
 	item.slotKey === 'my-profile-card'
 
+const isCloudDocSlotItem = (item: MenuItem): boolean =>
+	item.icon === 'cloudDocs'
+
 const getCollapsedSlotLabel = (item: MenuItem): string => {
 	if (isWebSlotItem(item)) return '网页'
 	if (isProfileCardSlotItem(item)) return '资料'
+	if (isCloudDocSlotItem(item)) return '文档'
 	return item.label || ''
 }
 
@@ -1008,6 +1021,7 @@ const shouldShowSlotTooltip = (item: MenuItem): boolean => {
 	if (!item.label) return false
 	if (isWebSlotItem(item)) return item.label !== '网页'
 	if (isProfileCardSlotItem(item)) return item.label !== '用户中心'
+	if (isCloudDocSlotItem(item)) return true
 	return false
 }
 
@@ -1174,6 +1188,9 @@ function isMenuActive(item: MenuItem): boolean {
 		return sidebarSlotStore.activeSlotKey === item.slotKey
 	}
 	if (sidebarSlotStore.activeSlotKey) return false
+	if (item.name === 'cloudDocs' && route.name === 'cloudDocsEditor') {
+		return true
+	}
 	return route.name === item.name
 }
 </script>

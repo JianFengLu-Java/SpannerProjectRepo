@@ -399,21 +399,112 @@ const noticeDetailLines = computed(() => {
 	return noticeLines.value.slice(1)
 })
 
+const normalizeFieldKey = (value: string): string =>
+	value.replace(/[\s_\-:：]/g, '').toLowerCase()
+
+const toScalarText = (value: unknown): string | undefined => {
+	if (typeof value === 'string') {
+		const trimmed = value.trim()
+		return trimmed || undefined
+	}
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return String(value)
+	}
+	return undefined
+}
+
+const tryParseJsonObject = (value: string): Record<string, unknown> | null => {
+	const trimmed = value.trim()
+	if (!trimmed) return null
+	try {
+		const parsed = JSON.parse(trimmed)
+		if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+			return parsed as Record<string, unknown>
+		}
+		return null
+	} catch {
+		return null
+	}
+}
+
+const extractFirstJsonObject = (value: string): Record<string, unknown> | null => {
+	const trimmed = value.trim()
+	if (!trimmed) return null
+	const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
+	if (fenced?.[1]) {
+		const parsed = tryParseJsonObject(fenced[1])
+		if (parsed) return parsed
+	}
+	const direct = tryParseJsonObject(trimmed)
+	if (direct) return direct
+	const firstBrace = trimmed.indexOf('{')
+	const lastBrace = trimmed.lastIndexOf('}')
+	if (firstBrace >= 0 && lastBrace > firstBrace) {
+		const maybe = trimmed.slice(firstBrace, lastBrace + 1)
+		const parsed = tryParseJsonObject(maybe)
+		if (parsed) return parsed
+	}
+	return null
+}
+
+const findFieldFromObject = (
+	obj: unknown,
+	keywords: string[],
+	depth = 0,
+): string | undefined => {
+	if (!obj || typeof obj !== 'object' || depth > 4) return undefined
+	const keywordSet = new Set(keywords.map(normalizeFieldKey))
+	const row = obj as Record<string, unknown>
+	for (const [key, value] of Object.entries(row)) {
+		const normalizedKey = normalizeFieldKey(key)
+		if (keywordSet.has(normalizedKey)) {
+			const scalar = toScalarText(value)
+			if (scalar) return scalar
+		}
+	}
+	for (const nested of Object.values(row)) {
+		if (Array.isArray(nested)) {
+			for (const item of nested) {
+				const found = findFieldFromObject(item, keywords, depth + 1)
+				if (found) return found
+			}
+			continue
+		}
+		const found = findFieldFromObject(nested, keywords, depth + 1)
+		if (found) return found
+	}
+	return undefined
+}
+
+const noticeStructuredPayload = computed(() =>
+	extractFirstJsonObject(props.content || ''),
+)
+
 const extractNoticeFieldValue = (keywords: string[]): string | undefined => {
+	const fromPayload = findFieldFromObject(
+		noticeStructuredPayload.value,
+		keywords,
+	)
+	if (fromPayload) return fromPayload
+
 	for (const rawLine of noticeLines.value) {
 		const line = rawLine.trim()
 		if (!line) continue
 		if (!keywords.some((keyword) => line.includes(keyword))) continue
 		const withColon = line.match(/[：:]\s*(.+)$/)
 		if (withColon?.[1]?.trim()) {
-			return withColon[1].trim()
+			const value = withColon[1].trim().split(/[，,；;。]/)[0]?.trim()
+			if (value) return value
 		}
 		for (const keyword of keywords) {
 			if (!line.includes(keyword)) continue
-			const normalized = line
-				.replace(keyword, '')
-				.replace(/^(已|为|是)\s*/, '')
-				.trim()
+			const index = line.indexOf(keyword)
+			if (index < 0) continue
+			const afterKeyword = line.slice(index + keyword.length)
+			const normalized = afterKeyword
+				.replace(/^(?:\s*[：:=]\s*|已|为|是|\s+)/, '')
+				.split(/[，,；;。]/)[0]
+				?.trim()
 			if (normalized) return normalized
 		}
 	}
@@ -505,12 +596,26 @@ const vipNoticeStatus = computed<MembershipNoticeStatus>(() => {
 })
 
 const vipNoticeAmountRaw = computed(
-	() => extractNoticeFieldValue(['充值金额', '支付金额', '金额']) || '',
+	() =>
+		extractNoticeFieldValue([
+			'充值金额',
+			'支付金额',
+			'金额',
+			'amount',
+			'payAmount',
+		]) || '',
 )
 
 const vipNoticePlan = computed(
 	() =>
-		extractNoticeFieldValue(['套餐名称', '会员套餐', '套餐', '方案']) || '',
+		extractNoticeFieldValue([
+			'套餐名称',
+			'会员套餐',
+			'套餐',
+			'方案',
+			'planName',
+			'planCode',
+		]) || '',
 )
 
 const vipNoticeAmount = computed(() => {
@@ -526,7 +631,14 @@ const vipNoticeCurrency = computed(() => {
 })
 
 const vipNoticeDurationDays = computed(() => {
-	const raw = extractNoticeFieldValue(['时长', '会员时长', '有效期']) || ''
+	const raw =
+		extractNoticeFieldValue([
+			'时长',
+			'会员时长',
+			'有效期',
+			'months',
+			'month',
+		]) || ''
 	const byDurationField = parseDurationDays(raw)
 	if (byDurationField > 0) return byDurationField
 
@@ -540,9 +652,19 @@ const vipNoticeDurationDays = computed(() => {
 			'到期时间',
 			'到期日期',
 			'到期',
+			'vipExpireAt',
+			'expireAt',
+			'endAt',
 		]) || ''
 	const paidAtField =
-		extractNoticeFieldValue(['到账时间', '支付时间', '完成时间', '时间']) ||
+		extractNoticeFieldValue([
+			'到账时间',
+			'支付时间',
+			'完成时间',
+			'时间',
+			'createdAt',
+			'sentAt',
+		]) ||
 		props.time ||
 		''
 	const expireAt = parseDateLike(expireField)
@@ -572,12 +694,21 @@ const vipNoticeLevelAfter = computed(
 			'升级后等级',
 			'会员等级',
 			'用户等级',
+			'userLevel',
+			'level',
 		]) || '',
 )
 
 const vipNoticePaidAt = computed(() => {
 	return (
-		extractNoticeFieldValue(['到账时间', '支付时间', '完成时间', '时间']) ||
+		extractNoticeFieldValue([
+			'到账时间',
+			'支付时间',
+			'完成时间',
+			'时间',
+			'createdAt',
+			'sentAt',
+		]) ||
 		props.time ||
 		''
 	)
@@ -597,8 +728,11 @@ const vipNoticeOrderId = computed(() => {
 	const billNo =
 		normalizeOrderId(
 			extractNoticeFieldValue([
+				'paymentOrderNo',
+				'paymentNo',
 				'账单号',
 				'账单编号',
+				'账单流水号',
 				'业务单号',
 				'流水号',
 				'billNo',
