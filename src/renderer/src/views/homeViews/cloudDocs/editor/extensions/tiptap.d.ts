@@ -19,5 +19,9 @@ declare module '@tiptap/core' {
 		customHighlight: {
 			toggleCustomHighlight: () => ReturnType
 		}
+		fontSize: {
+			setFontSize: (size: string) => ReturnType
+			unsetFontSize: () => ReturnType
+		}
 	}
 }

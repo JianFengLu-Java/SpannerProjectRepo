@@ -16,14 +16,13 @@ import {
 	TextStrikethrough24Regular,
 	Highlight24Regular,
 	Code24Regular,
+	Image24Regular,
+	Table24Regular,
 	TextBulletListLtr24Regular,
 	TextNumberListLtr24Regular,
 	CheckboxUnchecked24Regular,
 	ArrowUndo24Regular,
 	ArrowRedo24Regular,
-	DocumentArrowUp20Regular,
-	DocumentArrowDown20Regular,
-	DocumentAdd24Regular,
 	Eraser24Regular,
 } from '@vicons/fluent'
 import MarkButton from '../components/editor/MarkButton.vue'
@@ -36,6 +35,8 @@ const props = defineProps<{
 	saveTagType: 'default' | 'warning' | 'success' | 'error'
 	activeBlockType: string
 	blockOptions: SelectOption[]
+	fontSizeOptions: SelectOption[]
+	currentFontSize: string
 	linkValue: string
 	canUndo: boolean
 	canRedo: boolean
@@ -44,12 +45,13 @@ const props = defineProps<{
 const emit = defineEmits<{
 	(e: 'update:title', value: string): void
 	(e: 'set-block', value: string): void
+	(e: 'set-font-size', value: string): void
 	(e: 'set-link', value: string): void
 	(e: 'clear-link'): void
+	(e: 'insert-image'): void
+	(e: 'insert-table'): void
+	(e: 'toggle-code-block'): void
 	(e: 'clear-marks'): void
-	(e: 'export-json'): void
-	(e: 'import-json'): void
-	(e: 'new-doc'): void
 	(e: 'undo'): void
 	(e: 'redo'): void
 }>()
@@ -79,6 +81,13 @@ const emit = defineEmits<{
 				:options="props.blockOptions"
 				class="editor-toolbar-select"
 				@update:value="emit('set-block', $event)"
+			/>
+			<n-select
+				:size="'small'"
+				:value="props.currentFontSize"
+				:options="props.fontSizeOptions"
+				class="editor-toolbar-font-size"
+				@update:value="emit('set-font-size', $event)"
 			/>
 			<div class="editor-toolbar-divider" />
 			<div class="editor-toolbar-actions">
@@ -234,6 +243,36 @@ const emit = defineEmits<{
 				/>
 				<n-tooltip trigger="hover">
 					<template #trigger>
+						<MarkButton @click="emit('insert-image')">
+							<n-icon size="16"><Image24Regular /></n-icon>
+						</MarkButton>
+					</template>
+					插入图片
+				</n-tooltip>
+				<n-tooltip trigger="hover">
+					<template #trigger>
+						<MarkButton
+							:active="props.editor?.isActive('table')"
+							@click="emit('insert-table')"
+						>
+							<n-icon size="16"><Table24Regular /></n-icon>
+						</MarkButton>
+					</template>
+					插入表格
+				</n-tooltip>
+				<n-tooltip trigger="hover">
+					<template #trigger>
+						<MarkButton
+							:active="props.editor?.isActive('codeBlock')"
+							@click="emit('toggle-code-block')"
+						>
+							<n-icon size="16"><Code24Regular /></n-icon>
+						</MarkButton>
+					</template>
+					代码块
+				</n-tooltip>
+				<n-tooltip trigger="hover">
+					<template #trigger>
 						<MarkButton @click="emit('clear-marks')">
 							<n-icon size="16"><Eraser24Regular /></n-icon>
 						</MarkButton>
@@ -305,26 +344,6 @@ const emit = defineEmits<{
 			</n-button>
 		</div>
 
-		<div class="editor-toolbar-footer">
-			<n-button size="small" quaternary @click="emit('new-doc')">
-				<template #icon>
-					<n-icon size="16"><DocumentAdd24Regular /></n-icon>
-				</template>
-				新建空白
-			</n-button>
-			<n-button size="small" quaternary @click="emit('export-json')">
-				<template #icon>
-					<n-icon size="16"><DocumentArrowUp20Regular /></n-icon>
-				</template>
-				导出 JSON
-			</n-button>
-			<n-button size="small" quaternary @click="emit('import-json')">
-				<template #icon>
-					<n-icon size="16"><DocumentArrowDown20Regular /></n-icon>
-				</template>
-				导入 JSON
-			</n-button>
-		</div>
 	</div>
 </template>
 
@@ -333,13 +352,14 @@ const emit = defineEmits<{
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
-	padding: 12px 20px 12px;
+	padding: 12px 20px;
 	background: #ffffff;
 }
 
 .editor-toolbar-top {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: 16px;
 }
 
@@ -369,7 +389,6 @@ const emit = defineEmits<{
 	align-items: center;
 	gap: 8px;
 	padding: 4px;
-	/* border: 1px solid #f0f0f0; */
 	border-radius: 8px;
 	background: #ffffff;
 	flex-wrap: wrap;
@@ -377,6 +396,10 @@ const emit = defineEmits<{
 
 .editor-toolbar-select {
 	width: 140px;
+}
+
+.editor-toolbar-font-size {
+	width: 96px;
 }
 
 .editor-toolbar-divider {
@@ -392,13 +415,15 @@ const emit = defineEmits<{
 	gap: 2px;
 	flex-wrap: wrap;
 	flex: 1;
+	min-width: 240px;
 }
 
 .editor-toolbar-footer {
 	display: flex;
 	align-items: center;
 	gap: 12px;
-    margin-left: auto; /* Push to right if in same row, but here it is separate */
+	flex-wrap: wrap;
+	justify-content: flex-end;
 }
 
 .editor-toolbar-history {
@@ -412,5 +437,68 @@ const emit = defineEmits<{
 	align-items: center;
 	gap: 8px;
 	padding: 0 2px;
+	flex-wrap: wrap;
+}
+
+@media (max-width: 1100px) {
+	.editor-toolbar-root {
+		gap: 10px;
+		padding: 10px 14px;
+	}
+
+	.editor-toolbar-main {
+		display: grid;
+		grid-template-columns: 140px 96px minmax(0, 1fr) auto;
+		align-items: start;
+		row-gap: 8px;
+	}
+
+	.editor-toolbar-divider {
+		display: none;
+	}
+}
+
+@media (max-width: 760px) {
+	.editor-toolbar-top {
+		gap: 8px;
+	}
+
+	.editor-toolbar-top :deep(.n-input) {
+		width: 100%;
+	}
+
+	.editor-toolbar-main {
+		grid-template-columns: 1fr 1fr;
+		gap: 6px;
+		padding: 2px 0;
+	}
+
+	.editor-toolbar-select,
+	.editor-toolbar-font-size {
+		width: 100%;
+	}
+
+	.editor-toolbar-actions {
+		grid-column: 1 / -1;
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		overflow-y: hidden;
+		padding-bottom: 2px;
+		scrollbar-width: thin;
+	}
+
+	.editor-toolbar-history {
+		grid-column: 1 / -1;
+		justify-content: flex-end;
+	}
+
+	.editor-toolbar-table {
+		gap: 6px;
+	}
+
+	.editor-toolbar-footer {
+		justify-content: flex-start;
+		gap: 8px;
+	}
 }
 </style>

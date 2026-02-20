@@ -115,16 +115,22 @@
 								<div 
 									class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" 
 									:class="
-										getRecordIconMode(record.changeType) === 'reward'
+										getRecordIconType(record.changeType) === 'reward'
 											? 'bg-amber-500/10 text-amber-500'
-											: getRecordIconMode(record.changeType) === 'inflow'
+											: getRecordIconType(record.changeType) === 'transfer'
+												? 'bg-cyan-500/10 text-cyan-500'
+												: getRecordIconType(record.changeType) === 'vip'
+													? 'bg-violet-500/10 text-violet-500'
+													: getRecordIconType(record.changeType) === 'inflow'
 												? 'bg-emerald-500/10 text-emerald-500'
 												: 'bg-orange-500/10 text-orange-500'
 									"
 								>
 									<n-icon size="22">
-										<GiftOutline v-if="getRecordIconMode(record.changeType) === 'reward'" />
-										<ArrowDownLeft24Filled v-else-if="getRecordIconMode(record.changeType) === 'inflow'" />
+										<GiftOutline v-if="getRecordIconType(record.changeType) === 'reward'" />
+										<SwapHorizontalOutline v-else-if="getRecordIconType(record.changeType) === 'transfer'" />
+										<DiamondOutline v-else-if="getRecordIconType(record.changeType) === 'vip'" />
+										<ArrowDownLeft24Filled v-else-if="getRecordIconType(record.changeType) === 'inflow'" />
 										<ArrowUpRight24Filled v-else />
 									</n-icon>
 								</div>
@@ -326,7 +332,7 @@ import {
 	Dismiss24Regular,
 	Receipt24Filled,
 } from '@vicons/fluent'
-import { GiftOutline } from '@vicons/ionicons5'
+import { DiamondOutline, GiftOutline, SwapHorizontalOutline } from '@vicons/ionicons5'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWalletStore, type WalletFlowRecord } from '@renderer/stores/wallet'
@@ -437,8 +443,12 @@ const getRecordTypeLabel = (type: string): string => {
 	return labels[type] || '其他交易'
 }
 
-const getRecordIconMode = (type: string): 'reward' | 'inflow' | 'outflow' => {
+const getRecordIconType = (
+	type: string,
+): 'reward' | 'transfer' | 'vip' | 'inflow' | 'outflow' => {
 	if (isRewardType(type)) return 'reward'
+	if (type === 'TRANSFER_IN' || type === 'TRANSFER_OUT') return 'transfer'
+	if (type === 'VIP_PURCHASE') return 'vip'
 	if (isInflowType(type)) return 'inflow'
 	return 'outflow'
 }

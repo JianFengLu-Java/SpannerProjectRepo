@@ -1,11 +1,16 @@
 export interface CloudDoc {
 	id: string
 	title: string
+	snippet?: string
 	contentHtml: string
 	contentJson: string
 	createdAt: string
 	updatedAt: string
 	lastSavedAt: string | null
+	version: number
+	ownerAccount?: string
+	editable: boolean
+	deleted?: boolean
 }
 
 export type CloudDocSaveState = 'idle' | 'saving' | 'saved' | 'error'

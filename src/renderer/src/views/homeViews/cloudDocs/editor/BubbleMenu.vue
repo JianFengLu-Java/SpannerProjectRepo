@@ -19,6 +19,13 @@ const props = defineProps<{
 	editor: Editor | undefined | null
 }>()
 
+const shouldShow = (ctx: any): boolean => {
+	const editor = ctx.editor
+	if (!editor) return false
+	if (editor.isActive('image')) return false
+	return !editor.state.selection.empty
+}
+
 const onLinkClick = (): void => {
 	if (!props.editor) return
 	const previousUrl = props.editor.getAttributes('link').href
@@ -49,6 +56,8 @@ const onLinkClick = (): void => {
 	<bubble-menu
 		v-if="props.editor"
 		:editor="props.editor"
+		plugin-key="cloud-doc-text-bubble-menu"
+		:should-show="shouldShow"
 		:tippy-options="{ duration: 100, placement: 'top' }"
 		class="bubble-menu-root"
 	>

@@ -22,7 +22,6 @@ const syncActiveDocByRoute = async (): Promise<void> => {
 	await cloudDocStore.init()
 	const id = routeDocId.value
 	if (!id) return
-	if (!docs.value.some((doc) => doc.id === id)) return
 	await cloudDocStore.selectDoc(id)
 }
 

@@ -9,7 +9,7 @@ import {
 	ImageOutline,
 	At,
 	HappyOutline,
-	WalletOutline,
+	SwapHorizontalOutline,
 } from '@vicons/ionicons5'
 import { useMessage, NPopover, NIcon, NModal } from 'naive-ui'
 import { useChatStore } from '@renderer/stores/chat'
@@ -85,6 +85,10 @@ const mentionQuery = ref('')
 const mentionActiveIndex = ref(0)
 const mentionRange = ref<{ from: number; to: number } | null>(null)
 const mentionMembers = ref<Array<{ account: string; name: string }>>([])
+const chatFontSizeOptions = [14, 16, 18, 20] as const
+const chatFontSizeStorageKey = 'spanner.chat.composerFontSize'
+const chatFontSize = ref<number>(16)
+const chatFontSizeLabel = computed(() => `${chatFontSize.value}px`)
 
 const handlePinInput = (index: number, e: Event): void => {
 	const val = (e.target as HTMLInputElement).value
@@ -816,7 +820,35 @@ const checkLayout = (): void => {
 	actionsRef.value.style.removeProperty('flex')
 }
 
+const applyStoredChatFontSize = (): void => {
+	const raw = window.localStorage.getItem(chatFontSizeStorageKey)
+	const parsed = Number(raw)
+	if (
+		Number.isFinite(parsed) &&
+		chatFontSizeOptions.includes(parsed as (typeof chatFontSizeOptions)[number])
+	) {
+		chatFontSize.value = parsed
+	}
+}
+
+const toggleChatFontSize = (): void => {
+	const index = chatFontSizeOptions.indexOf(
+		chatFontSize.value as (typeof chatFontSizeOptions)[number],
+	)
+	const nextIndex = index < 0 ? 0 : (index + 1) % chatFontSizeOptions.length
+	chatFontSize.value = chatFontSizeOptions[nextIndex]
+	window.localStorage.setItem(
+		chatFontSizeStorageKey,
+		String(chatFontSize.value),
+	)
+	nextTick(() => {
+		checkLayoutWithImages()
+		editor.value?.commands.scrollIntoView()
+	})
+}
+
 onMounted(() => {
+	applyStoredChatFontSize()
 	resizeObserver = new ResizeObserver(() =>
 		requestAnimationFrame(checkLayout),
 	)
@@ -1010,8 +1042,12 @@ onUnmounted(() => {
 						</div>
 					</BubbleMenu>
 
-					<editor-content :editor="editor"
-						class="tiptap-editor w-full max-h-64 overflow-y-auto overflow-x-hidden" @click="focusEditor" />
+					<editor-content
+						:editor="editor"
+						class="tiptap-editor w-full max-h-64 overflow-y-auto overflow-x-hidden"
+						:style="{ fontSize: `${chatFontSize}px` }"
+						@click="focusEditor"
+					/>
 				</div>
 
 				<div ref="actionsRef" class="flex items-center gap-1 shrink-0 h-fit transition-all duration-200"
@@ -1048,14 +1084,20 @@ onUnmounted(() => {
 								<EmojiPicker @select="onSelectEmoji" @select-custom="onSelectCustomEmoji" />
 							</n-popover>
 						</div>
-						<button type="button" class="composer-action-btn" title="字体大小">
+						<button
+							type="button"
+							class="composer-action-btn"
+							:title="`字体大小：${chatFontSizeLabel}`"
+							@click="toggleChatFontSize"
+						>
 							<n-icon size="18">
 								<FontDecrease24Regular />
 							</n-icon>
+							<span class="composer-font-size-label">{{ chatFontSize }}</span>
 						</button>
 						<button type="button" class="composer-action-btn" title="聊天转账" @click="openTransferModal">
 							<n-icon size="18">
-								<WalletOutline />
+								<SwapHorizontalOutline />
 							</n-icon>
 						</button>
 
@@ -1328,6 +1370,14 @@ onUnmounted(() => {
 
 .composer-action-btn:active {
 	transform: translateY(0);
+}
+
+.composer-font-size-label {
+	font-size: 10px;
+	line-height: 1;
+	margin-left: 2px;
+	color: currentColor;
+	opacity: 0.75;
 }
 
 :deep(.dark) .composer-action-btn {

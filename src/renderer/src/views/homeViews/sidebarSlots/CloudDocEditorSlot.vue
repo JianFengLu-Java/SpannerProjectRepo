@@ -34,7 +34,6 @@ const ensureActiveDoc = async (): Promise<void> => {
 	await cloudDocStore.init()
 	const id = slotDocId.value
 	if (!id) return
-	if (!docs.value.some((doc) => doc.id === id)) return
 	if (activeDoc.value?.id === id) return
 	await cloudDocStore.selectDoc(id)
 }

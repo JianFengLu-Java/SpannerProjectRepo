@@ -29,6 +29,12 @@ const readDocsFromStorage = (): CloudDoc[] => {
 			.map((item) => ({
 				...item,
 				contentJson: typeof item.contentJson === 'string' ? item.contentJson : '',
+				version:
+					typeof item.version === 'number' && Number.isFinite(item.version)
+						? item.version
+						: 0,
+				editable:
+					typeof item.editable === 'boolean' ? item.editable : true,
 			}))
 	} catch {
 		return []
@@ -65,6 +71,8 @@ export const mockCloudDocService = {
 			createdAt: now,
 			updatedAt: now,
 			lastSavedAt: now,
+			version: 0,
+			editable: true,
 		}
 		const merged = sortByUpdatedAt([next, ...docs])
 		writeDocsToStorage(merged)
@@ -88,6 +96,7 @@ export const mockCloudDocService = {
 			contentJson: payload.contentJson,
 			updatedAt: now,
 			lastSavedAt: now,
+			version: target.version + 1,
 		}
 		docs[targetIndex] = updated
 		writeDocsToStorage(sortByUpdatedAt(docs))

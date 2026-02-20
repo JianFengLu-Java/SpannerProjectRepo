@@ -112,6 +112,76 @@ export const HighlightMark = Mark.create({
 	},
 })
 
+export const FontSizeMark = Mark.create({
+	name: 'fontSize',
+	parseHTML() {
+		return [
+			{
+				style: 'font-size',
+				getAttrs: (value) => {
+					const size = String(value || '').trim()
+					return size ? { size } : false
+				},
+			},
+			{
+				tag: 'span[data-font-size]',
+				getAttrs: (el) => {
+					if (!(el instanceof HTMLElement)) return false
+					const size = el.getAttribute('data-font-size') || ''
+					return size ? { size } : false
+				},
+			},
+		]
+	},
+	renderHTML({ HTMLAttributes }) {
+		const size = String(HTMLAttributes.size || '').trim()
+		if (!size) return ['span', {}, 0]
+		return [
+			'span',
+			{
+				...HTMLAttributes,
+				'data-font-size': size,
+				style: `font-size: ${size};`,
+			},
+			0,
+		]
+	},
+	addAttributes() {
+		return {
+			size: {
+				default: null,
+				parseHTML: (el) => {
+					if (!(el instanceof HTMLElement)) return null
+					return el.style.fontSize || el.getAttribute('data-font-size')
+				},
+				renderHTML: (attrs) => {
+					const size = String(attrs.size || '').trim()
+					if (!size) return {}
+					return {
+						'data-font-size': size,
+						style: `font-size: ${size};`,
+					}
+				},
+			},
+		}
+	},
+	addCommands() {
+		return {
+			setFontSize:
+				(size: string) =>
+				({ chain }) => {
+					const normalized = size.trim()
+					if (!normalized) return false
+					return chain().setMark(this.name, { size: normalized }).run()
+				},
+			unsetFontSize:
+				() =>
+				({ commands }) =>
+					commands.unsetMark(this.name),
+		}
+	},
+})
+
 export const BlockKitExtension = Extension.create({
 	name: 'blockKit',
 	addProseMirrorPlugins() {
