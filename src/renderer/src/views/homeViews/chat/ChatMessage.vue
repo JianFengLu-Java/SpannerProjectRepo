@@ -161,6 +161,18 @@
 				</div>
 
 				<div
+					v-else-if="isCloudDocShareCard"
+					class="cloud-doc-card avatar-no-select"
+					@click="handleCloudDocCardClick"
+				>
+					<div class="cloud-doc-card-title">云文档分享</div>
+					<div class="cloud-doc-card-name">
+						{{ cloudDocShareTitle || '未标题云文档' }}
+					</div>
+					<div class="cloud-doc-card-desc">点击打开云文档</div>
+				</div>
+
+				<div
 					v-else-if="isOnlyImage"
 					class="msg-content-selectable"
 					@click="handleClickEvent"
@@ -345,9 +357,13 @@ import MembershipTopUpNoticeCard, {
 import { NModal, NIcon, NSpin, useMessage } from 'naive-ui'
 import { useWalletStore } from '@renderer/stores/wallet'
 import { useChatStore } from '@renderer/stores/chat'
+import { useCloudDocStore } from '@renderer/stores/cloudDoc'
+import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
 
 const walletStore = useWalletStore()
 const chatStore = useChatStore()
+const cloudDocStore = useCloudDocStore()
+const sidebarSlotStore = useSidebarSlotStore()
 const message = useMessage()
 
 const props = defineProps<{
@@ -1053,8 +1069,60 @@ const handleConfirmAccept = async (): Promise<void> => {
 	}
 }
 
+const isCloudDocShareCard = computed(() =>
+	/\bchat-cloud-doc-share-card\b/i.test(props.content || ''),
+)
+
+const decodeHtmlEntities = (value: string): string => {
+	const text = value.trim()
+	if (!text) return ''
+	const holder = document.createElement('textarea')
+	holder.innerHTML = text
+	return holder.value || text
+}
+
+const cloudDocShareNo = computed(() => {
+	const matched = (props.content || '').match(
+		/data-share-no\s*=\s*["']([^"']+)["']/i,
+	)
+	return matched?.[1]?.trim() || ''
+})
+
+const cloudDocShareTitle = computed(() => {
+	const titleMatched = (props.content || '').match(
+		/data-doc-title\s*=\s*["']([^"']+)["']/i,
+	)
+	if (titleMatched?.[1]) return decodeHtmlEntities(titleMatched[1])
+	const lineMatched = (props.content || '').match(/文档\s*[：:]\s*([^<\n]+)/i)
+	return decodeHtmlEntities(lineMatched?.[1] || '')
+})
+
+const handleCloudDocCardClick = async (): Promise<void> => {
+	const shareNo = cloudDocShareNo.value
+	if (!shareNo) {
+		message.warning('分享标识缺失，无法打开文档')
+		return
+	}
+	try {
+		const shared = await cloudDocStore.fetchSharedDocByShareNo(shareNo)
+		if (!shared?.doc?.id) {
+			message.warning('分享文档不存在或已失效')
+			return
+		}
+		sidebarSlotStore.openSlot({
+			slotKey: `cloud-doc-share:${shareNo}`,
+			title: `分享: ${shared.doc.title || '未标题云文档'}`,
+			componentKey: 'cloud-doc-shared-editor',
+			icon: 'cloudDocs',
+		})
+	} catch (error) {
+		console.error('打开分享云文档失败', error)
+		message.error('打开分享文档失败，请稍后重试')
+	}
+}
+
 const isOnlyImage = computed(() => {
-	if (isTransferCard.value) return false
+	if (isTransferCard.value || isCloudDocShareCard.value) return false
 	if (!props.content) return false
 	let html = props.content.replace(/\s/g, '')
 	html = html
@@ -1074,6 +1142,11 @@ const isOnlyImage = computed(() => {
 
 const handleClickEvent = (e: MouseEvent): void => {
 	const target = e.target as HTMLElement
+	const card = target.closest('.chat-cloud-doc-share-card')
+	if (card instanceof HTMLElement) {
+		void handleCloudDocCardClick()
+		return
+	}
 	if (target.tagName === 'IMG') {
 		window.electron.ipcRenderer.send(
 			'view-img',
@@ -1165,6 +1238,36 @@ onUpdated(attachLoadEvents)
 .chat-bubble-me :deep(a:hover) {
 	color: #f4f9ff;
 	text-decoration-color: rgb(244 249 255 / 90%);
+}
+
+.cloud-doc-card {
+	min-width: 250px;
+	max-width: 360px;
+	padding: 12px;
+	border-radius: 12px;
+	border: 1px solid #c9dfff;
+	background: linear-gradient(160deg, #f7fbff 0%, #ebf4ff 100%);
+	cursor: pointer;
+}
+
+.cloud-doc-card-title {
+	font-size: 12px;
+	font-weight: 700;
+	color: #2f7fe7;
+}
+
+.cloud-doc-card-name {
+	margin-top: 6px;
+	font-size: 14px;
+	font-weight: 600;
+	color: #1f2937;
+	word-break: break-all;
+}
+
+.cloud-doc-card-desc {
+	margin-top: 6px;
+	font-size: 11px;
+	color: #64748b;
 }
 
 .notice-card {

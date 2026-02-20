@@ -41,6 +41,33 @@ export interface CloudDocSaveResponseDto {
 	version?: number
 }
 
+export interface CloudDocShareResponseDto {
+	shareNo?: string
+	docId?: string
+	friendAccount?: string
+	createdAt?: string
+	expireAt?: string | null
+	sharePath?: string
+}
+
+export interface CloudDocSharedDetailDto {
+	shareNo?: string
+	doc?: CloudDocDetailDto
+}
+
+export interface ReceivedCloudDocShareDto {
+	shareNo?: string
+	docId?: string
+	title?: string
+	snippet?: string
+	ownerAccount?: string
+	status?: 'ACTIVE' | 'EXPIRED' | 'REVOKED' | string
+	expired?: boolean
+	createdAt?: string
+	expireAt?: string | null
+	lastViewedAt?: string | null
+}
+
 export const cloudDocApi = {
 	listDocs(params?: {
 		page?: number
@@ -87,5 +114,43 @@ export const cloudDocApi = {
 
 	deleteDoc(docId: string) {
 		return request.delete<ApiResponse<Record<string, never>>>(`/cloud-docs/${docId}`)
+	},
+
+	shareDoc(
+		docId: string,
+		payload: {
+			friendAccount: string
+			expireHours?: number
+		},
+	) {
+		return request.post<ApiResponse<CloudDocShareResponseDto>>(
+			`/cloud-docs/${docId}/share`,
+			payload,
+		)
+	},
+
+	getSharedDoc(shareNo: string) {
+		return request.get<ApiResponse<CloudDocSharedDetailDto>>(
+			`/cloud-docs/shares/${shareNo}`,
+		)
+	},
+
+	listReceivedShares(params?: {
+		page?: number
+		size?: number
+		status?: 'ACTIVE' | 'EXPIRED' | 'REVOKED'
+	}) {
+		const safePage = Math.max(1, Number(params?.page) || 1)
+		const safeSize = Math.max(1, Math.min(100, Number(params?.size) || 20))
+		return request.get<ApiResponse<PageData<ReceivedCloudDocShareDto>>>(
+			'/cloud-docs/shares/received',
+			{
+				params: {
+					page: safePage,
+					size: safeSize,
+					status: params?.status || 'ACTIVE',
+				},
+			},
+		)
 	},
 }

@@ -547,6 +547,13 @@ export const useChatStore = defineStore('chat', () => {
 		type: Message['type']
 		senderId: Message['senderId']
 	}): string => {
+		if (/\bchat-cloud-doc-share-card\b/i.test(message.text || '')) {
+			const titleMatched = (message.text || '').match(
+				/data-doc-title\s*=\s*["']([^"']+)["']/i,
+			)
+			const title = titleMatched?.[1]?.trim() || ''
+			return title ? `[云文档] ${title}` : '[云文档]'
+		}
 		if (message.type === 'transfer') {
 			if (/\bchat-transfer-receipt-card\b/i.test(message.text || '')) {
 				return '[已收款]'
@@ -2565,14 +2572,14 @@ export const useChatStore = defineStore('chat', () => {
 		)
 	}
 
-	const sendMessage = (
+	const sendMessageByChatId = (
+		chatId: number,
 		content: string,
 		type: 'text' | 'image' | 'rich-text' | 'transfer' = 'text',
-	): void => {
-		if (!activeChatId.value || !content) return
-		const chatId = activeChatId.value
+	): boolean => {
+		if (!chatId || !content) return false
 		const currentChat = chatlist.value.find((item) => item.id === chatId)
-		if (isSystemNotificationChatItem(currentChat)) return
+		if (!currentChat || isSystemNotificationChatItem(currentChat)) return false
 		let currentAccount = ''
 		try {
 			currentAccount = getCurrentAccount()
@@ -2635,7 +2642,7 @@ export const useChatStore = defineStore('chat', () => {
 					'failed',
 					'群号缺失，消息未发送',
 				)
-				return
+				return false
 			}
 			sent = groupChatWs.sendGroup(groupNo, content, clientMessageId)
 		} else {
@@ -2647,7 +2654,7 @@ export const useChatStore = defineStore('chat', () => {
 				chatId,
 				tempMessageId: newMessage.id,
 			})
-			return
+			return true
 		}
 
 		updateMessageStatusLocal(
@@ -2662,6 +2669,30 @@ export const useChatStore = defineStore('chat', () => {
 			status: 'failed',
 			result: '连接不可用，消息未发送',
 		})
+		return false
+	}
+
+	const sendMessage = (
+		content: string,
+		type: 'text' | 'image' | 'rich-text' | 'transfer' = 'text',
+	): void => {
+		if (!activeChatId.value || !content) return
+		void sendMessageByChatId(activeChatId.value, content, type)
+	}
+
+	const sendMessageToAccount = async (
+		account: string,
+		content: string,
+		type: 'text' | 'image' | 'rich-text' | 'transfer' = 'text',
+	): Promise<boolean> => {
+		const normalized = account.trim()
+		if (!normalized || !content) return false
+		if (!isDbInitialized.value) {
+			await init()
+		}
+		const chatId = await ensureChatSession(normalized)
+		if (!chatId) return false
+		return sendMessageByChatId(chatId, content, type)
 	}
 
 	const pinChat = (chatId: number): void => {
@@ -2972,6 +3003,7 @@ export const useChatStore = defineStore('chat', () => {
 		saveDraft,
 		getDraft,
 		sendMessage,
+		sendMessageToAccount,
 		pinChat,
 		unpinChat,
 		deleteChat,

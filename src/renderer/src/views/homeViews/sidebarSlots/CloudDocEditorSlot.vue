@@ -66,6 +66,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+	cloudDocStore.stopCollabSync()
 	void cloudDocStore.flushSave()
 })
 </script>
@@ -80,6 +81,7 @@ onBeforeUnmount(() => {
 				:doc="activeDoc"
 				:save-state="saveState"
 				:save-error-message="saveErrorMessage"
+				:collab-cursors="[]"
 				@update:title="cloudDocStore.updateActiveTitle"
 				@update:content="cloudDocStore.updateActiveContent"
 			/>

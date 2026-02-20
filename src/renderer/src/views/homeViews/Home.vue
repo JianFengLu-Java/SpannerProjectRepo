@@ -83,6 +83,33 @@ let dragStartX = 0
 let dragInitialWidth = 200
 let layoutPersistTimer: ReturnType<typeof setTimeout> | null = null
 
+const ABSOLUTE_SCHEME_RE = /^[a-z][a-z\d+.-]*:/i
+const EXTERNAL_HOST_RE =
+	/^(localhost(?::\d+)?|((\d{1,3}\.){3}\d{1,3})(?::\d+)?|([\w-]+\.)+[a-z]{2,}(?::\d+)?)([/?#].*)?$/i
+
+const normalizeExternalLink = (href: string): URL | null => {
+	const input = href.trim()
+	if (!input) return null
+	if (input.startsWith('//')) {
+		try {
+			return new URL(`https:${input}`)
+		} catch {
+			return null
+		}
+	}
+	try {
+		return new URL(input)
+	} catch {
+		if (ABSOLUTE_SCHEME_RE.test(input)) return null
+		if (!EXTERNAL_HOST_RE.test(input)) return null
+		try {
+			return new URL(`https://${input}`)
+		} catch {
+			return null
+		}
+	}
+}
+
 const handleGlobalLinkClick = (event: MouseEvent): void => {
 	const target = event.target as HTMLElement | null
 	if (!target) return
@@ -95,12 +122,8 @@ const handleGlobalLinkClick = (event: MouseEvent): void => {
 		return
 	}
 
-	let resolvedUrl: URL
-	try {
-		resolvedUrl = new URL(rawHref, window.location.href)
-	} catch {
-		return
-	}
+	const resolvedUrl = normalizeExternalLink(rawHref)
+	if (!resolvedUrl) return
 
 	const protocol = resolvedUrl.protocol.toLowerCase()
 	const canHandleProtocol =

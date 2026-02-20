@@ -24,6 +24,8 @@
 		"@electron-toolkit/preload": "^3.0.2",
 		"@electron-toolkit/utils": "^4.0.0",
 		"@floating-ui/dom": "^1.7.5",
+		"@isle-editor/core": "^0.0.11",
+		"@isle-editor/vue3": "^0.0.11",
 		"@stomp/stompjs": "^7.2.1",
 		"@tailwindcss/vite": "^4.1.17",
 		"@tiptap/core": "^3.20.0",

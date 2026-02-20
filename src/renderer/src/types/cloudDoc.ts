@@ -43,4 +43,7 @@ export interface CollabCursor {
 	name: string
 	color: string
 	position: number
+	anchor?: number
+	head?: number
+	updatedAt?: string
 }

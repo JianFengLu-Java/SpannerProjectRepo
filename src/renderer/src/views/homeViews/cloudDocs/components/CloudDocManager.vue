@@ -35,9 +35,9 @@ const formatTime = (time: string): string => {
 <template>
 	<div class="doc-manager-root">
 		<div class="doc-manager-header">
-			<div>
+			<div class="doc-manager-heading">
 				<div class="doc-manager-title">文档列表</div>
-				<div class="doc-manager-subtitle">使用 Tiptap 样式组件布局</div>
+				<div class="doc-manager-subtitle">共 {{ props.docs.length }} 篇文档</div>
 			</div>
 			<n-button type="primary" size="small" :disabled="props.loading" @click="emit('create')">
 				<template #icon>
@@ -67,7 +67,7 @@ const formatTime = (time: string): string => {
 					@click="emit('select', item.id)"
 				>
 					<div class="doc-item-top">
-						<n-tag size="small" :bordered="false" type="info">Doc</n-tag>
+						<n-tag size="small" :bordered="false" class="doc-item-tag">Doc</n-tag>
 						<n-tooltip trigger="hover" placement="top">
 							<template #trigger>
 								<n-button quaternary type="error" size="tiny" @click.stop="emit('delete', item.id)">
@@ -92,29 +92,39 @@ const formatTime = (time: string): string => {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	background: var(--color-card-bg);
-	border: 1px solid var(--color-border-default);
-	border-radius: 10px;
+	border-radius: 14px;
+	border: 1px solid color-mix(in srgb, var(--color-border-default) 74%, #bed6ff);
+	background: linear-gradient(
+		165deg,
+		color-mix(in srgb, var(--color-card-bg) 96%, #ffffff),
+		color-mix(in srgb, var(--color-card-bg) 88%, #ecf4ff)
+	);
+	box-shadow: 0 16px 30px rgba(47, 127, 231, 0.08);
+}
+
+.doc-manager-heading {
+	min-width: 0;
 }
 
 .doc-manager-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 10px;
-	padding: 10px;
-	border-bottom: 1px solid var(--color-border-default);
+	gap: 12px;
+	padding: 12px 14px;
+	border-bottom: 1px solid color-mix(in srgb, var(--color-border-default) 82%, #c8dcfb);
 }
 
 .doc-manager-title {
-	font-size: 14px;
+	font-size: 15px;
 	font-weight: 700;
 	color: var(--color-text-main);
 }
 
 .doc-manager-subtitle {
-	font-size: 11px;
-	color: color-mix(in srgb, var(--color-text-main) 66%, transparent);
+	margin-top: 2px;
+	font-size: 12px;
+	color: color-mix(in srgb, var(--color-text-main) 72%, transparent);
 }
 
 .doc-manager-empty {
@@ -134,25 +144,45 @@ const formatTime = (time: string): string => {
 .doc-list {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
-	padding: 10px;
+	gap: 6px;
+	padding: 8px;
 }
 
 .doc-item {
-	padding: 10px;
-	border-radius: 8px;
-	border: 1px solid var(--color-border-default);
-	background: var(--color-card-bg);
+	position: relative;
+	padding: 8px 10px;
+	border-radius: 10px;
+	border: 1px solid color-mix(in srgb, var(--color-border-default) 78%, #c8ddff);
+	background: color-mix(in srgb, var(--color-card-bg) 92%, #ffffff);
 	cursor: pointer;
-	transition: border-color 0.15s ease;
+	transition:
+		transform 0.16s ease,
+		border-color 0.16s ease,
+		box-shadow 0.16s ease,
+		background 0.16s ease;
 }
 
 .doc-item:hover {
-	border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border-default));
+	transform: translateY(-1px);
+	border-color: color-mix(in srgb, var(--color-primary) 52%, var(--color-border-default));
+	box-shadow: 0 6px 14px rgba(54, 149, 255, 0.1);
 }
 
 .doc-item-active {
 	border-color: var(--color-primary);
+	background: color-mix(in srgb, var(--color-primary) 10%, var(--color-card-bg));
+	box-shadow: 0 8px 18px rgba(54, 149, 255, 0.14);
+}
+
+.doc-item-active::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 7px;
+	bottom: 7px;
+	width: 3px;
+	border-radius: 999px;
+	background: var(--color-primary);
 }
 
 .doc-item-top {
@@ -161,18 +191,55 @@ const formatTime = (time: string): string => {
 	align-items: center;
 }
 
+.doc-item-tag {
+	background: rgba(54, 149, 255, 0.14);
+	color: #225eb5;
+	font-weight: 600;
+}
+
 .doc-item-title {
-	margin-top: 8px;
+	margin-top: 6px;
 	font-size: 13px;
 	font-weight: 600;
-	line-height: 1.35;
+	line-height: 1.3;
 	color: var(--color-text-main);
 	word-break: break-word;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .doc-item-time {
-	margin-top: 8px;
+	margin-top: 6px;
 	font-size: 11px;
-	color: color-mix(in srgb, var(--color-text-main) 66%, transparent);
+	color: color-mix(in srgb, var(--color-text-main) 70%, transparent);
+}
+
+:global(.dark) .doc-manager-root {
+	border-color: color-mix(in srgb, var(--color-border-default) 84%, #32577a);
+	background: linear-gradient(165deg, rgba(33, 43, 56, 0.96), rgba(28, 37, 49, 0.96));
+	box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+}
+
+:global(.dark) .doc-manager-header {
+	border-bottom-color: color-mix(in srgb, var(--color-border-default) 84%, #3a5f84);
+}
+
+:global(.dark) .doc-item {
+	border-color: color-mix(in srgb, var(--color-border-default) 88%, #486b8f);
+	background: rgba(37, 47, 62, 0.88);
+}
+
+:global(.dark) .doc-item:hover {
+	box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
+}
+
+:global(.dark) .doc-item-active {
+	background: color-mix(in srgb, var(--color-primary) 16%, #212d3f);
+}
+
+:global(.dark) .doc-item-tag {
+	background: rgba(74, 140, 255, 0.24);
+	color: #abd0ff;
 }
 </style>

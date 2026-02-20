@@ -109,7 +109,11 @@ const emit = defineEmits<{
 						<MarkButton
 							:active="props.editor?.isActive('italic')"
 							@click="
-								props.editor?.chain().focus().toggleItalic().run()
+								props.editor
+									?.chain()
+									.focus()
+									.toggleItalic()
+									.run()
 							"
 						>
 							<n-icon size="16"><TextItalic24Regular /></n-icon>
@@ -129,7 +133,9 @@ const emit = defineEmits<{
 									.run()
 							"
 						>
-							<n-icon size="16"><TextUnderline24Regular /></n-icon>
+							<n-icon size="16"
+								><TextUnderline24Regular
+							/></n-icon>
 						</MarkButton>
 					</template>
 					下划线
@@ -139,7 +145,11 @@ const emit = defineEmits<{
 						<MarkButton
 							:active="props.editor?.isActive('strike')"
 							@click="
-								props.editor?.chain().focus().toggleStrike().run()
+								props.editor
+									?.chain()
+									.focus()
+									.toggleStrike()
+									.run()
 							"
 						>
 							<n-icon size="16">
@@ -317,33 +327,44 @@ const emit = defineEmits<{
 			<n-button
 				size="small"
 				quaternary
-				@click="props.editor?.chain().focus().addRowAfter().run()"
+				@click="
+					(props.editor as any)?.chain().focus().addRowAfter().run()
+				"
 			>
 				加行
 			</n-button>
 			<n-button
 				size="small"
 				quaternary
-				@click="props.editor?.chain().focus().addColumnAfter().run()"
+				@click="
+					(props.editor as any)
+						?.chain()
+						.focus()
+						.addColumnAfter()
+						.run()
+				"
 			>
 				加列
 			</n-button>
 			<n-button
 				size="small"
 				quaternary
-				@click="props.editor?.chain().focus().deleteRow().run()"
+				@click="
+					(props.editor as any)?.chain().focus().deleteRow().run()
+				"
 			>
 				删行
 			</n-button>
 			<n-button
 				size="small"
 				quaternary
-				@click="props.editor?.chain().focus().deleteColumn().run()"
+				@click="
+					(props.editor as any)?.chain().focus().deleteColumn().run()
+				"
 			>
 				删列
 			</n-button>
 		</div>
-
 	</div>
 </template>
 
