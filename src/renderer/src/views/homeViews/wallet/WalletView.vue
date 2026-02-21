@@ -166,13 +166,13 @@
 
 		<!-- Recharge Modal -->
 		<n-modal v-model:show="showRechargeModal" :mask-closable="false" transform-origin="center">
-			<div class="next-wallet-modal w-[400px] flex flex-col">
-				<div class="modal-header-gradient">
+			<div class="app-modal-shell next-wallet-modal w-[400px] flex flex-col">
+				<div class="app-modal-header modal-header-gradient">
 					<div class="text-white">
 						<h3 class="text-xl font-bold mb-1">快速充值</h3>
 						<p class="text-white/60 text-xs">可用余额: {{ formattedBalance }}</p>
 					</div>
-					<button class="close-orb" @click="showRechargeModal = false">
+					<button class="app-modal-close close-orb" @click="showRechargeModal = false">
 						<n-icon size="20" class="text-white/80"><Dismiss24Regular /></n-icon>
 					</button>
 				</div>
@@ -217,13 +217,13 @@
 
 					<div class="flex gap-3">
 						<button 
-							class="modal-btn-ghost flex-1" 
+							class="app-modal-btn-ghost modal-btn-ghost flex-1" 
 							@click="showRechargeModal = false"
 						>
 							取消
 						</button>
 						<button 
-							class="modal-btn-primary flex-1 bg-gradient-brand"
+							class="app-modal-btn-primary modal-btn-primary flex-1 bg-gradient-brand"
 							:loading="actionLoading"
 							@click="submitAction"
 						>
@@ -254,7 +254,7 @@
 
 		<!-- Transaction Details Modal -->
 		<n-modal v-model:show="showDetailModal" transform-origin="center">
-			<div class="next-wallet-modal w-[420px] pb-6">
+			<div class="app-modal-shell next-wallet-modal w-[420px] pb-6">
 				<div class="flex flex-col items-center pt-8 pb-6 bg-gray-50 dark:bg-zinc-800/50">
 					<div 
 						class="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
@@ -278,12 +278,12 @@
 
 				<div class="px-8 mt-6 space-y-4">
 					<div class="detail-item">
-						<span class="detail-label">支出账户</span>
-						<span class="detail-value">{{ isInflowType(activeRecord?.changeType) ? '外部转入' : walletNo }}</span>
+						<span class="detail-label">{{ isInflowType(activeRecord?.changeType) ? '入账类型' : '支出账户' }}</span>
+						<span class="detail-value">{{ isInflowType(activeRecord?.changeType) ? getInflowSourceLabel(activeRecord?.changeType) : walletNo }}</span>
 					</div>
 					<div class="detail-item">
 						<span class="detail-label">交易类型</span>
-						<span class="detail-value">{{ activeRecord?.changeType }}</span>
+						<span class="detail-value">{{ getRecordTypeLabel(activeRecord?.changeType || 'CONSUME') }}</span>
 					</div>
 					<div class="detail-item">
 						<span class="detail-label">交易时间</span>
@@ -300,7 +300,7 @@
 				</div>
 
 				<div class="px-8 mt-8">
-					<button class="modal-btn-ghost w-full" @click="showDetailModal = false">返回</button>
+					<button class="app-modal-btn-ghost modal-btn-ghost w-full" @click="showDetailModal = false">返回</button>
 				</div>
 			</div>
 		</n-modal>
@@ -432,15 +432,22 @@ const formatMoney = (cents: number): string =>
 
 const getRecordTypeLabel = (type: string): string => {
 	const labels: Record<string, string> = {
-		RECHARGE: '充值账户',
-		REWARD: '奖励入账',
-		TASK_REWARD: '奖励入账',
+		RECHARGE: '外部转入',
+		REWARD: '系统发放',
+		TASK_REWARD: '系统发放',
 		CONSUME: '商户消费',
-		TRANSFER_OUT: '转账（支出）',
-		TRANSFER_IN: '转账（收入）',
+		TRANSFER_OUT: '转账支出',
+		TRANSFER_IN: '好友转入',
 		VIP_PURCHASE: '会员购买',
 	}
 	return labels[type] || '其他交易'
+}
+
+const getInflowSourceLabel = (type?: string): string => {
+	if (type === 'REWARD' || type === 'TASK_REWARD') return '系统发放'
+	if (type === 'RECHARGE') return '外部转入'
+	if (type === 'TRANSFER_IN') return '好友转入'
+	return '其他入账'
 }
 
 const getRecordIconType = (

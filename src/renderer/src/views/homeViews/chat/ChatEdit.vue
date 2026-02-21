@@ -16,7 +16,11 @@ import { useChatStore } from '@renderer/stores/chat'
 import { useWalletStore } from '@renderer/stores/wallet'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { storeToRefs } from 'pinia'
-import request from '@renderer/utils/request'
+import {
+	prepareImageForUpload,
+	uploadImageToFileService,
+	imageUploadErrorToMessage,
+} from '@renderer/utils/imageUpload'
 import StarterKit from '@tiptap/starter-kit'
 import {
 	FontDecrease24Regular,
@@ -33,13 +37,6 @@ import {
 } from '@vicons/fluent'
 import type { Editor } from '@tiptap/core'
 import EmojiPicker from '@renderer/components/EmojiPicker.vue'
-
-interface ApiResponse<T> {
-	code: number
-	status: string
-	message: string
-	data: T
-}
 
 // 接收 currentId 确保闭环
 const props = defineProps<{
@@ -408,7 +405,8 @@ const editor = useEditor({
 						if (!showMentionPicker.value) return false
 						const size = filteredMentionMembers.value.length
 						if (!size) return true
-						mentionActiveIndex.value = (mentionActiveIndex.value + 1) % size
+						mentionActiveIndex.value =
+							(mentionActiveIndex.value + 1) % size
 						return true
 					},
 					ArrowUp: () => {
@@ -559,11 +557,25 @@ const onSelectEmoji = (emoji: { i: string }): void => {
 	showEmoji.value = false
 }
 
+const insertInlineEmojiImage = (token: string, url: string): void => {
+	if (!editor.value || !token || !url) return
+	editor.value
+		.chain()
+		.focus()
+		.setImage({
+			src: url,
+			alt: token,
+			title: token,
+		})
+		.run()
+}
+
 // 处理自定义表情/贴纸选择
 const onSelectCustomEmoji = (item: {
 	url: string
 	name: string
 	type: string
+	token?: string
 }): void => {
 	if (!editor.value) return
 
@@ -571,8 +583,9 @@ const onSelectCustomEmoji = (item: {
 		// 贴纸直接作为大图插入并发送 (或者你可以选择只插入到编辑器)
 		insertImageSrc(item.url)
 	} else {
-		// 普通自定义表情图插入到编辑器
-		editor.value.chain().focus().setImage({ src: item.url }).run()
+		// 普通表情在输入框内以小图展示，发送前再还原为 token 文本
+		const token = item.token?.trim() || `[${item.name}]`
+		insertInlineEmojiImage(token, item.url)
 	}
 	showEmoji.value = false
 }
@@ -587,6 +600,26 @@ const insertImageSrc = (src: string): void => {
 	scrollToBottom()
 }
 
+const serializeComposerContentForSend = (rawHtml: string): string => {
+	const holder = document.createElement('div')
+	holder.innerHTML = rawHtml
+	const images = holder.querySelectorAll<HTMLImageElement>('img')
+	images.forEach((image) => {
+		const token = (
+			image.getAttribute('alt') ||
+			image.getAttribute('title') ||
+			''
+		).trim()
+		if (!/^\[[^\]\s[]{1,24}\]$/.test(token)) return
+		if (!token) {
+			image.remove()
+			return
+		}
+		image.replaceWith(document.createTextNode(token))
+	})
+	return holder.innerHTML
+}
+
 // 业务逻辑函数
 const handleSendMessage = (): void => {
 	if (!editor.value || editor.value.isEmpty) return
@@ -599,7 +632,7 @@ const handleSendMessage = (): void => {
 		return
 	}
 
-	const htmlContent = editor.value.getHTML()
+	const htmlContent = serializeComposerContentForSend(editor.value.getHTML())
 	chatStore.sendMessage(htmlContent)
 	closeMentionPicker()
 
@@ -733,29 +766,9 @@ const submitTransfer = async (): Promise<void> => {
 	}
 }
 
-const parseUploadUrl = (payload: Record<string, unknown> | null): string => {
-	if (!payload) return ''
-	const url =
-		(typeof payload.url === 'string' && payload.url) ||
-		(typeof payload.fileUrl === 'string' && payload.fileUrl) ||
-		(typeof payload.path === 'string' && payload.path) ||
-		''
-	return url.trim()
-}
-
 const uploadImageFile = async (file: File): Promise<string> => {
-	const formData = new FormData()
-	formData.append('file', file)
-	const response = await request.post<ApiResponse<Record<string, unknown>>>(
-		'/files/upload',
-		formData,
-		{
-			headers: {
-				'Content-Type': 'multipart/form-data',
-			},
-		},
-	)
-	return parseUploadUrl(response.data.data || null)
+	const prepared = await prepareImageForUpload(file)
+	return uploadImageToFileService(prepared)
 }
 
 const insertImageFile = async (file: File): Promise<void> => {
@@ -764,11 +777,6 @@ const insertImageFile = async (file: File): Promise<void> => {
 		message.warning('只能上传图片格式')
 		return
 	}
-	if (file.size > 10 * 1024 * 1024) {
-		message.warning('图片不能超过 10MB')
-		return
-	}
-
 	try {
 		const imageUrl = await uploadImageFile(file)
 		if (!imageUrl) {
@@ -784,7 +792,7 @@ const insertImageFile = async (file: File): Promise<void> => {
 		scrollToBottom()
 	} catch (error) {
 		console.error('聊天图片上传失败', error)
-		message.error('图片上传失败，请稍后重试')
+		message.error(imageUploadErrorToMessage(error))
 	}
 }
 
@@ -825,7 +833,9 @@ const applyStoredChatFontSize = (): void => {
 	const parsed = Number(raw)
 	if (
 		Number.isFinite(parsed) &&
-		chatFontSizeOptions.includes(parsed as (typeof chatFontSizeOptions)[number])
+		chatFontSizeOptions.includes(
+			parsed as (typeof chatFontSizeOptions)[number],
+		)
 	) {
 		chatFontSize.value = parsed
 	}
@@ -884,21 +894,34 @@ onUnmounted(() => {
 
 <template>
 	<div class="relative">
-		<div class="w-full rounded-2xl border h-fit bg-sidebar-select-bg transition-all duration-200 p-1.5 composer-shell"
+		<div
+			class="w-full rounded-2xl border h-fit bg-sidebar-select-bg transition-all duration-200 p-1.5 composer-shell"
 			:class="[
 				isFocus
 					? 'border-border-default ring-2 ring-border-main'
 					: 'border-border-main',
-			]">
+			]"
+		>
 			<div ref="containerRef" class="flex flex-wrap items-end relative">
 				<!-- 链接输入框 -->
-				<div v-if="showLinkInput"
-					class="absolute bottom-full left-0 right-0 mb-2 p-2 bg-page-bg border border-border-main rounded-lg z-50">
+				<div
+					v-if="showLinkInput"
+					class="absolute bottom-full left-0 right-0 mb-2 p-2 bg-page-bg border border-border-main rounded-lg z-50"
+				>
 					<div class="flex items-center gap-2">
-						<input v-model="linkUrl" type="url" placeholder="输入链接地址"
+						<input
+							v-model="linkUrl"
+							type="url"
+							placeholder="输入链接地址"
 							class="link-input flex-1 px-3 py-1.5 text-sm border border-border-main rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-							@keyup.enter="confirmLink" @keyup.escape="cancelLink" />
-						<n-button size="small" type="primary" @click="confirmLink">
+							@keyup.enter="confirmLink"
+							@keyup.escape="cancelLink"
+						/>
+						<n-button
+							size="small"
+							type="primary"
+							@click="confirmLink"
+						>
 							确认
 						</n-button>
 						<n-button size="small" @click="cancelLink">
@@ -910,7 +933,9 @@ onUnmounted(() => {
 					v-if="showMentionPicker"
 					class="absolute bottom-full left-0 right-0 mb-2 px-1 z-50"
 				>
-					<div class="rounded-xl border border-border-main bg-page-bg shadow-lg max-h-56 overflow-y-auto">
+					<div
+						class="rounded-xl border border-border-main bg-page-bg shadow-lg max-h-56 overflow-y-auto"
+					>
 						<div
 							v-if="isLoadingMentionMembers"
 							class="px-3 py-2 text-xs text-gray-400"
@@ -937,104 +962,143 @@ onUnmounted(() => {
 							@mouseenter="mentionActiveIndex = index"
 						>
 							<span class="font-medium">{{ member.name }}</span>
-							<span class="ml-2 text-xs text-gray-400">{{ member.account }}</span>
+							<span class="ml-2 text-xs text-gray-400">{{
+								member.account
+							}}</span>
 						</button>
 					</div>
 				</div>
 
-				<div class="flex-1 min-w-[120px] px-1 min-h-9 cursor-text flex items-start" @click="focusEditor">
+				<div
+					class="flex-1 min-w-[120px] px-1 min-h-9 cursor-text flex items-start"
+					@click="focusEditor"
+				>
 					<!-- BubbleMenu -->
-					<BubbleMenu v-if="editor" :editor="editor" :should-show="shouldShowBubbleMenu"
-						:tippy-options="bubbleMenuTippyOptions">
+					<BubbleMenu
+						v-if="editor"
+						:editor="editor"
+						:should-show="shouldShowBubbleMenu"
+						:tippy-options="bubbleMenuTippyOptions"
+					>
 						<div
-							class="flex items-center bg-white/80 dark:bg-zinc-800/85 backdrop-blur-md border border-gray-200/80 dark:border-zinc-700 rounded-xl p-1.5 gap-1 animate-bubble-in">
-							<button type="button" title="加粗 (Ctrl+B)"
+							class="flex items-center bg-white/80 dark:bg-zinc-800/85 backdrop-blur-md border border-gray-200/80 dark:border-zinc-700 rounded-xl p-1.5 gap-1 animate-bubble-in"
+						>
+							<button
+								type="button"
+								title="加粗 (Ctrl+B)"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
 									'text-blue-600 bg-blue-100/50':
 										editor.isActive('bold'),
-								}" @click="
+								}"
+								@click="
 									editor.chain().focus().toggleBold().run()
-									">
+								"
+							>
 								<n-icon size="18">
 									<TextBold24Filled />
 								</n-icon>
 							</button>
 
-							<button type="button" title="斜体 (Ctrl+I)"
+							<button
+								type="button"
+								title="斜体 (Ctrl+I)"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
 									'text-blue-600 bg-blue-100/50':
 										editor.isActive('italic'),
-								}" @click="
+								}"
+								@click="
 									editor.chain().focus().toggleItalic().run()
-									">
+								"
+							>
 								<n-icon size="18">
 									<TextItalic24Filled />
 								</n-icon>
 							</button>
 
-							<button type="button" title="下划线 (Ctrl+U)"
+							<button
+								type="button"
+								title="下划线 (Ctrl+U)"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
 									'text-blue-600 bg-blue-100/50':
 										editor.isActive('underline'),
-								}" @click="
+								}"
+								@click="
 									editor
 										.chain()
 										.focus()
 										.toggleUnderline()
 										.run()
-									">
+								"
+							>
 								<n-icon size="18">
 									<TextUnderline24Filled />
 								</n-icon>
 							</button>
 
-							<button type="button" title="删除线"
+							<button
+								type="button"
+								title="删除线"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-300 active:scale-95"
 								:class="{
 									'text-blue-600 bg-blue-100/50':
 										editor.isActive('strike'),
-								}" @click="
+								}"
+								@click="
 									editor.chain().focus().toggleStrike().run()
-									">
+								"
+							>
 								<n-icon size="18">
 									<TextStrikethrough24Filled />
 								</n-icon>
 							</button>
 
-							<div class="w-[1.5px] h-4 bg-gray-200/60 dark:bg-zinc-700 mx-1"></div>
+							<div
+								class="w-[1.5px] h-4 bg-gray-200/60 dark:bg-zinc-700 mx-1"
+							></div>
 
-							<button type="button" title="代码"
+							<button
+								type="button"
+								title="代码"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
 								:class="{
 									'text-blue-600 bg-blue-100/50':
 										editor.isActive('code'),
-								}" @click="
+								}"
+								@click="
 									editor.chain().focus().toggleCode().run()
-									">
+								"
+							>
 								<n-icon size="18">
 									<Code24Filled />
 								</n-icon>
 							</button>
 
-							<button type="button" title="链接 (Ctrl+K)"
+							<button
+								type="button"
+								title="链接 (Ctrl+K)"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
 								:class="{
 									'text-blue-600 bg-blue-100/50':
 										editor.isActive('link'),
-								}" @click="setLink">
+								}"
+								@click="setLink"
+							>
 								<n-icon size="18">
 									<Link24Filled />
 								</n-icon>
 							</button>
 
-							<button type="button" title="清除格式"
+							<button
+								type="button"
+								title="清除格式"
 								class="flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 text-gray-600 hover:bg-red-50 hover:text-red-500 active:scale-95"
 								@click="
 									editor.chain().focus().unsetAllMarks().run()
-									">
+								"
+							>
 								<n-icon size="18">
 									<TextClearFormatting24Filled />
 								</n-icon>
@@ -1050,17 +1114,31 @@ onUnmounted(() => {
 					/>
 				</div>
 
-				<div ref="actionsRef" class="flex items-center gap-1 shrink-0 h-fit transition-all duration-200"
-					:class="[isMultiline ? 'w-full justify-end mt-2' : 'mt-0']">
+				<div
+					ref="actionsRef"
+					class="flex items-center gap-1 shrink-0 h-fit transition-all duration-200"
+					:class="[isMultiline ? 'w-full justify-end mt-2' : 'mt-0']"
+				>
 					<div class="composer-toolbar">
-						<button type="button" title="插入图片" class="composer-action-btn" @click="fileInput?.click()">
+						<button
+							type="button"
+							title="插入图片"
+							class="composer-action-btn"
+							@click="fileInput?.click()"
+						>
 							<n-icon size="18">
 								<ImageOutline />
 							</n-icon>
-							<input ref="fileInput" type="file" accept="image/*" class="hidden" @change="
-								(e: any) =>
-									insertImageFile(e.target.files[0])
-							" />
+							<input
+								ref="fileInput"
+								type="file"
+								accept="image/*"
+								class="hidden"
+								@change="
+									(e: any) =>
+										insertImageFile(e.target.files[0])
+								"
+							/>
 						</button>
 
 						<button
@@ -1074,14 +1152,22 @@ onUnmounted(() => {
 							</n-icon>
 						</button>
 						<div class="composer-action-btn">
-							<n-popover v-model:show="showEmoji" trigger="click" placement="top" :show-arrow="false"
-								style="padding: 0">
+							<n-popover
+								v-model:show="showEmoji"
+								trigger="click"
+								placement="top"
+								:show-arrow="false"
+								style="padding: 0"
+							>
 								<template #trigger>
 									<n-icon title="表情" size="18">
 										<HappyOutline />
 									</n-icon>
 								</template>
-								<EmojiPicker @select="onSelectEmoji" @select-custom="onSelectCustomEmoji" />
+								<EmojiPicker
+									@select="onSelectEmoji"
+									@select-custom="onSelectCustomEmoji"
+								/>
 							</n-popover>
 						</div>
 						<button
@@ -1093,20 +1179,41 @@ onUnmounted(() => {
 							<n-icon size="18">
 								<FontDecrease24Regular />
 							</n-icon>
-							<span class="composer-font-size-label">{{ chatFontSize }}</span>
+							<span class="composer-font-size-label">{{
+								chatFontSize
+							}}</span>
 						</button>
-						<button type="button" class="composer-action-btn" title="聊天转账" @click="openTransferModal">
+						<button
+							type="button"
+							class="composer-action-btn"
+							title="聊天转账"
+							@click="openTransferModal"
+						>
 							<n-icon size="18">
 								<SwapHorizontalOutline />
 							</n-icon>
 						</button>
 
-						<button type="button" :disabled="!canSend" class="composer-send-btn" @click="handleSendMessage">
+						<button
+							type="button"
+							:disabled="!canSend"
+							class="composer-send-btn"
+							@click="handleSendMessage"
+						>
 							<n-icon size="16">
-								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-									stroke="currentColor" class="w-4 h-4">
-									<path stroke-linecap="round" stroke-linejoin="round"
-										d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke-width="2"
+									stroke="currentColor"
+									class="w-4 h-4"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+									/>
 								</svg>
 							</n-icon>
 							<span>发送</span>
@@ -1117,87 +1224,129 @@ onUnmounted(() => {
 		</div>
 
 		<div class="w-full flex justify-end h-2.5">
-			<div v-if="!editor?.isEmpty" class="px-2 text-[10px] text-gray-400 select-none">
+			<div
+				v-if="!editor?.isEmpty"
+				class="px-2 text-[10px] text-gray-400 select-none"
+			>
 				Shift + Enter 换行
 			</div>
 		</div>
 
-		<n-modal v-model:show="showTransferModal" :mask-closable="false" transform-origin="center">
-			<div class="next-transfer-modal w-[400px] max-h-[90vh] flex flex-col">
+		<n-modal
+			v-model:show="showTransferModal"
+			:mask-closable="false"
+			transform-origin="center"
+		>
+			<div
+				class="next-transfer-modal w-[400px] max-h-[90vh] flex flex-col"
+			>
 				<!-- Header -->
 				<div class="modal-header-section">
 					<div class="flex items-center justify-between w-full mb-4">
-
-					
-								<div
-						class="flex items-center justify-between px-2 py-1">
-						<span class="text-xs text-white">可用余额 </span>
-						<span class="text-sm font-semibold text-blue-100">
-							{{ formattedBalance }}
-						</span>
-					</div>
-						<button class="close-orb hover:bg-white/10 transition-colors"
-							@click="showTransferModal = false">
+						<div
+							class="flex items-center justify-between px-2 py-1"
+						>
+							<span class="text-xs text-white">可用余额 </span>
+							<span class="text-sm font-semibold text-blue-100">
+								{{ formattedBalance }}
+							</span>
+						</div>
+						<button
+							class="close-orb hover:bg-white/10 transition-colors"
+							@click="showTransferModal = false"
+						>
 							<n-icon size="20" class="text-white/80">
 								<Dismiss24Regular />
 							</n-icon>
 						</button>
 					</div>
-			
 				</div>
 
 				<!-- Body -->
-				<div class="p-6 bg-white dark:bg-zinc-900 flex-1 overflow-y-auto custom-scrollbar">
+				<div
+					class="p-6 bg-white dark:bg-zinc-900 flex-1 overflow-y-auto custom-scrollbar"
+				>
 					<div class="space-y-3">
-
-
 						<!-- Amount Input -->
 						<div class="space-y-2">
-							<label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">
+							<label
+								class="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1"
+							>
 								转账金额
 							</label>
 							<div class="relative group">
 								<span
-									class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-400 group-focus-within:text-blue-500">
+									class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-400 group-focus-within:text-blue-500"
+								>
 									￥
 								</span>
-								<input v-model.number="transferAmount" type="number" step="0.01" placeholder="0.00"
-									class="w-full pl-10 pr-4 py-4 text-2xl font-bold bg-transparent border-2 border-gray-100 dark:border-zinc-800 rounded-2xl focus:border-blue-500 focus:outline-none transition-all placeholder:text-gray-200 dark:placeholder:text-zinc-700" />
+								<input
+									v-model.number="transferAmount"
+									type="number"
+									step="0.01"
+									placeholder="0.00"
+									class="w-full pl-10 pr-4 py-4 text-2xl font-bold bg-transparent border-2 border-gray-100 dark:border-zinc-800 rounded-2xl focus:border-blue-500 focus:outline-none transition-all placeholder:text-gray-200 dark:placeholder:text-zinc-700"
+								/>
 							</div>
 						</div>
 
 						<!-- Remark -->
 						<div class="space-y-2">
-							<label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">
+							<label
+								class="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1"
+							>
 								备注信息
 							</label>
-							<input v-model="transferRemark" placeholder="添加备注..." maxlength="60"
-								class="w-full px-4 py-3 text-sm bg-gray-50 dark:bg-white/5 border border-transparent rounded-xl focus:bg-white dark:focus:bg-zinc-800 focus:border-blue-500/30 focus:outline-none transition-all" />
+							<input
+								v-model="transferRemark"
+								placeholder="添加备注..."
+								maxlength="60"
+								class="w-full px-4 py-3 text-sm bg-gray-50 dark:bg-white/5 border border-transparent rounded-xl focus:bg-white dark:focus:bg-zinc-800 focus:border-blue-500/30 focus:outline-none transition-all"
+							/>
 						</div>
 
 						<!-- PIN Experience -->
 						<div class="space-y-3 pt-2">
 							<div class="flex items-center justify-between ml-1">
-								<label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+								<label
+									class="text-[11px] font-bold text-gray-400 uppercase tracking-wider"
+								>
 									安全 PIN 码
 								</label>
-								<span v-if="!securityPasswordSet" class="text-[10px] text-red-500 font-medium">
+								<span
+									v-if="!securityPasswordSet"
+									class="text-[10px] text-red-500 font-medium"
+								>
 									尚未设置
 								</span>
 							</div>
 							<div class="flex gap-2 justify-between">
-								<input v-for="(_digit, idx) in pinInputs" :key="idx" :ref="(el) =>
-									(pinRefs[idx] =
-										el as HTMLInputElement)
-									" v-model="pinInputs[idx]" type="password" maxlength="1" inputmode="numeric" class="pin-box"
-									:class="{ 'has-value': pinInputs[idx] }" @input="handlePinInput(idx, $event)"
-									@keydown="handlePinKeyDown(idx, $event)" @paste="handlePinPaste" />
+								<input
+									v-for="(_digit, idx) in pinInputs"
+									:key="idx"
+									:ref="
+										(el) =>
+											(pinRefs[idx] =
+												el as HTMLInputElement)
+									"
+									v-model="pinInputs[idx]"
+									type="password"
+									maxlength="1"
+									inputmode="numeric"
+									class="pin-box"
+									:class="{ 'has-value': pinInputs[idx] }"
+									@input="handlePinInput(idx, $event)"
+									@keydown="handlePinKeyDown(idx, $event)"
+									@paste="handlePinPaste"
+								/>
 							</div>
 						</div>
 					</div>
 
 					<div class="mt-8 space-y-4">
-						<div class="flex items-center gap-2 justify-center text-[10px] text-gray-400">
+						<div
+							class="flex items-center gap-2 justify-center text-[10px] text-gray-400"
+						>
 							<n-icon size="14" class="text-green-500">
 								<ShieldCheckmark24Regular />
 							</n-icon>
@@ -1206,10 +1355,13 @@ onUnmounted(() => {
 
 						<button
 							class="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-							:disabled="transferLoading ||
+							:disabled="
+								transferLoading ||
 								!transferAmount ||
 								transferSecurityPassword.length < 6
-								" @click="submitTransfer">
+							"
+							@click="submitTransfer"
+						>
 							<n-icon v-if="!transferLoading" size="18">
 								<ArrowCircleUp24Regular />
 							</n-icon>
@@ -1260,6 +1412,25 @@ onUnmounted(() => {
 :deep(.tiptap img:hover) {
 	opacity: 0.9;
 	transform: translateY(-1px);
+}
+
+:deep(.tiptap img[alt^='['][alt$=']']) {
+	display: inline-block;
+	width: 1.15em !important;
+	height: 1.15em !important;
+	max-width: 1.15em !important;
+	max-height: 1.15em !important;
+	vertical-align: -0.2em;
+	margin: 0 0.04em;
+	border: none !important;
+	border-radius: 0 !important;
+	cursor: text;
+	pointer-events: none;
+}
+
+:deep(.tiptap img[alt^='['][alt$=']']:hover) {
+	opacity: 1;
+	transform: none;
 }
 
 .tiptap-editor {
@@ -1338,16 +1509,20 @@ onUnmounted(() => {
 	gap: 4px;
 	padding: 4px;
 	border-radius: 12px;
-	background: linear-gradient(180deg,
-			rgba(248, 250, 252, 0.9) 0%,
-			rgba(241, 245, 249, 0.9) 100%);
+	background: linear-gradient(
+		180deg,
+		rgba(248, 250, 252, 0.9) 0%,
+		rgba(241, 245, 249, 0.9) 100%
+	);
 	border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 :deep(.dark) .composer-toolbar {
-	background: linear-gradient(180deg,
-			rgba(39, 39, 42, 0.88) 0%,
-			rgba(24, 24, 27, 0.88) 100%);
+	background: linear-gradient(
+		180deg,
+		rgba(39, 39, 42, 0.88) 0%,
+		rgba(24, 24, 27, 0.88) 100%
+	);
 	border-color: rgba(82, 82, 91, 0.55);
 }
 

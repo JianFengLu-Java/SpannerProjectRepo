@@ -86,6 +86,16 @@ const routes = [
 			import('../views/homeViews/chat/ChatStandaloneView.vue'),
 	},
 	{
+		path: '/mock-video-call',
+		name: 'MockVideoCall',
+		component: () => import('../views/homeViews/chat/MockVideoCallView.vue'),
+	},
+	{
+		path: '/incoming-call',
+		name: 'IncomingCall',
+		component: () => import('../views/homeViews/chat/IncomingCallView.vue'),
+	},
+	{
 		path: '/demo/membership-topup-notice',
 		name: 'MembershipTopUpNoticeDemo',
 		component: () => import('../views/demo/MembershipTopUpNoticeDemo.vue'),

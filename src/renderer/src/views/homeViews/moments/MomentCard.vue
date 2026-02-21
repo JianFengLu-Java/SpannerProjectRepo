@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="moment-card group bg-white dark:b0g-zinc-900 rounded-[14px] overflow-hidden border border-gray-200 dark:border-zinc-700 transition-all duration-300 cursor-pointer"
+		class="moment-card group bg-white dark:bg-zinc-900 rounded-[14px] overflow-hidden border border-gray-200 dark:border-zinc-700 transition-all duration-300 cursor-pointer"
 		@click="$emit('click', moment)"
 	>
 		<!-- 封面图 -->
@@ -31,6 +31,12 @@
 			>
 				{{ moment.title }}
 			</h3>
+			<p
+				v-if="summaryText"
+				class="text-[12px] leading-5 text-gray-500 dark:text-gray-300 line-clamp-1 mb-2.5"
+			>
+				{{ summaryText }}
+			</p>
 
 			<div class="flex items-center justify-between">
 				<!-- 作者 -->
@@ -116,6 +122,19 @@ const hasCoverImage = computed(() => Boolean(props.moment.cover?.trim()))
 const canvasCoverUrl = computed(() =>
 	createMomentCoverDataUrl(props.moment.title),
 )
+const summaryText = computed(() => {
+	const plain = (props.moment.content || '').trim()
+	if (plain) return plain
+	const html = props.moment.contentHtml || ''
+	const stripped = html
+		.replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, ' ')
+		.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, ' ')
+		.replace(/<[^>]+>/g, ' ')
+		.replace(/&nbsp;/gi, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+	return stripped
+})
 
 const toggleLike = async (): Promise<void> => {
 	try {
@@ -144,5 +163,11 @@ const formatCount = (count: number): string | number => {
 	-webkit-box-orient: vertical;
 	line-clamp: 2;
 	overflow: hidden;
+}
+
+.line-clamp-1 {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 </style>

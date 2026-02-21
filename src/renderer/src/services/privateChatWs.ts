@@ -24,10 +24,21 @@ export interface PrivateChatErrorFrame {
 	at?: string
 }
 
+export interface PrivateIncomingCallFrame {
+	callId?: string
+	from?: string
+	fromName?: string
+	fromAvatar?: string
+	type?: 'video' | 'audio' | string
+	chatId?: number | string
+	createdAt?: string
+}
+
 interface PrivateChatWsHandlers {
 	onMessage?: (payload: PrivateChatMessageFrame) => void
 	onAck?: (payload: PrivateChatAckFrame) => void
 	onError?: (payload: PrivateChatErrorFrame) => void
+	onIncomingCall?: (payload: PrivateIncomingCallFrame) => void
 	onConnected?: () => void
 	onDisconnected?: () => void
 }
@@ -118,6 +129,15 @@ class PrivateChatWsService {
 				this.handlers.onError?.(payload)
 			} catch (error) {
 				console.error('解析私聊错误失败:', error)
+			}
+		})
+
+		this.client.subscribe('/user/queue/calls', (frame) => {
+			try {
+				const payload = JSON.parse(frame.body) as PrivateIncomingCallFrame
+				this.handlers.onIncomingCall?.(payload)
+			} catch (error) {
+				console.error('解析来电信令失败:', error)
 			}
 		})
 	}

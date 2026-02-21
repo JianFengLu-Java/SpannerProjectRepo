@@ -19,6 +19,24 @@ const api = {
 	closeWindow: () => {
 		ipcRenderer.send('close-window')
 	},
+	openMockVideoCallWindow: (payload: {
+		chatId: number
+		chatName: string
+		chatAvatar?: string
+		startConnected?: boolean
+	}) => {
+		ipcRenderer.send('open-mock-video-call-window', payload)
+	},
+	openIncomingCallWindow: (payload: {
+		callId: string
+		fromAccount: string
+		fromName: string
+		fromAvatar?: string
+		chatId?: number
+		type?: 'video' | 'audio'
+	}) => {
+		ipcRenderer.send('open-incoming-call-window', payload)
+	},
 	onWindowMaximizeChange: (callback: (isMaximized: boolean) => void) => {
 		ipcRenderer.on('window-maximized', (_, isMaximized) =>
 			callback(isMaximized),

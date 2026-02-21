@@ -6,6 +6,12 @@ import { useTaskRewardStore } from '@renderer/stores/taskReward'
 import { uploadMomentCover } from '@renderer/utils/momentCover'
 
 type MomentTab = 'recommend' | 'friends' | 'nearby' | 'trending'
+export type MomentAboutMeType =
+	| 'COMMENT_ON_MY_MOMENT'
+	| 'REPLY_TO_ME'
+	| 'LIKE_MY_MOMENT'
+	| 'LIKE_MY_COMMENT'
+	| string
 type FriendStatusWithAuthor =
 	| 'NONE'
 	| 'PENDING_OUTBOUND'
@@ -49,6 +55,20 @@ export interface MomentLikeUser {
 	name: string
 	avatar: string
 	likedAt?: string
+}
+
+export interface MomentAboutMeItem {
+	id: string
+	type: MomentAboutMeType
+	momentId: string
+	momentTitle: string
+	sourceCommentId?: string | null
+	parentCommentId?: string | null
+	fromUser: MomentAuthor
+	content: string
+	targetContent?: string | null
+	timestamp: string
+	createdAt?: string
 }
 
 export interface Moment {
@@ -180,6 +200,27 @@ const normalizeLikeUser = (item: unknown): MomentLikeUser => {
 	}
 }
 
+const normalizeAboutMeItem = (item: unknown): MomentAboutMeItem => {
+	const source = (item || {}) as Record<string, unknown>
+	return {
+		id: asString(source.id),
+		type: (asString(source.type) ||
+			'COMMENT_ON_MY_MOMENT') as MomentAboutMeType,
+		momentId: asString(source.momentId),
+		momentTitle: asString(source.momentTitle),
+		sourceCommentId: asString(source.sourceCommentId) || null,
+		parentCommentId: asString(source.parentCommentId) || null,
+		fromUser: normalizeAuthor(source.fromUser),
+		content: asString(source.content),
+		targetContent: asString(source.targetContent) || null,
+		timestamp:
+			asString(source.timestamp) ||
+			asString(source.createdAt) ||
+			new Date().toISOString(),
+		createdAt: asString(source.createdAt) || undefined,
+	}
+}
+
 const normalizeMoment = (item: unknown): Moment => {
 	const source = (item || {}) as Record<string, unknown>
 	const images = Array.isArray(source.images)
@@ -236,7 +277,12 @@ export const useMomentStore = defineStore('moment', () => {
 	const hasMore = ref(true)
 	const listCacheMap = ref<Record<string, MomentListCacheEntry>>({})
 	const commentCacheMap = ref<Record<string, MomentCommentCacheEntry>>({})
+	const aboutMeItems = ref<MomentAboutMeItem[]>([])
+	const aboutMeCursor = ref<string | null>(null)
+	const aboutMeHasMore = ref(true)
+	const aboutMeLoading = ref(false)
 	let listFetchSeq = 0
+	let aboutMeFetchSeq = 0
 
 	const selectedMoment = computed(() => {
 		return (
@@ -256,9 +302,12 @@ export const useMomentStore = defineStore('moment', () => {
 		if (current.cover !== next.cover) current.cover = next.cover
 		if (current.likes !== next.likes) current.likes = next.likes
 		if (current.isLiked !== next.isLiked) current.isLiked = next.isLiked
-		if (current.timestamp !== next.timestamp) current.timestamp = next.timestamp
-		if (current.createdAt !== next.createdAt) current.createdAt = next.createdAt
-		if (current.updatedAt !== next.updatedAt) current.updatedAt = next.updatedAt
+		if (current.timestamp !== next.timestamp)
+			current.timestamp = next.timestamp
+		if (current.createdAt !== next.createdAt)
+			current.createdAt = next.createdAt
+		if (current.updatedAt !== next.updatedAt)
+			current.updatedAt = next.updatedAt
 		if (current.content !== next.content) current.content = next.content
 		if (current.contentHtml !== next.contentHtml) {
 			current.contentHtml = next.contentHtml
@@ -286,10 +335,12 @@ export const useMomentStore = defineStore('moment', () => {
 
 	const patchComment = (current: Comment, next: Comment): void => {
 		if (current.text !== next.text) current.text = next.text
-		if (current.timestamp !== next.timestamp) current.timestamp = next.timestamp
+		if (current.timestamp !== next.timestamp)
+			current.timestamp = next.timestamp
 		if (current.likes !== next.likes) current.likes = next.likes
 		if (current.isLiked !== next.isLiked) current.isLiked = next.isLiked
-		if (current.replyCount !== next.replyCount) current.replyCount = next.replyCount
+		if (current.replyCount !== next.replyCount)
+			current.replyCount = next.replyCount
 		if (current.parentCommentId !== next.parentCommentId) {
 			current.parentCommentId = next.parentCommentId
 		}
@@ -333,7 +384,9 @@ export const useMomentStore = defineStore('moment', () => {
 	}
 
 	const replaceMomentsWithDiff = (nextList: Moment[]): void => {
-		const existingMap = new Map(moments.value.map((item) => [item.id, item]))
+		const existingMap = new Map(
+			moments.value.map((item) => [item.id, item]),
+		)
 		const merged: Moment[] = []
 		for (const next of nextList) {
 			const existed = existingMap.get(next.id)
@@ -359,7 +412,10 @@ export const useMomentStore = defineStore('moment', () => {
 			searchQuery: searchQuery.value,
 			lists: listCacheMap.value,
 		}
-		window.localStorage.setItem(MOMENT_LIST_CACHE_KEY, JSON.stringify(payload))
+		window.localStorage.setItem(
+			MOMENT_LIST_CACHE_KEY,
+			JSON.stringify(payload),
+		)
 	}
 
 	const trimAndPersistCommentCache = (): void => {
@@ -375,7 +431,10 @@ export const useMomentStore = defineStore('moment', () => {
 		)
 	}
 
-	const persistCommentsToCache = (momentId: string, comments: Comment[]): void => {
+	const persistCommentsToCache = (
+		momentId: string,
+		comments: Comment[],
+	): void => {
 		commentCacheMap.value[momentId] = {
 			comments: comments.slice(0, MAX_COMMENTS_PER_MOMENT),
 			updatedAt: Date.now(),
@@ -440,12 +499,17 @@ export const useMomentStore = defineStore('moment', () => {
 		try {
 			const raw = window.localStorage.getItem(MOMENT_COMMENT_CACHE_KEY)
 			if (!raw) return
-			const parsed = JSON.parse(raw) as Record<string, MomentCommentCacheEntry>
+			const parsed = JSON.parse(raw) as Record<
+				string,
+				MomentCommentCacheEntry
+			>
 			const normalized: Record<string, MomentCommentCacheEntry> = {}
 			for (const [momentId, entry] of Object.entries(parsed || {})) {
 				if (!entry || !Array.isArray(entry.comments)) continue
 				normalized[momentId] = {
-					comments: entry.comments.map((item) => normalizeComment(item)),
+					comments: entry.comments.map((item) =>
+						normalizeComment(item),
+					),
 					updatedAt:
 						typeof entry.updatedAt === 'number'
 							? entry.updatedAt
@@ -511,10 +575,14 @@ export const useMomentStore = defineStore('moment', () => {
 			if (requestSeq !== listFetchSeq) return
 			const page =
 				response.data.data ||
-				({ records: [], hasMore: false, nextCursor: null } as CursorPage<
-					Record<string, unknown>
-				>)
-			const mapped = (page.records || []).map((item) => normalizeMoment(item))
+				({
+					records: [],
+					hasMore: false,
+					nextCursor: null,
+				} as CursorPage<Record<string, unknown>>)
+			const mapped = (page.records || []).map((item) =>
+				normalizeMoment(item),
+			)
 			if (reset) {
 				replaceMomentsWithDiff(mapped)
 			} else {
@@ -538,9 +606,9 @@ export const useMomentStore = defineStore('moment', () => {
 	const fetchMomentDetail = async (momentId: string): Promise<Moment> => {
 		isDetailLoading.value = true
 		try {
-			const response = await request.get<ApiResponse<Record<string, unknown>>>(
-				`/moments/${momentId}`,
-			)
+			const response = await request.get<
+				ApiResponse<Record<string, unknown>>
+			>(`/moments/${momentId}`)
 			const mapped = normalizeMoment(response.data.data)
 			const result = upsertMoment(mapped)
 			if (result.comments.length > 0) {
@@ -585,7 +653,10 @@ export const useMomentStore = defineStore('moment', () => {
 
 	const openMoment = async (momentId: string): Promise<void> => {
 		selectedMomentId.value = momentId
-		await Promise.all([fetchMomentDetail(momentId), fetchComments(momentId)])
+		await Promise.all([
+			fetchMomentDetail(momentId),
+			fetchComments(momentId),
+		])
 	}
 
 	const toggleLike = async (momentId: string): Promise<void> => {
@@ -602,7 +673,9 @@ export const useMomentStore = defineStore('moment', () => {
 			const endpoint = `/moments/${momentId}/likes`
 			const response = moment.isLiked
 				? await request.post<ApiResponse<LikeActionResponse>>(endpoint)
-				: await request.delete<ApiResponse<LikeActionResponse>>(endpoint)
+				: await request.delete<ApiResponse<LikeActionResponse>>(
+						endpoint,
+					)
 			const data = response.data.data
 			moment.isLiked = data.liked
 			moment.likes = data.likes
@@ -624,14 +697,13 @@ export const useMomentStore = defineStore('moment', () => {
 		if (!content) {
 			throw new Error('comment-empty')
 		}
-		const response = await request.post<ApiResponse<Record<string, unknown>>>(
-			`/moments/${momentId}/comments`,
-			{
-				text: content,
-				parentCommentId,
-				replyToAccount,
-			},
-		)
+		const response = await request.post<
+			ApiResponse<Record<string, unknown>>
+		>(`/moments/${momentId}/comments`, {
+			text: content,
+			parentCommentId,
+			replyToAccount,
+		})
 		const comment = normalizeComment(response.data.data)
 		const moment = moments.value.find((item) => item.id === momentId)
 		if (moment) {
@@ -640,32 +712,27 @@ export const useMomentStore = defineStore('moment', () => {
 			persistCommentsToCache(momentId, moment.comments)
 			persistCurrentListToCache()
 		}
-		void taskRewardStore
-			.refreshAll()
-			.catch((error) => {
-				console.warn('任务数据刷新失败(评论后):', error)
-			})
+		void taskRewardStore.refreshAll().catch((error) => {
+			console.warn('任务数据刷新失败(评论后):', error)
+		})
 		return comment
 	}
 
 	const addMoment = async (payload: AddMomentPayload): Promise<Moment> => {
 		const coverUrl =
 			payload.cover?.trim() || (await uploadMomentCover(payload.title))
-		const response = await request.post<ApiResponse<Record<string, unknown>>>(
-			'/moments',
-			{
-				...payload,
-				cover: coverUrl,
-			},
-		)
+		const response = await request.post<
+			ApiResponse<Record<string, unknown>>
+		>('/moments', {
+			...payload,
+			cover: coverUrl,
+		})
 		const created = normalizeMoment(response.data.data)
 		moments.value.unshift(created)
 		persistCurrentListToCache()
-		void taskRewardStore
-			.refreshAll()
-			.catch((error) => {
-				console.warn('任务数据刷新失败(发帖后):', error)
-			})
+		void taskRewardStore.refreshAll().catch((error) => {
+			console.warn('任务数据刷新失败(发帖后):', error)
+		})
 		return created
 	}
 
@@ -673,10 +740,9 @@ export const useMomentStore = defineStore('moment', () => {
 		momentId: string,
 		payload: UpdateMomentPayload,
 	): Promise<Moment> => {
-		const response = await request.put<ApiResponse<Record<string, unknown>>>(
-			`/moments/${momentId}`,
-			payload,
-		)
+		const response = await request.put<
+			ApiResponse<Record<string, unknown>>
+		>(`/moments/${momentId}`, payload)
 		const updated = normalizeMoment(response.data.data)
 		const result = upsertMoment(updated)
 		persistCurrentListToCache()
@@ -720,6 +786,64 @@ export const useMomentStore = defineStore('moment', () => {
 		}
 	}
 
+	const fetchAboutMe = async ({
+		reset = true,
+		size = 20,
+	}: {
+		reset?: boolean
+		size?: number
+	} = {}): Promise<void> => {
+		if (aboutMeLoading.value && !reset) return
+		if (!reset && !aboutMeHasMore.value) return
+		const requestSeq = ++aboutMeFetchSeq
+		if (reset) {
+			aboutMeItems.value = []
+			aboutMeCursor.value = null
+			aboutMeHasMore.value = true
+		}
+		aboutMeLoading.value = true
+		try {
+			const response = await request.get<
+				ApiResponse<CursorPage<Record<string, unknown>>>
+			>('/moments/about-me', {
+				params: {
+					cursor: reset
+						? undefined
+						: aboutMeCursor.value || undefined,
+					size,
+				},
+			})
+			if (requestSeq !== aboutMeFetchSeq) return
+			const page =
+				response.data.data ||
+				({
+					records: [],
+					hasMore: false,
+					nextCursor: null,
+				} as CursorPage<Record<string, unknown>>)
+			const mapped = (page.records || [])
+				.map((item) => normalizeAboutMeItem(item))
+				.filter((item) => item.id && item.momentId)
+			if (reset) {
+				aboutMeItems.value = mapped
+			} else {
+				const existing = new Set(
+					aboutMeItems.value.map((item) => item.id),
+				)
+				for (const item of mapped) {
+					if (existing.has(item.id)) continue
+					aboutMeItems.value.push(item)
+				}
+			}
+			aboutMeCursor.value = page.nextCursor || null
+			aboutMeHasMore.value = Boolean(page.hasMore)
+		} finally {
+			if (requestSeq === aboutMeFetchSeq) {
+				aboutMeLoading.value = false
+			}
+		}
+	}
+
 	hydrateFromCache()
 	hydrateCommentCache()
 	hydrateMomentCommentsFromCache()
@@ -743,5 +867,10 @@ export const useMomentStore = defineStore('moment', () => {
 		updateMoment,
 		deleteMoment,
 		fetchMomentLikes,
+		aboutMeItems,
+		aboutMeCursor,
+		aboutMeHasMore,
+		aboutMeLoading,
+		fetchAboutMe,
 	}
 })

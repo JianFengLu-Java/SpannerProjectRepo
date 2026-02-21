@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, dialog } from 'electron'
+import { app, shell, BrowserWindow, dialog, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -70,6 +70,23 @@ function createWindow(): void {
 app.whenReady().then(async () => {
 	// Set app user model id for windows
 	electronApp.setAppUserModelId('com.electron')
+
+	const allowlist = new Set([
+		'media',
+		'notifications',
+		'fullscreen',
+		'clipboard-sanitized-write',
+	])
+	session.defaultSession.setPermissionCheckHandler(
+		(_webContents, permission) => {
+			return allowlist.has(permission)
+		},
+	)
+	session.defaultSession.setPermissionRequestHandler(
+		(_webContents, permission, callback) => {
+			callback(allowlist.has(permission))
+		},
+	)
 
 	app.on('browser-window-created', (_, window) => {
 		optimizer.watchWindowShortcuts(window)

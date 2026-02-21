@@ -3,7 +3,14 @@ import { join } from 'path'
 import iconPath from '../../../resources/icon.png?asset'
 
 // 定义窗口类型，方便维护
-type WindowType = 'login' | 'register' | 'home' | 'view-img' | 'chat'
+type WindowType =
+	| 'login'
+	| 'register'
+	| 'home'
+	| 'view-img'
+	| 'chat'
+	| 'mock-video-call'
+	| 'incoming-call'
 
 // 窗口注册表：保存所有正在运行的窗口实例
 export const windowRegistry = new Map<string, BrowserWindow>()
@@ -231,6 +238,115 @@ export function openChatWindow(chatId: number, chatName: string): void {
 	const page = `chat-standalone?id=${chatId}&name=${encodeURIComponent(chatName)}`
 	loadPage(win, page)
 
+	windowRegistry.set(winKey, win)
+
+	win.on('closed', () => {
+		windowRegistry.delete(winKey)
+	})
+}
+
+export function openMockVideoCallWindow(
+	chatId: number,
+	chatName: string,
+	chatAvatar?: string,
+	options?: {
+		startConnected?: boolean
+	},
+): void {
+	const winKey = `mock-video-call-${chatId}`
+	const existingWin = windowRegistry.get(winKey)
+	if (existingWin && !existingWin.isDestroyed()) {
+		existingWin.show()
+		existingWin.focus()
+		return
+	}
+
+	const win = new BrowserWindow({
+		width: 960,
+		height: 640,
+		minWidth: 760,
+		minHeight: 520,
+		show: false,
+		resizable: true,
+		title: `与 ${chatName} 视频通话`,
+		backgroundColor: '#0f172a',
+		autoHideMenuBar: true,
+		frame: process.platform === 'darwin',
+		titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+		trafficLightPosition: process.platform === 'darwin'
+			? { x: 14, y: 12 }
+			: undefined,
+		vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
+		visualEffectState: process.platform === 'darwin' ? 'active' : undefined,
+		webPreferences: {
+			preload: join(__dirname, '../preload/index.js'),
+			sandbox: false,
+			contextIsolation: true,
+			webSecurity: false,
+			webviewTag: true,
+		},
+	})
+
+	const page = `mock-video-call?chatId=${chatId}&name=${encodeURIComponent(chatName)}&avatar=${encodeURIComponent(chatAvatar || '')}&startConnected=${options?.startConnected ? '1' : '0'}`
+	loadPage(win, page)
+	windowRegistry.set(winKey, win)
+
+	win.on('closed', () => {
+		windowRegistry.delete(winKey)
+	})
+}
+
+export function openIncomingCallWindow(payload: {
+	callId: string
+	fromAccount: string
+	fromName: string
+	fromAvatar?: string
+	chatId?: number
+	type?: 'video' | 'audio'
+}): void {
+	const callId = payload.callId.trim()
+	if (!callId) return
+	const winKey = `incoming-call-${callId}`
+	const existingWin = windowRegistry.get(winKey)
+	if (existingWin && !existingWin.isDestroyed()) {
+		existingWin.show()
+		existingWin.focus()
+		return
+	}
+
+	const win = new BrowserWindow({
+		width: 420,
+		height: 560,
+		minWidth: 360,
+		minHeight: 500,
+		show: false,
+		resizable: false,
+		backgroundColor: '#f8fafc',
+		autoHideMenuBar: true,
+		frame: process.platform === 'darwin',
+		titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+		trafficLightPosition: process.platform === 'darwin'
+			? { x: 12, y: 12 }
+			: undefined,
+		vibrancy: process.platform === 'darwin' ? 'window' : undefined,
+		visualEffectState: process.platform === 'darwin' ? 'active' : undefined,
+		webPreferences: {
+			preload: join(__dirname, '../preload/index.js'),
+			sandbox: false,
+			contextIsolation: true,
+			webSecurity: false,
+			webviewTag: true,
+		},
+	})
+
+	const page =
+		`incoming-call?callId=${encodeURIComponent(callId)}` +
+		`&fromAccount=${encodeURIComponent(payload.fromAccount)}` +
+		`&fromName=${encodeURIComponent(payload.fromName)}` +
+		`&fromAvatar=${encodeURIComponent(payload.fromAvatar || '')}` +
+		`&chatId=${Number.isFinite(payload.chatId) ? payload.chatId : ''}` +
+		`&type=${encodeURIComponent(payload.type || 'video')}`
+	loadPage(win, page)
 	windowRegistry.set(winKey, win)
 
 	win.on('closed', () => {

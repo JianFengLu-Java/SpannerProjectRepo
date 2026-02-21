@@ -18,7 +18,9 @@ export interface CloudDocWsEventFrame {
 export interface CloudDocWsAckFrame {
 	action?: string
 	docId?: string
+	opId?: string
 	status?: string
+	serverVersion?: number
 	at?: string
 }
 
@@ -117,7 +119,9 @@ class CloudDocWsService {
 
 		this.client.subscribe('/user/queue/cloud-docs.acks', (frame) => {
 			try {
-				this.handlers.onAck?.(JSON.parse(frame.body) as CloudDocWsAckFrame)
+				this.handlers.onAck?.(
+					JSON.parse(frame.body) as CloudDocWsAckFrame,
+				)
 			} catch (error) {
 				console.error('解析云文档协作回执失败:', error)
 			}

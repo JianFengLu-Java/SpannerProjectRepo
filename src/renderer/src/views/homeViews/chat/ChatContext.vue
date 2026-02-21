@@ -275,6 +275,7 @@
 				</div>
 			</div>
 		</n-modal>
+
 	</div>
 	<div
 		v-if="!currentChat"
@@ -320,7 +321,6 @@
 import ChatEdit from './ChatEdit.vue'
 import { useChatStore, type Message } from '@renderer/stores/chat'
 import {
-	Call,
 	EllipsisHorizontal,
 	PersonAddSharp,
 	Search,
@@ -328,6 +328,7 @@ import {
 import {
 	Chat24Regular,
 	ArrowLeft24Regular,
+	ChatVideo24Regular,
 	Dismiss24Regular,
 } from '@vicons/fluent'
 import { storeToRefs } from 'pinia'
@@ -436,7 +437,7 @@ interface menusItem {
 // 图标映射
 const iconMap: Record<string, Component> = {
 	search: Search,
-	call: Call,
+	videoCall: ChatVideo24Regular,
 	userAdd: PersonAddSharp,
 	more: EllipsisHorizontal,
 }
@@ -477,10 +478,9 @@ const menus = computed<menusItem[]>(() => {
 			icon: 'search',
 		},
 		{
-			key: 'call',
-			label: '语音通话（开发中）',
-			icon: 'call',
-			disabled: true,
+			key: 'videoCall',
+			label: '视频通话（Mock）',
+			icon: 'videoCall',
 		},
 		{
 			key: 'more',
@@ -519,6 +519,18 @@ const getDebugMessageTime = (item: Message): string => {
 	return `${y}-${m}-${d} ${hh}:${mm}:${ss}`
 }
 
+const startMockVideoCall = (): void => {
+	if (!currentChat.value || currentChat.value.chatType === 'GROUP') {
+		message.warning('仅支持在单聊中发起视频通话')
+		return
+	}
+	window.api.openMockVideoCallWindow({
+		chatId: currentChat.value.id,
+		chatName: currentChat.value.name,
+		chatAvatar: currentChat.value.avatar || '',
+	})
+}
+
 const resetHistorySearchForm = (): void => {
 	historySearchForm.value = {
 		keyword: '',
@@ -534,8 +546,8 @@ const handleMenuAction = (key: string): void => {
 		showHistorySearchModal.value = true
 		return
 	}
-	if (key === 'call') {
-		message.info('语音通话功能开发中')
+	if (key === 'videoCall') {
+		startMockVideoCall()
 		return
 	}
 	if (key === 'userAdd') {

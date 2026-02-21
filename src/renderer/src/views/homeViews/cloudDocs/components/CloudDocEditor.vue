@@ -11,6 +11,7 @@ const props = defineProps<{
 	saveState: CloudDocSaveState
 	saveErrorMessage: string
 	collabCursors: CollabCursor[]
+	collabOnlineCount?: number
 }>()
 
 const emit = defineEmits<{
@@ -28,6 +29,7 @@ const emit = defineEmits<{
 		:save-state="props.saveState"
 		:save-error-message="props.saveErrorMessage"
 		:collab-cursors="props.collabCursors"
+		:collab-online-count="props.collabOnlineCount || 0"
 		@update:title="emit('update:title', $event)"
 		@update:content="emit('update:content', $event)"
 	/>

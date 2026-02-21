@@ -9,8 +9,14 @@ import CloudDocEditor from './components/CloudDocEditor.vue'
 const router = useRouter()
 const route = useRoute()
 const cloudDocStore = useCloudDocStore()
-const { docs, activeDoc, saveState, saveErrorMessage, activeDocCursors } =
-	storeToRefs(cloudDocStore)
+const {
+	docs,
+	activeDoc,
+	saveState,
+	saveErrorMessage,
+	activeDocCursors,
+	activeDocOnlineCount,
+} = storeToRefs(cloudDocStore)
 
 const routeDocId = computed(() => String(route.params.docId || ''))
 
@@ -58,6 +64,7 @@ onBeforeUnmount(() => {
 				:save-state="saveState"
 				:save-error-message="saveErrorMessage"
 				:collab-cursors="activeDocCursors"
+				:collab-online-count="activeDocOnlineCount"
 				@update:title="cloudDocStore.updateActiveTitle"
 				@update:content="cloudDocStore.updateActiveContent"
 			/>

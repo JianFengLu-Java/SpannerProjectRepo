@@ -176,7 +176,7 @@
 					v-else-if="isOnlyImage"
 					class="msg-content-selectable"
 					@click="handleClickEvent"
-					v-html="content"
+					v-html="renderedContent"
 				/>
 
 				<div
@@ -189,7 +189,10 @@
 					"
 					@click="handleClickEvent"
 				>
-					<div class="msg-content-selectable" v-html="content"></div>
+					<div
+						class="msg-content-selectable"
+						v-html="renderedContent"
+					></div>
 				</div>
 			</div>
 
@@ -359,6 +362,7 @@ import { useWalletStore } from '@renderer/stores/wallet'
 import { useChatStore } from '@renderer/stores/chat'
 import { useCloudDocStore } from '@renderer/stores/cloudDoc'
 import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
+import { getMergedEmojiTokenMap } from '@renderer/utils/emojiTokenMap'
 
 const walletStore = useWalletStore()
 const chatStore = useChatStore()
@@ -443,7 +447,9 @@ const tryParseJsonObject = (value: string): Record<string, unknown> | null => {
 	}
 }
 
-const extractFirstJsonObject = (value: string): Record<string, unknown> | null => {
+const extractFirstJsonObject = (
+	value: string,
+): Record<string, unknown> | null => {
 	const trimmed = value.trim()
 	if (!trimmed) return null
 	const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
@@ -509,7 +515,10 @@ const extractNoticeFieldValue = (keywords: string[]): string | undefined => {
 		if (!keywords.some((keyword) => line.includes(keyword))) continue
 		const withColon = line.match(/[：:]\s*(.+)$/)
 		if (withColon?.[1]?.trim()) {
-			const value = withColon[1].trim().split(/[，,；;。]/)[0]?.trim()
+			const value = withColon[1]
+				.trim()
+				.split(/[，,；;。]/)[0]
+				?.trim()
 			if (value) return value
 		}
 		for (const keyword of keywords) {
@@ -553,19 +562,19 @@ const parseDurationDays = (value?: string): number => {
 	if (!raw) return 0
 	if (looksLikeDateText(raw)) return 0
 
-	const byDay = raw.match(/([+\-]?\d+(?:\.\d+)?)\s*天/)
+	const byDay = raw.match(/([+-]?\d+(?:\.\d+)?)\s*天/)
 	if (byDay) {
 		const parsed = Number(byDay[1])
 		if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed))
 	}
 
-	const byMonth = raw.match(/([+\-]?\d+(?:\.\d+)?)\s*(?:个)?月/)
+	const byMonth = raw.match(/([+-]?\d+(?:\.\d+)?)\s*(?:个)?月/)
 	if (byMonth) {
 		const parsed = Number(byMonth[1])
 		if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed * 30))
 	}
 
-	const byYear = raw.match(/([+\-]?\d+(?:\.\d+)?)\s*年/)
+	const byYear = raw.match(/([+-]?\d+(?:\.\d+)?)\s*年/)
 	if (byYear) {
 		const parsed = Number(byYear[1])
 		if (Number.isFinite(parsed))
@@ -837,7 +846,9 @@ const vipNoticePayMethod = computed(() => {
 	const fromTextMatched = noticeText.value.match(
 		/(?:支付(?:方式|渠道|类型|方式编码|渠道编码)|pay(?:ment)?(?:Method|Type)?|pay(?:_|)?channel|channel)\s*[:：=]\s*([^\n,，;；]+)/i,
 	)
-	const normalized = normalizePayMethod(fromField || fromTextMatched?.[1] || '')
+	const normalized = normalizePayMethod(
+		fromField || fromTextMatched?.[1] || '',
+	)
 	if (normalized !== '未知支付方式') return normalized
 	return detectPayMethodFromText(noticeText.value) || '未知支付方式'
 })
@@ -1140,6 +1151,68 @@ const isOnlyImage = computed(() => {
 	)
 })
 
+const renderedContent = computed(() => {
+	const source = props.content || ''
+	if (!source || !source.includes('[') || !source.includes(']')) return source
+	const tokenMap = getMergedEmojiTokenMap()
+	if (!Object.keys(tokenMap).length) return source
+
+	const holder = document.createElement('div')
+	holder.innerHTML = source
+	const walker = document.createTreeWalker(holder, NodeFilter.SHOW_TEXT)
+	const textNodes: Text[] = []
+	let current = walker.nextNode()
+	while (current) {
+		if (current.nodeType === Node.TEXT_NODE) {
+			textNodes.push(current as Text)
+		}
+		current = walker.nextNode()
+	}
+
+	const tokenPattern = /\[([^\]\s[]{1,24})\]/g
+	textNodes.forEach((textNode) => {
+		const raw = textNode.nodeValue || ''
+		tokenPattern.lastIndex = 0
+		if (!tokenPattern.test(raw)) return
+		tokenPattern.lastIndex = 0
+
+		const frag = document.createDocumentFragment()
+		let lastIndex = 0
+		let matched = tokenPattern.exec(raw)
+		while (matched) {
+			const token = matched[0]
+			const start = matched.index
+			const end = start + token.length
+			const mappedUrl = tokenMap[token]
+
+			if (start > lastIndex) {
+				frag.appendChild(
+					document.createTextNode(raw.slice(lastIndex, start)),
+				)
+			}
+			if (mappedUrl) {
+				const img = document.createElement('img')
+				img.className = 'inline-emoji-token'
+				img.src = mappedUrl
+				img.alt = token
+				img.title = token
+				img.setAttribute('draggable', 'false')
+				frag.appendChild(img)
+			} else {
+				frag.appendChild(document.createTextNode(token))
+			}
+			lastIndex = end
+			matched = tokenPattern.exec(raw)
+		}
+		if (lastIndex < raw.length) {
+			frag.appendChild(document.createTextNode(raw.slice(lastIndex)))
+		}
+		textNode.replaceWith(frag)
+	})
+
+	return holder.innerHTML
+})
+
 const handleClickEvent = (e: MouseEvent): void => {
 	const target = e.target as HTMLElement
 	const card = target.closest('.chat-cloud-doc-share-card')
@@ -1174,13 +1247,24 @@ onUpdated(attachLoadEvents)
 </script>
 
 <style scoped>
-:deep(.msg-content-selectable img) {
+:deep(.msg-content-selectable img:not(.inline-emoji-token)) {
 	display: block;
 	cursor: pointer;
 	max-width: 240px;
 	max-height: 320px;
 	border-radius: 8px;
 	border: #79797a94 solid 1px;
+}
+
+:deep(.msg-content-selectable img.inline-emoji-token) {
+	display: inline-block;
+	width: 1.15em;
+	height: 1.15em;
+	vertical-align: -0.22em;
+	margin: 0 0.04em;
+	border: none;
+	border-radius: 0;
+	cursor: text;
 }
 .msg-content-selectable,
 .msg-content-selectable :deep(*) {

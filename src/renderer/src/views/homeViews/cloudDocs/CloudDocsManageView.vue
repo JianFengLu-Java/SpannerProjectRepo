@@ -104,7 +104,10 @@ onMounted(() => {
 					<div v-if="sharedLoading" class="shared-docs-empty">
 						加载中...
 					</div>
-					<div v-else-if="!sharedDocs.length" class="shared-docs-empty">
+					<div
+						v-else-if="!sharedDocs.length"
+						class="shared-docs-empty"
+					>
 						暂无朋友分享文档
 					</div>
 					<div v-else class="shared-docs-list">
@@ -119,7 +122,12 @@ onMounted(() => {
 								{{ item.doc.title || '未标题云文档' }}
 							</div>
 							<div class="shared-doc-item-meta">
-								分享标识 {{ item.shareNo }}
+								分享标识 {{ item.shareNo }} ·
+								{{
+									item.doc.editable
+										? '协作可编辑'
+										: '仅查看只读'
+								}}
 							</div>
 						</button>
 					</div>
@@ -134,21 +142,21 @@ onMounted(() => {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding: 12px;
+	gap: 8px;
+	padding: 8px;
 	background: linear-gradient(135deg, #f5f9ff 0%, #edf4ff 48%, #e4efff 100%);
 }
 
 .docs-manage-header {
-	padding: 12px 14px;
-	border-radius: 14px;
-	border: 1px solid color-mix(in srgb, var(--color-border-default) 70%, #bdd4f8);
+	padding: 10px 12px;
+	border-radius: 10px;
+	border: 1px solid
+		color-mix(in srgb, var(--color-border-default) 70%, #bdd4f8);
 	background: linear-gradient(
 		160deg,
 		color-mix(in srgb, var(--color-card-bg) 92%, #ffffff),
 		color-mix(in srgb, var(--color-card-bg) 90%, #eaf2ff)
 	);
-	box-shadow: 0 12px 28px rgba(47, 127, 231, 0.08);
 }
 
 .docs-title-row {
@@ -188,19 +196,19 @@ onMounted(() => {
 	height: 100%;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) 320px;
-	gap: 12px;
+	gap: 8px;
 }
 
 .shared-docs-panel {
-	border-radius: 14px;
-	border: 1px solid color-mix(in srgb, var(--color-border-default) 74%, #bed6ff);
+	border-radius: 10px;
+	border: 1px solid
+		color-mix(in srgb, var(--color-border-default) 74%, #bed6ff);
 	background: linear-gradient(
 		165deg,
 		color-mix(in srgb, var(--color-card-bg) 96%, #ffffff),
 		color-mix(in srgb, var(--color-card-bg) 88%, #ecf4ff)
 	);
-	box-shadow: 0 16px 30px rgba(47, 127, 231, 0.08);
-	padding: 12px;
+	padding: 10px;
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
@@ -210,7 +218,7 @@ onMounted(() => {
 	display: flex;
 	align-items: baseline;
 	justify-content: space-between;
-	margin-bottom: 10px;
+	margin-bottom: 8px;
 }
 
 .shared-docs-title {
@@ -239,23 +247,25 @@ onMounted(() => {
 	overflow: auto;
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 6px;
 }
 
 .shared-doc-item {
 	text-align: left;
-	padding: 8px 10px;
-	border-radius: 10px;
-	border: 1px solid color-mix(in srgb, var(--color-border-default) 80%, #c8ddff);
+	padding: 7px 9px;
+	border-radius: 8px;
+	border: 1px solid
+		color-mix(in srgb, var(--color-border-default) 80%, #c8ddff);
 	background: color-mix(in srgb, var(--color-card-bg) 92%, #ffffff);
-	transition:
-		transform 0.14s ease,
-		border-color 0.14s ease;
+	transition: border-color 0.14s ease;
 }
 
 .shared-doc-item:hover {
-	transform: translateY(-1px);
-	border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-border-default));
+	border-color: color-mix(
+		in srgb,
+		var(--color-primary) 50%,
+		var(--color-border-default)
+	);
 }
 
 .shared-doc-item-title {
@@ -279,8 +289,11 @@ onMounted(() => {
 
 :global(.dark) .docs-manage-header {
 	border-color: color-mix(in srgb, var(--color-border-default) 84%, #304869);
-	background: linear-gradient(160deg, rgba(36, 46, 60, 0.96), rgba(29, 39, 53, 0.96));
-	box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+	background: linear-gradient(
+		160deg,
+		rgba(36, 46, 60, 0.96),
+		rgba(29, 39, 53, 0.96)
+	);
 }
 
 :global(.dark) .docs-badge {

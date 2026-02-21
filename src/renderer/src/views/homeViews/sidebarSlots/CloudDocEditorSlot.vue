@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, getCurrentInstance, onActivated, onBeforeUnmount, onMounted, watch } from 'vue'
+import {
+	computed,
+	getCurrentInstance,
+	onActivated,
+	onBeforeUnmount,
+	onMounted,
+	watch,
+} from 'vue'
 import { NButton, NEmpty } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useCloudDocStore } from '@renderer/stores/cloudDoc'
@@ -8,7 +15,14 @@ import CloudDocEditor from '../cloudDocs/components/CloudDocEditor.vue'
 
 const cloudDocStore = useCloudDocStore()
 const sidebarSlotStore = useSidebarSlotStore()
-const { docs, activeDoc, saveState, saveErrorMessage } = storeToRefs(cloudDocStore)
+const {
+	docs,
+	activeDoc,
+	saveState,
+	saveErrorMessage,
+	activeDocCursors,
+	activeDocOnlineCount,
+} = storeToRefs(cloudDocStore)
 
 const CLOUD_DOC_SLOT_PREFIX = 'cloud-doc:'
 const instanceKey = String(getCurrentInstance()?.vnode.key || '')
@@ -81,7 +95,8 @@ onBeforeUnmount(() => {
 				:doc="activeDoc"
 				:save-state="saveState"
 				:save-error-message="saveErrorMessage"
-				:collab-cursors="[]"
+				:collab-cursors="activeDocCursors"
+				:collab-online-count="activeDocOnlineCount"
 				@update:title="cloudDocStore.updateActiveTitle"
 				@update:content="cloudDocStore.updateActiveContent"
 			/>
@@ -90,7 +105,11 @@ onBeforeUnmount(() => {
 		<section v-else class="docs-editor-slot-empty">
 			<n-empty description="文档不存在或已删除">
 				<template #extra>
-					<n-button type="primary" @click="sidebarSlotStore.clearActiveSlot()">关闭当前插槽</n-button>
+					<n-button
+						type="primary"
+						@click="sidebarSlotStore.clearActiveSlot()"
+						>关闭当前插槽</n-button
+					>
 				</template>
 			</n-empty>
 		</section>

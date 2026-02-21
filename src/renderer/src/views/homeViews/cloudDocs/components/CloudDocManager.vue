@@ -37,9 +37,16 @@ const formatTime = (time: string): string => {
 		<div class="doc-manager-header">
 			<div class="doc-manager-heading">
 				<div class="doc-manager-title">文档列表</div>
-				<div class="doc-manager-subtitle">共 {{ props.docs.length }} 篇文档</div>
+				<div class="doc-manager-subtitle">
+					共 {{ props.docs.length }} 篇文档
+				</div>
 			</div>
-			<n-button type="primary" size="small" :disabled="props.loading" @click="emit('create')">
+			<n-button
+				type="primary"
+				size="small"
+				:disabled="props.loading"
+				@click="emit('create')"
+			>
 				<template #icon>
 					<n-icon><Add /></n-icon>
 				</template>
@@ -54,7 +61,9 @@ const formatTime = (time: string): string => {
 		<div v-else-if="empty" class="doc-manager-empty">
 			<n-icon size="24"><DocumentTextOutline /></n-icon>
 			<n-text depth="3">还没有云文档</n-text>
-			<n-button quaternary type="primary" @click="emit('create')">创建第一篇文档</n-button>
+			<n-button quaternary type="primary" @click="emit('create')"
+				>创建第一篇文档</n-button
+			>
 		</div>
 
 		<n-scrollbar v-else class="doc-manager-scroll">
@@ -67,10 +76,20 @@ const formatTime = (time: string): string => {
 					@click="emit('select', item.id)"
 				>
 					<div class="doc-item-top">
-						<n-tag size="small" :bordered="false" class="doc-item-tag">Doc</n-tag>
+						<n-tag
+							size="small"
+							:bordered="false"
+							class="doc-item-tag"
+							>Doc</n-tag
+						>
 						<n-tooltip trigger="hover" placement="top">
 							<template #trigger>
-								<n-button quaternary type="error" size="tiny" @click.stop="emit('delete', item.id)">
+								<n-button
+									quaternary
+									type="error"
+									size="tiny"
+									@click.stop="emit('delete', item.id)"
+								>
 									<template #icon>
 										<n-icon><TrashOutline /></n-icon>
 									</template>
@@ -79,8 +98,12 @@ const formatTime = (time: string): string => {
 							删除
 						</n-tooltip>
 					</div>
-					<div class="doc-item-title">{{ item.title || '未标题云文档' }}</div>
-					<div class="doc-item-time">更新于 {{ formatTime(item.updatedAt) }}</div>
+					<div class="doc-item-title">
+						{{ item.title || '未标题云文档' }}
+					</div>
+					<div class="doc-item-time">
+						更新于 {{ formatTime(item.updatedAt) }}
+					</div>
 				</div>
 			</div>
 		</n-scrollbar>
@@ -92,14 +115,14 @@ const formatTime = (time: string): string => {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	border-radius: 14px;
-	border: 1px solid color-mix(in srgb, var(--color-border-default) 74%, #bed6ff);
+	border-radius: 10px;
+	border: 1px solid
+		color-mix(in srgb, var(--color-border-default) 74%, #bed6ff);
 	background: linear-gradient(
 		165deg,
 		color-mix(in srgb, var(--color-card-bg) 96%, #ffffff),
 		color-mix(in srgb, var(--color-card-bg) 88%, #ecf4ff)
 	);
-	box-shadow: 0 16px 30px rgba(47, 127, 231, 0.08);
 }
 
 .doc-manager-heading {
@@ -110,9 +133,10 @@ const formatTime = (time: string): string => {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
-	padding: 12px 14px;
-	border-bottom: 1px solid color-mix(in srgb, var(--color-border-default) 82%, #c8dcfb);
+	gap: 8px;
+	padding: 10px 12px;
+	border-bottom: 1px solid
+		color-mix(in srgb, var(--color-border-default) 82%, #c8dcfb);
 }
 
 .doc-manager-title {
@@ -144,34 +168,38 @@ const formatTime = (time: string): string => {
 .doc-list {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
-	padding: 8px;
+	gap: 4px;
+	padding: 6px;
 }
 
 .doc-item {
 	position: relative;
-	padding: 8px 10px;
-	border-radius: 10px;
-	border: 1px solid color-mix(in srgb, var(--color-border-default) 78%, #c8ddff);
+	padding: 7px 9px;
+	border-radius: 8px;
+	border: 1px solid
+		color-mix(in srgb, var(--color-border-default) 78%, #c8ddff);
 	background: color-mix(in srgb, var(--color-card-bg) 92%, #ffffff);
 	cursor: pointer;
 	transition:
-		transform 0.16s ease,
 		border-color 0.16s ease,
-		box-shadow 0.16s ease,
 		background 0.16s ease;
 }
 
 .doc-item:hover {
-	transform: translateY(-1px);
-	border-color: color-mix(in srgb, var(--color-primary) 52%, var(--color-border-default));
-	box-shadow: 0 6px 14px rgba(54, 149, 255, 0.1);
+	border-color: color-mix(
+		in srgb,
+		var(--color-primary) 52%,
+		var(--color-border-default)
+	);
 }
 
 .doc-item-active {
 	border-color: var(--color-primary);
-	background: color-mix(in srgb, var(--color-primary) 10%, var(--color-card-bg));
-	box-shadow: 0 8px 18px rgba(54, 149, 255, 0.14);
+	background: color-mix(
+		in srgb,
+		var(--color-primary) 10%,
+		var(--color-card-bg)
+	);
 }
 
 .doc-item-active::before {
@@ -217,21 +245,24 @@ const formatTime = (time: string): string => {
 
 :global(.dark) .doc-manager-root {
 	border-color: color-mix(in srgb, var(--color-border-default) 84%, #32577a);
-	background: linear-gradient(165deg, rgba(33, 43, 56, 0.96), rgba(28, 37, 49, 0.96));
-	box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+	background: linear-gradient(
+		165deg,
+		rgba(33, 43, 56, 0.96),
+		rgba(28, 37, 49, 0.96)
+	);
 }
 
 :global(.dark) .doc-manager-header {
-	border-bottom-color: color-mix(in srgb, var(--color-border-default) 84%, #3a5f84);
+	border-bottom-color: color-mix(
+		in srgb,
+		var(--color-border-default) 84%,
+		#3a5f84
+	);
 }
 
 :global(.dark) .doc-item {
 	border-color: color-mix(in srgb, var(--color-border-default) 88%, #486b8f);
 	background: rgba(37, 47, 62, 0.88);
-}
-
-:global(.dark) .doc-item:hover {
-	box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
 }
 
 :global(.dark) .doc-item-active {

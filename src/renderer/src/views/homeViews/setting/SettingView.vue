@@ -1,16 +1,13 @@
 <template>
 	<div
-		class="h-full w-full rounded-2xl flex flex-col overflow-hidden transition-colors duration-300 bg-page-bg text-text-main"
+		class="h-full w-full rounded-xl flex flex-col overflow-hidden transition-colors duration-300 bg-page-bg text-text-main"
 	>
 		<div
-			class="px-6 border-b border-border-default transition-colors duration-300 setting-header"
+			class="px-4 border-b border-border-default transition-colors duration-300 setting-header"
 		>
 			<div class="setting-header-inner">
 				<div>
-					<div class="text-xl font-bold tracking-tight">系统设置</div>
-					<p class="text-xs mt-1 text-gray-500 dark:text-gray-400">
-						管理应用外观、通知和隐私偏好
-					</p>
+					<div class="text-lg font-semibold tracking-tight">系统设置</div>
 				</div>
 				<div class="hidden md:flex items-center gap-2">
 					<span class="stat-chip">
@@ -30,7 +27,7 @@
 		<div class="setting-main flex-1 flex overflow-hidden">
 			<!-- Sidebar Menu -->
 			<div
-				class="w-52 h-full p-3 border-r border-border-default flex flex-col gap-1 transition-colors duration-300 setting-sidebar"
+				class="w-44 h-full p-2 border-r border-border-default flex flex-col gap-1 transition-colors duration-300 setting-sidebar"
 			>
 				<div
 					v-for="(menu, index) in menus"
@@ -40,7 +37,7 @@
 					tabindex="0"
 					:aria-selected="activeKey === menu.key"
 					:class="[
-						'menu-item flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all duration-200 group',
+						'menu-item flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 group',
 						activeKey === menu.key
 							? 'menu-item-active'
 							: themeStore.isDark
@@ -51,13 +48,13 @@
 					@keydown="onMenuKeydown($event, index)"
 				>
 					<component :is="menu.icon" class="w-4 h-4" />
-					<span class="text-sm font-medium">{{ menu.label }}</span>
+					<span class="text-[13px] font-medium">{{ menu.label }}</span>
 				</div>
 			</div>
 
 			<!-- Content Area -->
 			<div
-				class="setting-content flex-1 h-full overflow-y-auto p-8 custom-scrollbar"
+				class="setting-content flex-1 h-full overflow-y-auto p-4 custom-scrollbar"
 			>
 				<transition name="settings-panel" mode="out-in">
 					<div
@@ -74,10 +71,7 @@
 						</header>
 
 						<!-- Appearance Settings -->
-						<div
-							v-if="activeKey === 'appearance'"
-							class="space-y-4 section-shell"
-						>
+						<div v-if="activeKey === 'appearance'" class="space-y-3 section-shell">
 							<div class="setting-item-card">
 								<div class="setting-info">
 									<span class="setting-title">深色模式</span>
@@ -91,7 +85,7 @@
 									}}</span>
 									<n-switch
 										v-model:value="themeStore.isDark"
-										size="large"
+										size="medium"
 										:rail-style="railStyle"
 									/>
 								</div>
@@ -111,7 +105,7 @@
 									}}</span>
 									<n-switch
 										v-model:value="appSettings.compactMode"
-										size="large"
+										size="medium"
 										:rail-style="railStyle"
 									/>
 								</div>
@@ -119,10 +113,7 @@
 						</div>
 
 						<!-- Task Settings -->
-						<div
-							v-else-if="activeKey === 'task'"
-							class="space-y-4 section-shell"
-						>
+						<div v-else-if="activeKey === 'task'" class="space-y-3 section-shell">
 							<div class="setting-item-card">
 								<div class="setting-info">
 									<span class="setting-title"
@@ -143,7 +134,7 @@
 										v-model:value="
 											appSettings.routeLinksThroughSidebarWebview
 										"
-										size="large"
+										size="medium"
 										:rail-style="railStyle"
 									/>
 								</div>
@@ -161,7 +152,7 @@
 									}}</span>
 									<n-switch
 										v-model:value="settings.autoStart"
-										size="large"
+										size="medium"
 										:rail-style="railStyle"
 										@update:value="handleAutoStartToggle"
 									/>
@@ -184,7 +175,7 @@
 									}}</span>
 									<n-switch
 										v-model:value="settings.minimizeToTray"
-										size="large"
+										size="medium"
 										:rail-style="railStyle"
 										@update:value="
 											handleMinimizeToTrayToggle
@@ -195,10 +186,7 @@
 						</div>
 
 						<!-- Notification Settings -->
-						<div
-							v-else-if="activeKey === 'notify'"
-							class="space-y-4 section-shell"
-						>
+						<div v-else-if="activeKey === 'notify'" class="space-y-3 section-shell">
 							<div class="setting-item-card">
 								<div class="setting-info">
 									<span class="setting-title">消息通知</span>
@@ -216,7 +204,7 @@
 										v-model:value="
 											appSettings.notificationsEnabled
 										"
-										size="large"
+										size="medium"
 										:rail-style="railStyle"
 									/>
 								</div>
@@ -251,10 +239,7 @@
 						</div>
 
 						<!-- Privacy Settings -->
-						<div
-							v-else-if="activeKey === 'privacy'"
-							class="space-y-4 section-shell"
-						>
+						<div v-else-if="activeKey === 'privacy'" class="space-y-3 section-shell">
 							<div class="setting-item-card">
 								<div class="setting-info">
 									<span class="setting-title">安全 PIN</span>
@@ -301,21 +286,18 @@
 						</div>
 
 						<!-- About Settings -->
-						<div
-							v-else-if="activeKey === 'about'"
-							class="space-y-6 section-shell"
-						>
+						<div v-else-if="activeKey === 'about'" class="space-y-3 section-shell">
 							<div
-								class="about-card flex flex-col items-center justify-center p-8 rounded-2xl"
+								class="about-card flex flex-col items-center justify-center p-5 rounded-xl"
 							>
 								<div
-									class="w-20 h-20 rounded-2xl mb-4 flex items-center justify-center app-logo-box"
+									class="w-16 h-16 rounded-xl mb-3 flex items-center justify-center app-logo-box"
 								>
-									<span class="text-white text-3xl font-bold"
+									<span class="text-white text-2xl font-bold"
 										>S</span
 									>
 								</div>
-								<h3 class="text-xl font-bold">Spanner</h3>
+								<h3 class="text-lg font-semibold">Spanner</h3>
 								<p
 									class="text-gray-500 dark:text-gray-300 text-sm mt-1"
 								>
@@ -751,16 +733,16 @@ watch(
 
 .setting-header,
 .setting-sidebar {
-	background-color: rgba(255, 255, 255, 0.45);
-	backdrop-filter: blur(18px);
+	background-color: rgba(255, 255, 255, 0.9);
+	backdrop-filter: blur(6px);
 }
 
 .setting-header-inner {
-	min-height: 5rem;
+	min-height: 3.5rem;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 1rem;
+	gap: 0.75rem;
 }
 
 .setting-section-header {
@@ -770,15 +752,15 @@ watch(
 }
 
 .setting-section-title {
-	font-size: 1.2rem;
-	line-height: 1.35;
-	font-weight: 650;
+	font-size: 1.05rem;
+	line-height: 1.25;
+	font-weight: 600;
 	letter-spacing: 0.01em;
 }
 
 .setting-section-desc {
-	font-size: 0.84rem;
-	line-height: 1.45;
+	font-size: 0.78rem;
+	line-height: 1.4;
 	color: #9ca3af;
 }
 
@@ -788,13 +770,13 @@ watch(
 
 .dark .setting-header,
 .dark .setting-sidebar {
-	background-color: rgba(18, 18, 20, 0.45);
+	background-color: rgba(18, 18, 20, 0.86);
 }
 
 .stat-chip {
-	padding: 0.25rem 0.6rem;
+	padding: 0.18rem 0.5rem;
 	border-radius: 999px;
-	font-size: 0.75rem;
+	font-size: 0.7rem;
 	font-weight: 500;
 	color: rgb(15, 118, 110);
 	background: rgba(54, 149, 255, 0.15);
@@ -828,14 +810,14 @@ watch(
 }
 
 .section-shell {
-	background: rgba(255, 255, 255, 0.45);
+	background: rgba(255, 255, 255, 0.86);
 	border: 1px solid rgba(15, 23, 42, 0.06);
-	padding: 1rem;
-	border-radius: 1.25rem;
+	padding: 0.75rem;
+	border-radius: 0.9rem;
 }
 
 .dark .section-shell {
-	background: rgba(255, 255, 255, 0.03);
+	background: rgba(255, 255, 255, 0.02);
 	border-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -843,20 +825,20 @@ watch(
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 1.5rem;
-	border-radius: 1.25rem;
+	padding: 0.9rem 1rem;
+	border-radius: 0.8rem;
 	border: 1px solid transparent;
-	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	transition: all 0.2s ease;
 }
 
 .setting-item-card {
-	background: rgba(255, 255, 255, 0.72);
+	background: rgba(255, 255, 255, 0.95);
 	border-color: rgba(15, 23, 42, 0.08);
 }
 
 .setting-item-card:hover {
-	border-color: rgba(54, 149, 255, 0.32);
-	background-color: #ffffff;
+	border-color: rgba(54, 149, 255, 0.26);
+	background-color: #fff;
 }
 
 .dark .setting-item-card {
@@ -872,31 +854,31 @@ watch(
 .setting-info {
 	display: flex;
 	flex-direction: column;
-	gap: 0.35rem;
+	gap: 0.2rem;
 }
 
 .setting-title {
-	font-size: 0.95rem;
+	font-size: 0.88rem;
 	font-weight: 600;
 }
 
 .setting-desc {
-	font-size: 0.8rem;
+	font-size: 0.75rem;
 	color: #9ca3af;
 }
 
 .setting-control {
 	display: flex;
 	align-items: center;
-	gap: 0.75rem;
+	gap: 0.55rem;
 }
 
 .setting-state {
 	display: inline-flex;
 	align-items: center;
-	padding: 0.22rem 0.55rem;
+	padding: 0.16rem 0.45rem;
 	border-radius: 999px;
-	font-size: 0.75rem;
+	font-size: 0.68rem;
 	color: #0f766e;
 	background-color: rgba(54, 149, 255, 0.12);
 	border: 1px solid rgba(54, 149, 255, 0.22);
@@ -909,29 +891,17 @@ watch(
 }
 
 .about-card {
-	background:
-		radial-gradient(
-			1200px circle at 10% 0%,
-			rgba(112, 176, 255, 0.14),
-			transparent 55%
-		),
-		rgba(255, 255, 255, 0.5);
+	background: rgba(255, 255, 255, 0.9);
 	border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
 .dark .about-card {
-	background:
-		radial-gradient(
-			1200px circle at 10% 0%,
-			rgba(82, 146, 255, 0.18),
-			transparent 55%
-		),
-		rgba(255, 255, 255, 0.05);
+	background: rgba(255, 255, 255, 0.04);
 	border-color: rgba(255, 255, 255, 0.08);
 }
 
 .app-logo-box {
-	background: linear-gradient(135deg, #5fa9ff, #7abaff);
+	background: linear-gradient(135deg, #4f8ff4, #6ba8ff);
 }
 
 .animate-fade-in {
@@ -980,7 +950,7 @@ watch(
 	}
 
 	.setting-header-inner {
-		min-height: 4.5rem;
+		min-height: 3.4rem;
 	}
 
 	.setting-main {
@@ -1007,7 +977,7 @@ watch(
 	}
 
 	.setting-content {
-		padding: 1.25rem;
+		padding: 0.95rem;
 	}
 
 	.setting-panel {
@@ -1029,7 +999,7 @@ watch(
 	}
 
 	.setting-item-card {
-		padding: 1rem;
+		padding: 0.8rem 0.9rem;
 	}
 
 	.setting-control {
@@ -1044,7 +1014,7 @@ watch(
 	}
 
 	.setting-header-inner {
-		min-height: 4rem;
+		min-height: 3rem;
 	}
 
 	.setting-sidebar {
@@ -1053,7 +1023,7 @@ watch(
 	}
 
 	.setting-content {
-		padding: 1rem 0.85rem 1.2rem;
+		padding: 0.85rem 0.75rem 1rem;
 	}
 
 	.setting-section-header {
@@ -1070,16 +1040,16 @@ watch(
 	}
 
 	.section-shell {
-		padding: 0.75rem;
-		border-radius: 1rem;
+		padding: 0.65rem;
+		border-radius: 0.8rem;
 	}
 
 	.setting-item-card {
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 0.85rem;
-		padding: 0.9rem;
-		border-radius: 1rem;
+		gap: 0.65rem;
+		padding: 0.75rem;
+		border-radius: 0.75rem;
 	}
 
 	.setting-control {

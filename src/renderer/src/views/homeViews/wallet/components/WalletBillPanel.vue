@@ -134,7 +134,7 @@
 
 		<!-- Detail Modal -->
 		<n-modal v-model:show="showDetailModal" transform-origin="center">
-			<div class="next-wallet-modal w-[min(92vw,460px)] pb-6">
+			<div class="app-modal-shell next-wallet-modal w-[min(92vw,460px)] pb-6">
 				<div class="flex flex-col items-center pt-8 pb-6 bg-gray-50 dark:bg-zinc-800/50">
 					<div
 						class="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
@@ -157,7 +157,11 @@
 					</div>
 					<div class="detail-item">
 						<span class="detail-label">交易类型</span>
-						<span class="detail-value">{{ activeRecord?.changeType }}</span>
+						<span class="detail-value">{{ getRecordTypeLabel(activeRecord?.changeType || 'CONSUME') }}</span>
+					</div>
+					<div v-if="isInflowType(activeRecord?.changeType)" class="detail-item">
+						<span class="detail-label">入账类型</span>
+						<span class="detail-value">{{ getInflowSourceLabel(activeRecord?.changeType) }}</span>
 					</div>
 					<div class="detail-item">
 						<span class="detail-label">交易时间</span>
@@ -174,7 +178,7 @@
 				</div>
 
 				<div class="px-5 sm:px-8 mt-8">
-					<button class="modal-btn-ghost w-full" @click="showDetailModal = false">关闭详情</button>
+					<button class="app-modal-btn-ghost modal-btn-ghost w-full" @click="showDetailModal = false">关闭详情</button>
 				</div>
 			</div>
 		</n-modal>
@@ -241,15 +245,22 @@ const formatMoney = (cents: number): string =>
 
 const getRecordTypeLabel = (type: string): string => {
 	const labels: Record<string, string> = {
-		RECHARGE: '充值账户',
-		REWARD: '奖励入账',
-		TASK_REWARD: '奖励入账',
+		RECHARGE: '外部转入',
+		REWARD: '系统发放',
+		TASK_REWARD: '系统发放',
 		CONSUME: '商户消费',
-		TRANSFER_OUT: '转账（支出）',
-		TRANSFER_IN: '转账（收入）',
+		TRANSFER_OUT: '转账支出',
+		TRANSFER_IN: '好友转入',
 		VIP_PURCHASE: '会员购买',
 	}
 	return labels[type] || '其他交易'
+}
+
+const getInflowSourceLabel = (type?: string): string => {
+	if (type === 'REWARD' || type === 'TASK_REWARD') return '系统发放'
+	if (type === 'RECHARGE') return '外部转入'
+	if (type === 'TRANSFER_IN') return '好友转入'
+	return '其他入账'
 }
 
 const getRecordIconType = (

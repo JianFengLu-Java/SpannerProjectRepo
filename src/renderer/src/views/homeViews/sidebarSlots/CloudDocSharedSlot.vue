@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, getCurrentInstance, onActivated, onMounted } from 'vue'
+import {
+	computed,
+	getCurrentInstance,
+	onActivated,
+	onBeforeUnmount,
+	onMounted,
+	watch,
+} from 'vue'
 import { NButton, NEmpty } from 'naive-ui'
 import { storeToRefs } from 'pinia'
 import { useCloudDocStore } from '@renderer/stores/cloudDoc'
@@ -8,7 +15,7 @@ import CloudDocEditor from '../cloudDocs/components/CloudDocEditor.vue'
 
 const cloudDocStore = useCloudDocStore()
 const sidebarSlotStore = useSidebarSlotStore()
-const { sharedDocs } = storeToRefs(cloudDocStore)
+const { sharedDocs, saveState, saveErrorMessage } = storeToRefs(cloudDocStore)
 
 const CLOUD_DOC_SHARE_SLOT_PREFIX = 'cloud-doc-share:'
 const instanceKey = String(getCurrentInstance()?.vnode.key || '')
@@ -26,6 +33,16 @@ const sharedDoc = computed(() => {
 	if (!key) return null
 	return sharedDocs.value.find((item) => item.shareNo === key) || null
 })
+const sharedDocCursors = computed(() => {
+	const docId = String(sharedDoc.value?.doc?.id || '').trim()
+	if (!docId) return []
+	return cloudDocStore.getDocCursors(docId)
+})
+const sharedDocOnlineCount = computed(() => {
+	const docId = String(sharedDoc.value?.doc?.id || '').trim()
+	if (!docId) return 0
+	return cloudDocStore.getDocOnlineCount(docId)
+})
 
 const ensureSharedDoc = async (): Promise<void> => {
 	const key = shareNo.value
@@ -33,7 +50,7 @@ const ensureSharedDoc = async (): Promise<void> => {
 	if (sharedDoc.value) return
 	try {
 		const loaded = await cloudDocStore.fetchSharedDocByShareNo(key)
-		if (loaded?.doc?.id) {
+		if (loaded?.doc?.id && loaded.doc.editable !== false) {
 			cloudDocStore.startCollabSync(loaded.doc.id)
 		}
 	} catch (error) {
@@ -41,20 +58,38 @@ const ensureSharedDoc = async (): Promise<void> => {
 	}
 }
 
+const syncSharedDocCollab = (): void => {
+	const current = sharedDoc.value
+	if (!current?.doc?.id) {
+		cloudDocStore.stopCollabSync()
+		return
+	}
+	if (current.doc.editable === false) {
+		cloudDocStore.stopCollabSync()
+		return
+	}
+	cloudDocStore.startCollabSync(current.doc.id)
+}
+
 onMounted(() => {
 	void ensureSharedDoc()
-	const current = sharedDoc.value
-	if (current?.doc?.id) {
-		cloudDocStore.startCollabSync(current.doc.id)
-	}
+	syncSharedDocCollab()
 })
 
 onActivated(() => {
 	void ensureSharedDoc()
-	const current = sharedDoc.value
-	if (current?.doc?.id) {
-		cloudDocStore.startCollabSync(current.doc.id)
-	}
+	syncSharedDocCollab()
+})
+
+watch(
+	() => [sharedDoc.value?.doc?.id, sharedDoc.value?.doc?.editable],
+	() => {
+		syncSharedDocCollab()
+	},
+)
+
+onBeforeUnmount(() => {
+	cloudDocStore.stopCollabSync()
 })
 </script>
 
@@ -63,16 +98,26 @@ onActivated(() => {
 		<section v-if="sharedDoc" class="docs-editor-slot-body">
 			<CloudDocEditor
 				:doc="sharedDoc.doc"
-				save-state="idle"
-				save-error-message=""
-				:collab-cursors="[]"
+				:save-state="saveState"
+				:save-error-message="saveErrorMessage"
+				:collab-cursors="sharedDocCursors"
+				:collab-online-count="sharedDocOnlineCount"
+				@update:title="
+					cloudDocStore.updateDocTitleById(sharedDoc.doc.id, $event)
+				"
+				@update:content="
+					cloudDocStore.updateDocContentById(sharedDoc.doc.id, $event)
+				"
 			/>
 		</section>
 
 		<section v-else class="docs-editor-slot-empty">
 			<n-empty description="分享文档不存在或已失效">
 				<template #extra>
-					<n-button type="primary" @click="sidebarSlotStore.clearActiveSlot()">
+					<n-button
+						type="primary"
+						@click="sidebarSlotStore.clearActiveSlot()"
+					>
 						关闭当前插槽
 					</n-button>
 				</template>

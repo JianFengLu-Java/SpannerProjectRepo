@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import axios from 'axios'
 import { Extension, Node, mergeAttributes } from '@isle-editor/core'
 import { addIcon } from '@iconify/vue'
 import {
@@ -46,6 +47,7 @@ const props = defineProps<{
 	saveState: CloudDocSaveState
 	saveErrorMessage: string
 	collabCursors: CollabCursor[]
+	collabOnlineCount: number
 }>()
 
 const emit = defineEmits<{
@@ -137,7 +139,7 @@ const localContent = ref(props.doc.contentHtml || '')
 const chatStore = useChatStore()
 const friendStore = useFriendStore()
 const userInfoStore = useUserInfoStore()
-const showToc = ref(true)
+const showToc = ref(false)
 const scrollViewRef = ref<HTMLElement | null>(null)
 const imageInputRef = ref<HTMLInputElement | null>(null)
 const imageSelected = ref(false)
@@ -147,13 +149,26 @@ const shareFriendsLoading = ref(false)
 const shareDialogVisible = ref(false)
 const shareFriendAccount = ref('')
 const shareExpireHoursInput = ref('168')
+const shareMode = ref<'READONLY' | 'COLLAB'>('READONLY')
 const renderedCollabCursors = ref<RenderedCollabCursor[]>([])
 const message = useMessage()
 let cursorSendTimer: ReturnType<typeof setTimeout> | null = null
 let cursorOverlayRefreshTimer: ReturnType<typeof setTimeout> | null = null
 let lastCursorSignature = ''
+let suppressNextEditorUpdate = false
+let componentAlive = true
+let lastExternalContentSignature = ''
+let lastLocalEmitSignature = ''
+let lastLocalInputAt = 0
+let pendingExternalContent: { html: string; json: string } | null = null
+let pendingExternalTimer: ReturnType<typeof setTimeout> | null = null
+let dragHandleObserver: MutationObserver | null = null
+let dragHandleClampRaf = 0
+let dragHandleClamping = false
+const LOCAL_INPUT_GUARD_MS = 1200
 const onWindowResize = (): void => {
 	scheduleRefreshCollabCursors()
+	scheduleClampDragHandle()
 }
 const bubbleTippyOptions = computed(() => ({
 	appendTo: () => scrollViewRef.value || document.body,
@@ -190,6 +205,23 @@ const friendShareOptions = computed(() =>
 		}
 	}),
 )
+const friendDisplayNameById = computed<Record<string, string>>(() => {
+	const map: Record<string, string> = {}
+	for (const friend of friendStore.friends) {
+		const id = String(friend.id || '').trim()
+		if (!id) continue
+		const displayName = String(
+			friend.remark || friend.name || friend.id,
+		).trim()
+		if (!displayName) continue
+		map[id] = displayName
+	}
+	return map
+})
+const shareModeOptions = [
+	{ label: '仅查看（只读）', value: 'READONLY' as const },
+	{ label: '可协作编辑', value: 'COLLAB' as const },
+]
 
 const CloudImage = Node.create({
 	name: 'image',
@@ -408,6 +440,17 @@ const saveTagType = computed(() => {
 	return 'default' as const
 })
 const isReadonly = computed(() => props.doc.editable === false)
+const isDocOwner = computed(() => {
+	const account = String(userInfoStore.account || '').trim()
+	const owner = String(props.doc.ownerAccount || '').trim()
+	if (!account || !owner) return true
+	return account === owner
+})
+const canShareDoc = computed(() => !isReadonly.value && isDocOwner.value)
+const onlineLabel = computed(() => {
+	const count = Math.max(0, Number(props.collabOnlineCount || 0))
+	return count > 0 ? `在线 ${count}` : '在线 0'
+})
 
 const ownerAvatarText = computed(() => {
 	const source = String(
@@ -441,6 +484,7 @@ const ownerAvatarSrc = computed(() =>
 )
 
 const onTitleUpdate = (value: string): void => {
+	if (!componentAlive) return
 	if (isReadonly.value) return
 	localTitle.value = value
 	emit('update:title', value)
@@ -451,14 +495,164 @@ const onEditorUpdate = ({
 }: {
 	editor: { getHTML: () => string; getJSON: () => unknown }
 }): void => {
+	if (!componentAlive) return
 	if (isReadonly.value) return
+	lastLocalInputAt = Date.now()
 	const contentHtml = editor.getHTML()
 	const contentJson = JSON.stringify(editor.getJSON())
+	lastLocalEmitSignature = `${contentHtml}::${contentJson}`
+	const docHtml = String(props.doc.contentHtml || '')
+	const docJson = String(props.doc.contentJson || '')
+	if (suppressNextEditorUpdate) {
+		suppressNextEditorUpdate = false
+		localContent.value = contentHtml
+		scheduleRefreshCollabCursors()
+		return
+	}
+	if (contentHtml === docHtml && contentJson === docJson) {
+		localContent.value = contentHtml
+		scheduleRefreshCollabCursors()
+		return
+	}
 	if (contentHtml !== localContent.value) {
 		localContent.value = contentHtml
 	}
 	emit('update:content', { contentHtml, contentJson })
 	scheduleRefreshCollabCursors()
+}
+
+const clearPendingExternalTimer = (): void => {
+	if (!pendingExternalTimer) return
+	clearTimeout(pendingExternalTimer)
+	pendingExternalTimer = null
+}
+
+const scheduleApplyPendingExternal = (): void => {
+	clearPendingExternalTimer()
+	pendingExternalTimer = setTimeout(() => {
+		if (!pendingExternalContent) return
+		const editorAny = editorRef.value?.editor as
+			| { view?: { hasFocus?: () => boolean } }
+			| undefined
+		const focused = editorAny?.view?.hasFocus?.() === true
+		if (focused && Date.now() - lastLocalInputAt < LOCAL_INPUT_GUARD_MS) {
+			scheduleApplyPendingExternal()
+			return
+		}
+		const payload = pendingExternalContent
+		pendingExternalContent = null
+		suppressNextEditorUpdate = true
+		localContent.value = payload.html
+		applyExternalDocToEditor(payload.html, payload.json)
+		scheduleRefreshCollabCursors()
+	}, LOCAL_INPUT_GUARD_MS)
+}
+
+const applyExternalDocToEditor = (
+	contentHtml: string,
+	contentJson?: string,
+): void => {
+	const editorAny = editorRef.value?.editor as
+		| {
+				state?: {
+					selection?: {
+						anchor?: number
+						head?: number
+						from?: number
+						to?: number
+					}
+				}
+				view?: {
+					hasFocus?: () => boolean
+				}
+				chain?: () => {
+					focus?: () => {
+						setTextSelection?: (range: {
+							anchor: number
+							head: number
+						}) => { run: () => boolean }
+						run?: () => boolean
+					}
+				}
+				commands?: {
+					setContent?: (
+						content: string | Record<string, unknown>,
+						emitUpdate?: boolean,
+					) => boolean
+					setTextSelection?: (range: {
+						anchor: number
+						head: number
+					}) => boolean
+				}
+		  }
+		| undefined
+	if (!editorAny?.commands?.setContent) return
+	const currentHtml =
+		typeof (editorRef.value?.editor as CloudEditor | undefined)?.getHTML ===
+		'function'
+			? String(
+					(
+						editorRef.value?.editor as CloudEditor | undefined
+					)?.getHTML() || '',
+				)
+			: ''
+	const currentJson =
+		typeof (editorRef.value?.editor as CloudEditor | undefined)?.getJSON ===
+		'function'
+			? JSON.stringify(
+					(
+						editorRef.value?.editor as CloudEditor | undefined
+					)?.getJSON() || {},
+				)
+			: ''
+	const nextHtml = String(contentHtml || '')
+	const nextJson = String(contentJson || '')
+	if (
+		(nextJson && currentJson === nextJson) ||
+		(!nextJson && currentHtml === nextHtml)
+	) {
+		return
+	}
+	const selection = editorAny.state?.selection
+	const beforeMax = getEditorContentMaxPosition(editorRef.value?.editor)
+	const beforeAnchor = clampEditorPosition(
+		Number(selection?.anchor ?? selection?.from ?? 0),
+		beforeMax,
+	)
+	const beforeHead = clampEditorPosition(
+		Number(selection?.head ?? selection?.to ?? beforeAnchor),
+		beforeMax,
+	)
+	const wasFocused = editorAny.view?.hasFocus?.() === true
+	try {
+		if (contentJson && contentJson.trim()) {
+			const parsed = JSON.parse(contentJson) as Record<string, unknown>
+			editorAny.commands.setContent(parsed, false)
+		} else {
+			editorAny.commands.setContent(contentHtml, false)
+		}
+	} catch {
+		editorAny.commands.setContent(contentHtml, false)
+	}
+	const restoreSelection = (): void => {
+		if (!wasFocused) return
+		if (!editorAny.commands?.setTextSelection) return
+		const afterMax = getEditorContentMaxPosition(editorRef.value?.editor)
+		const anchor = clampEditorPosition(beforeAnchor, afterMax)
+		const head = clampEditorPosition(beforeHead, afterMax)
+		if (wasFocused && editorAny.chain) {
+			const focused = editorAny.chain().focus?.()
+			const runner = focused?.setTextSelection?.({ anchor, head })
+			if (runner?.run) {
+				runner.run()
+				return
+			}
+		}
+		editorAny.commands.setTextSelection({ anchor, head })
+	}
+	requestAnimationFrame(() => {
+		restoreSelection()
+	})
 }
 
 const onInsertImage = (): void => {
@@ -570,7 +764,9 @@ const sendLocalCursor = (editor?: CloudEditor): void => {
 }
 
 const parseCursorDisplayName = (cursor: CollabCursor): string => {
-	const source = String(cursor.name || cursor.userId || '').trim()
+	const userId = String(cursor.userId || '').trim()
+	const friendName = userId ? friendDisplayNameById.value[userId] : ''
+	const source = String(friendName || cursor.name || userId).trim()
 	if (!source) return '协作中'
 	return source.slice(0, 16)
 }
@@ -617,7 +813,75 @@ const scheduleRefreshCollabCursors = (): void => {
 	}, 20)
 }
 
+const parseHandleTranslate = (
+	transform: string,
+): { x: number; y: number } | null => {
+	const xMatch = transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/)
+	const yMatch = transform.match(/translateY\((-?\d+(?:\.\d+)?)px\)/)
+	if (!xMatch || !yMatch) return null
+	const x = Number(xMatch[1])
+	const y = Number(yMatch[1])
+	if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+	return { x, y }
+}
+
+const clampDragHandlePosition = (): void => {
+	const handle = document.getElementById('editor-handle')
+	const canvas = scrollViewRef.value
+	if (!handle || !canvas) return
+	if (dragHandleClamping) return
+	const current = parseHandleTranslate(String(handle.style.transform || ''))
+	if (!current) return
+	const canvasRect = canvas.getBoundingClientRect()
+	const handleRect = handle.getBoundingClientRect()
+	const minX = canvasRect.left + 4
+	const maxX = Math.max(minX, canvasRect.right - handleRect.width - 4)
+	const clampedX = Math.max(minX, Math.min(maxX, current.x))
+	if (Math.abs(clampedX - current.x) < 0.5) return
+	dragHandleClamping = true
+	handle.style.transform = `translateX(${clampedX}px) translateY(${current.y}px)`
+	dragHandleClamping = false
+}
+
+const scheduleClampDragHandle = (): void => {
+	if (dragHandleClampRaf) cancelAnimationFrame(dragHandleClampRaf)
+	dragHandleClampRaf = requestAnimationFrame(() => {
+		clampDragHandlePosition()
+	})
+}
+
+const resetGlobalDragHandle = (): void => {
+	const handle = document.getElementById('editor-handle')
+	if (!handle) return
+	handle.style.opacity = '0'
+	handle.style.transform = 'translateY(-128px)'
+}
+
+const bindDragHandleClampObserver = (): void => {
+	dragHandleObserver?.disconnect()
+	dragHandleObserver = null
+	const handle = document.getElementById('editor-handle')
+	if (!handle) return
+	dragHandleObserver = new MutationObserver((mutations) => {
+		for (const mutation of mutations) {
+			if (
+				mutation.type === 'attributes' &&
+				mutation.attributeName === 'style'
+			) {
+				scheduleClampDragHandle()
+				break
+			}
+		}
+	})
+	dragHandleObserver.observe(handle, {
+		attributes: true,
+		attributeFilter: ['style'],
+	})
+	scheduleClampDragHandle()
+}
+
 const onEditorSelectionUpdate = ({ editor }: { editor: CloudEditor }): void => {
+	if (!componentAlive) return
 	updateImageSelectionState(editor)
 	sendLocalCursor(editor)
 	scheduleRefreshCollabCursors()
@@ -638,6 +902,7 @@ const openShareDialog = async (): Promise<void> => {
 	if (isReadonly.value) return
 	shareFriendAccount.value = ''
 	shareExpireHoursInput.value = '168'
+	shareMode.value = 'READONLY'
 	shareFriendsLoading.value = true
 	try {
 		await friendStore.fetchFriends()
@@ -648,6 +913,10 @@ const openShareDialog = async (): Promise<void> => {
 }
 
 const onShareDoc = async (): Promise<void> => {
+	if (!canShareDoc.value) {
+		message.warning('仅文档拥有者可分享该文档')
+		return
+	}
 	if (sharing.value) return
 	if (!friendShareOptions.value.length) {
 		message.warning('暂无好友可分享，请先添加好友')
@@ -667,6 +936,7 @@ const onShareDoc = async (): Promise<void> => {
 		const response = await cloudDocApi.shareDoc(props.doc.id, {
 			friendAccount,
 			expireHours,
+			shareMode: shareMode.value,
 		})
 		const result = response.data.data || {}
 		const shareNo = String(result.shareNo || '').trim()
@@ -707,6 +977,10 @@ const onShareDoc = async (): Promise<void> => {
 		shareDialogVisible.value = false
 	} catch (error) {
 		console.error('生成云文档分享链接失败', error)
+		if (axios.isAxiosError(error) && error.response?.status === 404) {
+			message.warning('当前账号无分享权限，仅文档拥有者可分享')
+			return
+		}
 		message.error('生成分享链接失败，请稍后重试')
 	} finally {
 		sharing.value = false
@@ -734,11 +1008,31 @@ watch(
 )
 
 watch(
-	() => props.doc.contentHtml,
-	(value) => {
-		const next = String(value || '')
-		if (next === localContent.value) return
-		localContent.value = next
+	() => [props.doc.contentHtml, props.doc.contentJson] as const,
+	([nextHtmlRaw, nextJsonRaw]) => {
+		const nextHtml = String(nextHtmlRaw || '')
+		const nextJson = String(nextJsonRaw || '')
+		const signature = `${nextHtml}::${nextJson}`
+		if (signature === lastLocalEmitSignature) {
+			localContent.value = nextHtml
+			return
+		}
+		if (signature === lastExternalContentSignature) return
+		lastExternalContentSignature = signature
+		const editorAny = editorRef.value?.editor as
+			| { view?: { hasFocus?: () => boolean } }
+			| undefined
+		const focused = editorAny?.view?.hasFocus?.() === true
+		if (focused && Date.now() - lastLocalInputAt < LOCAL_INPUT_GUARD_MS) {
+			pendingExternalContent = { html: nextHtml, json: nextJson }
+			scheduleApplyPendingExternal()
+			return
+		}
+		pendingExternalContent = null
+		clearPendingExternalTimer()
+		suppressNextEditorUpdate = true
+		localContent.value = nextHtml
+		applyExternalDocToEditor(nextHtml, nextJson)
 		scheduleRefreshCollabCursors()
 	},
 )
@@ -752,6 +1046,7 @@ watch(
 )
 
 onMounted(() => {
+	componentAlive = true
 	window.addEventListener('resize', onWindowResize)
 	scrollViewRef.value?.addEventListener(
 		'scroll',
@@ -761,9 +1056,22 @@ onMounted(() => {
 		},
 	)
 	scheduleRefreshCollabCursors()
+	setTimeout(() => {
+		bindDragHandleClampObserver()
+	}, 80)
 })
 
 onBeforeUnmount(() => {
+	componentAlive = false
+	clearPendingExternalTimer()
+	pendingExternalContent = null
+	resetGlobalDragHandle()
+	dragHandleObserver?.disconnect()
+	dragHandleObserver = null
+	if (dragHandleClampRaf) {
+		cancelAnimationFrame(dragHandleClampRaf)
+		dragHandleClampRaf = 0
+	}
 	clearCursorSendTimer()
 	clearCursorOverlayRefreshTimer()
 	window.removeEventListener('resize', onWindowResize)
@@ -806,8 +1114,11 @@ onBeforeUnmount(() => {
 				<n-tag :type="saveTagType" size="small" round>
 					{{ saveLabel }}
 				</n-tag>
+				<n-tag size="small" round>
+					{{ onlineLabel }}
+				</n-tag>
 				<n-button
-					v-if="!isReadonly"
+					v-if="canShareDoc"
 					quaternary
 					size="small"
 					class="doc-share-btn"
@@ -946,6 +1257,11 @@ onBeforeUnmount(() => {
 				<n-input
 					v-model:value="shareExpireHoursInput"
 					placeholder="有效期小时数（默认 168）"
+				/>
+				<n-select
+					v-model:value="shareMode"
+					:options="shareModeOptions"
+					placeholder="请选择分享模式"
 				/>
 			</div>
 			<template #footer>

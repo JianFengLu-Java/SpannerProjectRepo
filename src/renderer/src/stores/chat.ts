@@ -17,8 +17,10 @@ import {
 	privateChatWs,
 	type PrivateChatAckFrame,
 	type PrivateChatErrorFrame,
+	type PrivateIncomingCallFrame,
 	type PrivateChatMessageFrame,
 } from '@renderer/services/privateChatWs'
+import { emitIncomingCall } from '@renderer/services/callSignal'
 import {
 	groupChatApi,
 	type GroupDetail,
@@ -2120,6 +2122,10 @@ export const useChatStore = defineStore('chat', () => {
 		})
 	}
 
+	const handleIncomingCallSignal = (payload: PrivateIncomingCallFrame): void => {
+		emitIncomingCall(payload)
+	}
+
 	const handleGroupWsError = (payload: GroupChatErrorFrame): void => {
 		const clientMessageId = payload.clientMessageId || ''
 		if (!clientMessageId) return
@@ -2164,6 +2170,7 @@ export const useChatStore = defineStore('chat', () => {
 			},
 			onAck: handleWsAck,
 			onError: handleWsError,
+			onIncomingCall: handleIncomingCallSignal,
 		})
 		isPrivateWsBound.value = true
 		privateWsBoundAccount.value = account

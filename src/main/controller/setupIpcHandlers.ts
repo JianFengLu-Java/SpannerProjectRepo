@@ -7,6 +7,8 @@ import {
 	setMinimizeToTray,
 	getMinimizeToTray,
 	openChatWindow,
+	openIncomingCallWindow,
+	openMockVideoCallWindow,
 	windowRegistry,
 } from '../windowState/windowManage'
 import {
@@ -276,6 +278,62 @@ export function setupIpcHandlers(): void {
 	ipcMain.on('open-chat-window', (_, chatId: number, chatName: string) => {
 		openChatWindow(chatId, chatName)
 	})
+
+	ipcMain.on(
+		'open-mock-video-call-window',
+		(
+			_,
+			payload: {
+				chatId: number
+				chatName: string
+				chatAvatar?: string
+				startConnected?: boolean
+			},
+		) => {
+			const chatId = Number(payload?.chatId)
+			const chatName = String(payload?.chatName || '').trim() || '对方'
+			if (!Number.isFinite(chatId)) return
+			openMockVideoCallWindow(
+				chatId,
+				chatName,
+				String(payload?.chatAvatar || ''),
+				{
+					startConnected: Boolean(payload?.startConnected),
+				},
+			)
+		},
+	)
+
+	ipcMain.on(
+		'open-incoming-call-window',
+		(
+			_,
+			payload: {
+				callId: string
+				fromAccount: string
+				fromName: string
+				fromAvatar?: string
+				chatId?: number
+				type?: 'video' | 'audio'
+			},
+		) => {
+			const callId = String(payload?.callId || '').trim()
+			const fromAccount = String(payload?.fromAccount || '').trim()
+			const fromName = String(payload?.fromName || '').trim() || fromAccount
+			if (!callId || !fromAccount) return
+			openIncomingCallWindow({
+				callId,
+				fromAccount,
+				fromName,
+				fromAvatar: String(payload?.fromAvatar || ''),
+				chatId:
+					typeof payload?.chatId === 'number'
+						? payload.chatId
+						: undefined,
+				type: payload?.type === 'audio' ? 'audio' : 'video',
+			})
+		},
+	)
 
 	ipcMain.on(
 		'show-system-notification',

@@ -157,12 +157,12 @@
 							>
 								@你
 							</span>
-								<img
-									v-if="isVipChat(chat)"
-									:src="vipBadgeIcon"
-									alt="VIP"
-									class="h-4 w-4 block vip-fill-red shrink-0"
-								/>
+							<img
+								v-if="isVipChat(chat)"
+								:src="vipBadgeIcon"
+								alt="VIP"
+								class="h-4 w-4 block vip-fill-red shrink-0"
+							/>
 						</span>
 					</div>
 				</div>
@@ -196,111 +196,112 @@
 						@click="selectChat(chat)"
 						@contextmenu.prevent="openContextMenu($event, chat)"
 					>
-							<!-- 头像与状态 -->
-							<div class="relative shrink-0">
-								<n-badge
-									:value="chat.unreadCount"
-									color="#ef4444"
-									:offset="[-2, 2]"
-									size="small"
-								>
-									<n-avatar
-										:size="40"
-										round
-										:src="chat.avatar"
-										class="border border-white/50 dark:border-zinc-700"
-									/>
-								</n-badge>
-								<div
-									v-if="isSystemNotificationChat(chat)"
-									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-700 text-white text-[9px] leading-none flex items-center justify-center"
-								>
-									讯
-								</div>
-								<div
-									v-else-if="chat.chatType === 'GROUP'"
-									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-700 text-white text-[9px] leading-none flex items-center justify-center"
-								>
-									群
-								</div>
-								<div
-									v-else-if="chat.online"
-									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-blue-500 text-white text-[9px] leading-none flex items-center justify-center"
-								>
-									在
-								</div>
-								<div
-									v-else
-									class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-500 text-white text-[9px] leading-none flex items-center justify-center"
-								>
-									离
-								</div>
-							</div>
-
-							<!-- 聊天简述 -->
-							<div
-								class="flex-1 min-w-0 flex flex-col justify-center"
+						<!-- 头像与状态 -->
+						<div class="relative shrink-0">
+							<n-badge
+								:value="chat.unreadCount"
+								color="#ef4444"
+								:offset="[-2, 2]"
+								size="small"
 							>
-								<div
-									class="flex items-center justify-between mb-0.5"
-								>
-									<div
-										class="min-w-0 flex items-center gap-1"
-									>
-										<span
-											class="truncate text-sm font-semibold"
-											:class="
-												chat.chatType === 'GROUP'
-													? 'text-text-main'
-													: isVipChat(chat)
-														? 'text-red-500 font-bold'
-														: 'text-text-main'
-											"
-										>
-											{{ chat.name }}
-										</span>
-										<span
-											v-if="hasMentionFeedback(chat)"
-											class="shrink-0 rounded px-1 py-[1px] text-[9px] font-semibold text-red-500 bg-red-50"
-										>
-											@你
-										</span>
-											<img
-												v-if="isVipChat(chat)"
-												:src="vipBadgeIcon"
-												alt="VIP"
-												class="h-4 w-4 block vip-fill-red shrink-0"
-											/>
-									</div>
+								<n-avatar
+									:size="40"
+									round
+									:src="chat.avatar"
+									class="border border-white/50 dark:border-zinc-700"
+								/>
+							</n-badge>
+							<div
+								v-if="isSystemNotificationChat(chat)"
+								class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-700 text-white text-[9px] leading-none flex items-center justify-center"
+							>
+								讯
+							</div>
+							<div
+								v-else-if="chat.chatType === 'GROUP'"
+								class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-700 text-white text-[9px] leading-none flex items-center justify-center"
+							>
+								群
+							</div>
+							<div
+								v-else-if="chat.online"
+								class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-blue-500 text-white text-[9px] leading-none flex items-center justify-center"
+							>
+								在
+							</div>
+							<div
+								v-else
+								class="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full border border-white dark:border-zinc-700 bg-gray-500 text-white text-[9px] leading-none flex items-center justify-center"
+							>
+								离
+							</div>
+						</div>
+
+						<!-- 聊天简述 -->
+						<div
+							class="flex-1 min-w-0 flex flex-col justify-center"
+						>
+							<div
+								class="flex items-center justify-between mb-0.5"
+							>
+								<div class="min-w-0 flex items-center gap-1">
 									<span
-										class="text-[10px] text-gray-400 shrink-0"
-									>
-										{{ chat.timestamp }}
-									</span>
-								</div>
-								<div class="flex items-center justify-between">
-									<div
-										class="text-[11px] truncate pr-2"
+										class="truncate text-sm font-semibold"
 										:class="
-											hasMentionFeedback(chat)
-												? 'text-red-500'
-												: isIncomingTransferSummary(chat)
-												? 'text-red-500'
-												: 'text-gray-400'
+											chat.chatType === 'GROUP'
+												? 'text-text-main'
+												: isVipChat(chat)
+													? 'text-red-500 font-bold'
+													: 'text-text-main'
 										"
 									>
-										{{ getLastMessagePreview(chat) }}
-									</div>
-									<!-- 置顶小图标 -->
-									<n-icon
-										v-if="chat.isPinned"
-										size="12"
-										class="text-primary/60 shrink-0 rotate-45"
+										{{ chat.name }}
+									</span>
+									<span
+										v-if="hasMentionFeedback(chat)"
+										class="shrink-0 rounded px-1 py-[1px] text-[9px] font-semibold text-red-500 bg-red-50"
 									>
-										<Pin12Filled />
-									</n-icon>
+										@你
+									</span>
+									<img
+										v-if="isVipChat(chat)"
+										:src="vipBadgeIcon"
+										alt="VIP"
+										class="h-4 w-4 block vip-fill-red shrink-0"
+									/>
 								</div>
+								<span
+									class="text-[10px] text-gray-400 shrink-0"
+								>
+									{{ chat.timestamp }}
+								</span>
 							</div>
+							<div class="flex items-center justify-between">
+								<div
+									class="text-[11px] truncate pr-2"
+									:class="
+										hasMentionFeedback(chat)
+											? 'text-red-500'
+											: isIncomingTransferSummary(chat)
+												? 'text-red-500'
+												: 'text-gray-400'
+									"
+									v-html="
+										renderSummaryWithEmoji(
+											getLastMessagePreview(chat),
+										)
+									"
+								></div>
+								<!-- 置顶小图标 -->
+								<n-icon
+									v-if="chat.isPinned"
+									size="12"
+									class="text-primary/60 shrink-0 rotate-45"
+								>
+									<Pin12Filled />
+								</n-icon>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -393,12 +394,12 @@
 								>
 									{{ friend.remark || friend.name }}
 								</div>
-									<img
-										v-if="friend.isVip"
-										:src="vipBadgeIcon"
-										alt="VIP"
-										class="h-4 w-4 block vip-fill-red"
-									/>
+								<img
+									v-if="friend.isVip"
+									:src="vipBadgeIcon"
+									alt="VIP"
+									class="h-4 w-4 block vip-fill-red"
+								/>
 							</div>
 							<div class="text-[11px] text-gray-400 truncate">
 								{{ friend.id }}
@@ -462,6 +463,7 @@ import { storeToRefs } from 'pinia'
 import ChatContext from './ChatContext.vue'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useElementSize } from '@vueuse/core'
+import { getMergedEmojiTokenMap } from '@renderer/utils/emojiTokenMap'
 
 const containerRef = ref<HTMLElement | null>(null)
 const { width: containerWidth } = useElementSize(containerRef)
@@ -509,6 +511,28 @@ const getLastMessagePreview = (chat: ChatItem): string => {
 	return chat.lastMessage || ''
 }
 
+const escapeHtml = (value: string): string =>
+	value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;')
+
+const renderSummaryWithEmoji = (text: string): string => {
+	const source = text || ''
+	if (!source) return ''
+	const escaped = escapeHtml(source)
+	const tokenMap = getMergedEmojiTokenMap()
+	if (!Object.keys(tokenMap).length) return escaped
+
+	return escaped.replace(/\[([^\]\s[]{1,24})\]/g, (token) => {
+		const url = tokenMap[token]
+		if (!url) return token
+		return `<img class="summary-inline-emoji" src="${url}" alt="${token}" title="${token}" draggable="false" />`
+	})
+}
+
 const matchFilter = (chat: ChatItem): boolean => {
 	if (currentFilter.value === 'unread') {
 		return (chat.unreadCount || 0) > 0
@@ -548,7 +572,8 @@ const isSystemNotificationChat = (chat: ChatItem): boolean =>
 	(chat.peerAccount || '').trim().toUpperCase() === 'SYSTEM'
 
 const isVipChat = (chat: ChatItem): boolean => {
-	if (chat.chatType === 'GROUP' || isSystemNotificationChat(chat)) return false
+	if (chat.chatType === 'GROUP' || isSystemNotificationChat(chat))
+		return false
 	const peerAccount = (chat.peerAccount || '').trim()
 	const fallbackId = String(chat.id)
 	const friend = friends.value.find((item) => {
@@ -803,5 +828,15 @@ onUnmounted(() => {})
 .vip-fill-red {
 	filter: brightness(0) saturate(100%) invert(23%) sepia(94%) saturate(7118%)
 		hue-rotate(353deg) brightness(97%) contrast(111%);
+}
+
+:deep(.summary-inline-emoji) {
+	display: inline-block;
+	width: 0.9em;
+	height: 0.9em;
+	vertical-align: -0.16em;
+	margin: 0 0.03em;
+	border: none;
+	border-radius: 0;
 }
 </style>

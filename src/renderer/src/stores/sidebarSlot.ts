@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { useUserInfoStore } from './userInfo'
 
 export type SidebarSlotIcon =
 	| 'user'
@@ -20,7 +21,8 @@ export interface SidebarSlotItem extends SidebarSlotDefinition {
 	createdAt: number
 }
 
-const SIDEBAR_SLOT_CACHE_KEY = 'sidebar-slot-cache:v1'
+const SIDEBAR_SLOT_CACHE_KEY = 'sidebar-slot-cache:v2'
+const LEGACY_SIDEBAR_SLOT_CACHE_KEY = 'sidebar-slot-cache:v1'
 
 interface SidebarSlotCachePayload {
 	slots: SidebarSlotItem[]
@@ -28,17 +30,32 @@ interface SidebarSlotCachePayload {
 }
 
 export const useSidebarSlotStore = defineStore('sidebarSlot', () => {
+	const userInfoStore = useUserInfoStore()
 	const slots = ref<SidebarSlotItem[]>([])
 	const activeSlotKey = ref<string | null>(null)
+	const isHydrating = ref(false)
+
+	const getScopedCacheKey = (account: string): string =>
+		`${SIDEBAR_SLOT_CACHE_KEY}:${account || 'anonymous'}`
 
 	const activeSlot = computed<SidebarSlotItem | null>(() => {
 		if (!activeSlotKey.value) return null
 		return slots.value.find((slot) => slot.slotKey === activeSlotKey.value) || null
 	})
 
-	const hydrateFromCache = (): void => {
+	const hydrateFromCache = (account: string): void => {
+		isHydrating.value = true
 		try {
-			const raw = window.localStorage.getItem(SIDEBAR_SLOT_CACHE_KEY)
+			const scopedKey = getScopedCacheKey(account)
+			let raw = window.localStorage.getItem(scopedKey)
+			if (!raw) {
+				const legacyRaw = window.localStorage.getItem(LEGACY_SIDEBAR_SLOT_CACHE_KEY)
+				if (legacyRaw) {
+					raw = legacyRaw
+					window.localStorage.setItem(scopedKey, legacyRaw)
+					window.localStorage.removeItem(LEGACY_SIDEBAR_SLOT_CACHE_KEY)
+				}
+			}
 			if (!raw) return
 			const payload = JSON.parse(raw) as Partial<SidebarSlotCachePayload>
 			const cachedSlots = Array.isArray(payload.slots) ? payload.slots : []
@@ -73,16 +90,19 @@ export const useSidebarSlotStore = defineStore('sidebarSlot', () => {
 		} catch {
 			slots.value = []
 			activeSlotKey.value = null
+		} finally {
+			isHydrating.value = false
 		}
 	}
 
-	const persistToCache = (): void => {
+	const persistToCache = (account: string): void => {
+		if (isHydrating.value) return
 		const payload: SidebarSlotCachePayload = {
 			slots: slots.value,
 			activeSlotKey: activeSlotKey.value,
 		}
 		window.localStorage.setItem(
-			SIDEBAR_SLOT_CACHE_KEY,
+			getScopedCacheKey(account),
 			JSON.stringify(payload),
 		)
 	}
@@ -130,8 +150,21 @@ export const useSidebarSlotStore = defineStore('sidebarSlot', () => {
 		activeSlotKey.value = null
 	}
 
-	hydrateFromCache()
-	watch([slots, activeSlotKey], persistToCache, { deep: true })
+	hydrateFromCache(userInfoStore.account || '')
+	watch(
+		() => userInfoStore.account || '',
+		(account, prevAccount) => {
+			if (prevAccount !== undefined) {
+				persistToCache(prevAccount)
+			}
+			hydrateFromCache(account)
+		},
+	)
+	watch(
+		[slots, activeSlotKey, () => userInfoStore.account || ''],
+		([, , account]) => persistToCache(account),
+		{ deep: true },
+	)
 
 	return {
 		slots,
