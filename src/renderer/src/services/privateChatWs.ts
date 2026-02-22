@@ -1,10 +1,13 @@
 import { Client } from '@stomp/stompjs'
+import type { StompSubscription } from '@stomp/stompjs'
+import type { MessageQuote } from '@renderer/stores/chat'
 
 export interface PrivateChatMessageFrame {
 	messageId: string
 	from: string
 	to: string
 	content: string
+	quote?: MessageQuote
 	clientMessageId?: string
 	sentAt?: string
 }
@@ -36,6 +39,7 @@ export interface PrivateIncomingCallFrame {
 
 interface PrivateChatWsHandlers {
 	onMessage?: (payload: PrivateChatMessageFrame) => void
+	onReaction?: (payload: Record<string, unknown>) => void
 	onAck?: (payload: PrivateChatAckFrame) => void
 	onError?: (payload: PrivateChatErrorFrame) => void
 	onIncomingCall?: (payload: PrivateIncomingCallFrame) => void
@@ -52,6 +56,8 @@ class PrivateChatWsService {
 
 	private connecting = false
 
+	private subscriptionMap = new Map<string, StompSubscription>()
+
 	connect(token: string, handlers: PrivateChatWsHandlers = {}): void {
 		const normalized = token.trim().replace(/^Bearer\s+/i, '')
 		if (!normalized) return
@@ -60,6 +66,7 @@ class PrivateChatWsService {
 
 		// 已经连接且 token 未变，直接复用
 		if (this.client?.connected && this.activeToken === normalized) {
+			this.subscribeChannels()
 			return
 		}
 
@@ -79,16 +86,20 @@ class PrivateChatWsService {
 			reconnectDelay: 5000,
 			onConnect: () => {
 				this.connecting = false
+				this.subscriptionMap.clear()
 				this.subscribeChannels()
 				this.handlers.onConnected?.()
 			},
 			onDisconnect: () => {
+				this.subscriptionMap.clear()
 				this.handlers.onDisconnected?.()
 			},
 			onWebSocketClose: () => {
+				this.subscriptionMap.clear()
 				this.handlers.onDisconnected?.()
 			},
 			onWebSocketError: () => {
+				this.subscriptionMap.clear()
 				this.handlers.onDisconnected?.()
 			},
 			onStompError: (frame) => {
@@ -105,7 +116,7 @@ class PrivateChatWsService {
 	private subscribeChannels(): void {
 		if (!this.client?.connected) return
 
-		this.client.subscribe('/user/queue/messages', (frame) => {
+		this.subscribeOnce('/user/queue/messages', (frame) => {
 			try {
 				const payload = JSON.parse(frame.body) as PrivateChatMessageFrame
 				this.handlers.onMessage?.(payload)
@@ -114,7 +125,7 @@ class PrivateChatWsService {
 			}
 		})
 
-		this.client.subscribe('/user/queue/acks', (frame) => {
+		this.subscribeOnce('/user/queue/acks', (frame) => {
 			try {
 				const payload = JSON.parse(frame.body) as PrivateChatAckFrame
 				this.handlers.onAck?.(payload)
@@ -123,7 +134,7 @@ class PrivateChatWsService {
 			}
 		})
 
-		this.client.subscribe('/user/queue/errors', (frame) => {
+		this.subscribeOnce('/user/queue/errors', (frame) => {
 			try {
 				const payload = JSON.parse(frame.body) as PrivateChatErrorFrame
 				this.handlers.onError?.(payload)
@@ -132,7 +143,7 @@ class PrivateChatWsService {
 			}
 		})
 
-		this.client.subscribe('/user/queue/calls', (frame) => {
+		this.subscribeOnce('/user/queue/calls', (frame) => {
 			try {
 				const payload = JSON.parse(frame.body) as PrivateIncomingCallFrame
 				this.handlers.onIncomingCall?.(payload)
@@ -140,9 +151,43 @@ class PrivateChatWsService {
 				console.error('解析来电信令失败:', error)
 			}
 		})
+
+		const reactionDestinations = [
+			'/user/queue/message.reactions.updated',
+			'/user/queue/message.reactions',
+			'/user/queue/reactions',
+		]
+		for (const destination of reactionDestinations) {
+			this.subscribeOnce(destination, (frame) => {
+				try {
+					const payload = JSON.parse(frame.body) as Record<
+						string,
+						unknown
+					>
+					this.handlers.onReaction?.(payload)
+				} catch (error) {
+					console.error('解析私聊表情回应事件失败:', error)
+				}
+			})
+		}
 	}
 
-	sendPrivate(to: string, content: string, clientMessageId: string): boolean {
+	private subscribeOnce(
+		destination: string,
+		callback: (frame: { body: string }) => void,
+	): void {
+		if (!this.client?.connected) return
+		if (this.subscriptionMap.has(destination)) return
+		const sub = this.client.subscribe(destination, callback)
+		this.subscriptionMap.set(destination, sub)
+	}
+
+	sendPrivate(
+		to: string,
+		content: string,
+		clientMessageId: string,
+		quote?: MessageQuote,
+	): boolean {
 		if (!this.client?.connected) return false
 
 		try {
@@ -152,6 +197,7 @@ class PrivateChatWsService {
 					to,
 					content,
 					clientMessageId,
+					quote: quote || undefined,
 				}),
 			})
 			return true
@@ -164,6 +210,14 @@ class PrivateChatWsService {
 	disconnect(): void {
 		this.connecting = false
 		this.activeToken = ''
+		for (const sub of this.subscriptionMap.values()) {
+			try {
+				sub.unsubscribe()
+			} catch {
+				// ignore
+			}
+		}
+		this.subscriptionMap.clear()
 		if (this.client) {
 			void this.client.deactivate()
 			this.client = null

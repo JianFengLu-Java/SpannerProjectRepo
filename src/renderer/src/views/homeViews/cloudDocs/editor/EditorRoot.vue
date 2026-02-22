@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import axios from 'axios'
 import { Extension, Node, mergeAttributes } from '@isle-editor/core'
 import { addIcon } from '@iconify/vue'
@@ -9,11 +9,13 @@ import {
 	NIcon,
 	NInput,
 	NModal,
+	NPopover,
 	NSelect,
 	NSlider,
 	NTag,
 	useMessage,
 } from 'naive-ui'
+import EmojiPicker from '@renderer/components/EmojiPicker.vue'
 import {
 	Image24Regular,
 	PanelLeft24Regular,
@@ -34,6 +36,7 @@ import { useFriendStore } from '@renderer/stores/friend'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { cloudDocApi } from '@renderer/services/cloudDocApi'
 import { cloudDocWs } from '@renderer/services/cloudDocWs'
+import { getMergedEmojiTokenMap } from '@renderer/utils/emojiTokenMap'
 import type {
 	CloudDoc,
 	CloudDocSaveState,
@@ -41,6 +44,7 @@ import type {
 } from '@renderer/types/cloudDoc'
 import { resolveAvatarUrl } from '@renderer/utils/avatar'
 import request from '@renderer/utils/request'
+import { log } from 'console'
 
 const props = defineProps<{
 	doc: CloudDoc
@@ -98,6 +102,9 @@ interface CloudEditor {
 	view?: CloudEditorView
 	chain: () => {
 		focus: () => {
+			insertContent?: (value: unknown) => {
+				run: () => boolean
+			}
 			deleteRange?: (range: { from: number; to: number }) => {
 				run: () => boolean
 			}
@@ -135,7 +142,9 @@ const editorRef = ref<{
 } | null>(null)
 
 const localTitle = ref(props.doc.title)
-const localContent = ref(props.doc.contentHtml || '')
+const localContent = ref(
+	mapEmojiTokensToInlineHtml(props.doc.contentHtml || ''),
+)
 const chatStore = useChatStore()
 const friendStore = useFriendStore()
 const userInfoStore = useUserInfoStore()
@@ -151,6 +160,7 @@ const shareFriendAccount = ref('')
 const shareExpireHoursInput = ref('168')
 const shareMode = ref<'READONLY' | 'COLLAB'>('READONLY')
 const renderedCollabCursors = ref<RenderedCollabCursor[]>([])
+const showEmojiPopover = ref(false)
 const message = useMessage()
 let cursorSendTimer: ReturnType<typeof setTimeout> | null = null
 let cursorOverlayRefreshTimer: ReturnType<typeof setTimeout> | null = null
@@ -167,6 +177,10 @@ let dragHandleClampRaf = 0
 let dragHandleClamping = false
 const LOCAL_INPUT_GUARD_MS = 1200
 const onWindowResize = (): void => {
+	scheduleRefreshCollabCursors()
+	scheduleClampDragHandle()
+}
+const onCanvasScroll = (): void => {
 	scheduleRefreshCollabCursors()
 	scheduleClampDragHandle()
 }
@@ -281,6 +295,45 @@ const CloudImage = Node.create({
 					})
 				},
 		}
+	},
+})
+
+const CloudInlineEmoji = Node.create({
+	name: 'inlineEmoji',
+	group: 'inline',
+	inline: true,
+	atom: true,
+	selectable: false,
+	addAttributes() {
+		return {
+			token: {
+				default: '',
+			},
+			src: {
+				default: '',
+			},
+		}
+	},
+	parseHTML() {
+		return [{ tag: 'span[data-emoji-token]' }]
+	},
+	renderHTML({ HTMLAttributes }) {
+		const token = String(HTMLAttributes.token || '').trim()
+		const src = String(HTMLAttributes.src || '').trim()
+		return [
+			'span',
+			mergeAttributes(
+				{
+					class: 'cloud-inline-emoji-token',
+					'data-emoji-token': token,
+					'data-emoji-src': src,
+					title: token,
+					draggable: 'false',
+					style: `background-image: url('${src}');`,
+				},
+				HTMLAttributes,
+			),
+		]
 	},
 })
 
@@ -423,8 +476,216 @@ const extensions = [
 		},
 	}),
 	CloudImage,
+	CloudInlineEmoji,
 	SlashImageExtension,
 ]
+
+function mapEmojiTokensToInlineHtml(sourceHtml: string): string {
+	const html = String(sourceHtml || '')
+	if (!html) return html
+	const tokenMap = getMergedEmojiTokenMap()
+	if (!Object.keys(tokenMap).length) return html
+	const holder = document.createElement('div')
+	holder.innerHTML = html
+	const walker = document.createTreeWalker(holder, NodeFilter.SHOW_TEXT)
+	const textNodes: Text[] = []
+	let current = walker.nextNode()
+	while (current) {
+		if (current.nodeType === Node.TEXT_NODE) {
+			textNodes.push(current as Text)
+		}
+		current = walker.nextNode()
+	}
+	const tokenPattern = /\[([^\]\s[]{1,24})\]/g
+	textNodes.forEach((textNode) => {
+		const raw = textNode.nodeValue || ''
+		tokenPattern.lastIndex = 0
+		if (!tokenPattern.test(raw)) return
+		tokenPattern.lastIndex = 0
+		const frag = document.createDocumentFragment()
+		let lastIndex = 0
+		let matched = tokenPattern.exec(raw)
+		while (matched) {
+			const token = matched[0]
+			const start = matched.index
+			const end = start + token.length
+			const mappedUrl = tokenMap[token]
+			if (start > lastIndex) {
+				frag.appendChild(
+					document.createTextNode(raw.slice(lastIndex, start)),
+				)
+			}
+			if (mappedUrl) {
+				const span = document.createElement('span')
+				span.className = 'cloud-inline-emoji-token'
+				span.title = token
+				span.setAttribute('data-emoji-token', token)
+				span.setAttribute('data-emoji-src', mappedUrl)
+				span.setAttribute('draggable', 'false')
+				span.setAttribute(
+					'style',
+					`background-image: url('${mappedUrl}');`,
+				)
+				frag.appendChild(span)
+			} else {
+				frag.appendChild(document.createTextNode(token))
+			}
+			lastIndex = end
+			matched = tokenPattern.exec(raw)
+		}
+		if (lastIndex < raw.length) {
+			frag.appendChild(document.createTextNode(raw.slice(lastIndex)))
+		}
+		textNode.replaceWith(frag)
+	})
+	return holder.innerHTML
+}
+
+const serializeInlineEmojiHtmlToTokens = (sourceHtml: string): string => {
+	const html = String(sourceHtml || '')
+	if (!html.includes('data-emoji-token')) return html
+	const holder = document.createElement('div')
+	holder.innerHTML = html
+	const emojiNodes =
+		holder.querySelectorAll<HTMLElement>('[data-emoji-token]')
+	emojiNodes.forEach((node) => {
+		const token = String(node.getAttribute('data-emoji-token') || '').trim()
+		if (!token) {
+			node.remove()
+			return
+		}
+		node.replaceWith(document.createTextNode(token))
+	})
+	return holder.innerHTML
+}
+
+interface JsonNodeLike {
+	type?: string
+	text?: string
+	attrs?: Record<string, unknown>
+	content?: JsonNodeLike[]
+	[key: string]: unknown
+}
+
+const splitTextWithEmojiTokens = (
+	text: string,
+	tokenMap: Record<string, string>,
+): JsonNodeLike[] => {
+	const tokenPattern = /\[([^\]\s[]{1,24})\]/g
+	const nodes: JsonNodeLike[] = []
+	let lastIndex = 0
+	let matched = tokenPattern.exec(text)
+	while (matched) {
+		const token = matched[0]
+		const mappedUrl = tokenMap[token]
+		const start = matched.index
+		const end = start + token.length
+		if (start > lastIndex) {
+			nodes.push({ type: 'text', text: text.slice(lastIndex, start) })
+		}
+		if (mappedUrl) {
+			nodes.push({
+				type: 'inlineEmoji',
+				attrs: {
+					token,
+					src: mappedUrl,
+				},
+			})
+		} else {
+			nodes.push({ type: 'text', text: token })
+		}
+		lastIndex = end
+		matched = tokenPattern.exec(text)
+	}
+	if (lastIndex < text.length) {
+		nodes.push({ type: 'text', text: text.slice(lastIndex) })
+	}
+	return nodes
+}
+
+const mapEmojiTokensInJsonNode = (
+	node: JsonNodeLike,
+	tokenMap: Record<string, string>,
+): JsonNodeLike | JsonNodeLike[] => {
+	if (
+		node.type === 'text' &&
+		typeof node.text === 'string' &&
+		node.text.includes('[') &&
+		node.text.includes(']')
+	) {
+		const parts = splitTextWithEmojiTokens(node.text, tokenMap)
+		if (parts.length === 1) return parts[0]
+		return parts
+	}
+
+	const content = Array.isArray(node.content) ? node.content : null
+	if (!content) return node
+	const mappedChildren: JsonNodeLike[] = []
+	for (const child of content) {
+		const mapped = mapEmojiTokensInJsonNode(child, tokenMap)
+		if (Array.isArray(mapped)) {
+			mappedChildren.push(...mapped)
+		} else {
+			mappedChildren.push(mapped)
+		}
+	}
+	return {
+		...node,
+		content: mappedChildren,
+	}
+}
+
+const mapEmojiTokensToInlineJson = (
+	rawJson: Record<string, unknown>,
+): Record<string, unknown> => {
+	const tokenMap = getMergedEmojiTokenMap()
+	if (!Object.keys(tokenMap).length) return rawJson
+	const mapped = mapEmojiTokensInJsonNode(rawJson as JsonNodeLike, tokenMap)
+	if (Array.isArray(mapped)) {
+		return {
+			type: 'doc',
+			content: mapped,
+		}
+	}
+	return mapped as Record<string, unknown>
+}
+
+const serializeInlineEmojiJsonToTokensNode = (
+	node: JsonNodeLike,
+): JsonNodeLike | JsonNodeLike[] => {
+	if (node.type === 'inlineEmoji') {
+		const token = String((node.attrs || {}).token || '').trim()
+		return token ? { type: 'text', text: token } : []
+	}
+	const content = Array.isArray(node.content) ? node.content : null
+	if (!content) return node
+	const mappedChildren: JsonNodeLike[] = []
+	for (const child of content) {
+		const mapped = serializeInlineEmojiJsonToTokensNode(child)
+		if (Array.isArray(mapped)) {
+			mappedChildren.push(...mapped)
+		} else {
+			mappedChildren.push(mapped)
+		}
+	}
+	return {
+		...node,
+		content: mappedChildren,
+	}
+}
+
+const serializeInlineEmojiJsonToTokens = (
+	rawJson: Record<string, unknown>,
+): Record<string, unknown> => {
+	const mapped = serializeInlineEmojiJsonToTokensNode(rawJson as JsonNodeLike)
+	if (Array.isArray(mapped)) {
+		return {
+			type: 'doc',
+			content: mapped,
+		}
+	}
+	return mapped as Record<string, unknown>
+}
 
 const saveLabel = computed(() => {
 	if (props.saveState === 'saving') return '保存中...'
@@ -463,6 +724,7 @@ const ownerAvatarText = computed(() => {
 })
 
 const resolveUserAvatarUrl = (avatarUrl?: string | null): string => {
+	console.log('Resolving avatar URL:', { avatarUrl })
 	const raw = String(avatarUrl || '').trim()
 	if (!raw) return resolveAvatarUrl('')
 	if (/^(data:|blob:|file:)/i.test(raw)) return raw
@@ -498,24 +760,29 @@ const onEditorUpdate = ({
 	if (!componentAlive) return
 	if (isReadonly.value) return
 	lastLocalInputAt = Date.now()
-	const contentHtml = editor.getHTML()
-	const contentJson = JSON.stringify(editor.getJSON())
+	const rawHtml = editor.getHTML()
+	const rawJson = editor.getJSON() as Record<string, unknown>
+	const contentHtml = serializeInlineEmojiHtmlToTokens(rawHtml)
+	const displayHtml = mapEmojiTokensToInlineHtml(contentHtml)
+	const contentJson = JSON.stringify(
+		serializeInlineEmojiJsonToTokens(rawJson),
+	)
 	lastLocalEmitSignature = `${contentHtml}::${contentJson}`
 	const docHtml = String(props.doc.contentHtml || '')
 	const docJson = String(props.doc.contentJson || '')
 	if (suppressNextEditorUpdate) {
 		suppressNextEditorUpdate = false
-		localContent.value = contentHtml
+		localContent.value = displayHtml
 		scheduleRefreshCollabCursors()
 		return
 	}
 	if (contentHtml === docHtml && contentJson === docJson) {
-		localContent.value = contentHtml
+		localContent.value = displayHtml
 		scheduleRefreshCollabCursors()
 		return
 	}
-	if (contentHtml !== localContent.value) {
-		localContent.value = contentHtml
+	if (displayHtml !== localContent.value) {
+		localContent.value = displayHtml
 	}
 	emit('update:content', { contentHtml, contentJson })
 	scheduleRefreshCollabCursors()
@@ -542,7 +809,7 @@ const scheduleApplyPendingExternal = (): void => {
 		const payload = pendingExternalContent
 		pendingExternalContent = null
 		suppressNextEditorUpdate = true
-		localContent.value = payload.html
+		localContent.value = mapEmojiTokensToInlineHtml(payload.html)
 		applyExternalDocToEditor(payload.html, payload.json)
 		scheduleRefreshCollabCursors()
 	}, LOCAL_INPUT_GUARD_MS)
@@ -607,11 +874,21 @@ const applyExternalDocToEditor = (
 			: ''
 	const nextHtml = String(contentHtml || '')
 	const nextJson = String(contentJson || '')
-	if (
-		(nextJson && currentJson === nextJson) ||
-		(!nextJson && currentHtml === nextHtml)
-	) {
-		return
+	const hasNextJson = !!nextJson.trim()
+	let mappedNextJson: Record<string, unknown> | null = null
+	if (hasNextJson) {
+		try {
+			const parsed = JSON.parse(nextJson) as Record<string, unknown>
+			mappedNextJson = mapEmojiTokensToInlineJson(parsed)
+		} catch {
+			mappedNextJson = null
+		}
+	}
+	if (mappedNextJson) {
+		if (currentJson === JSON.stringify(mappedNextJson)) return
+	} else if (!hasNextJson) {
+		const mappedNextHtml = mapEmojiTokensToInlineHtml(nextHtml)
+		if (currentHtml === mappedNextHtml) return
 	}
 	const selection = editorAny.state?.selection
 	const beforeMax = getEditorContentMaxPosition(editorRef.value?.editor)
@@ -625,14 +902,25 @@ const applyExternalDocToEditor = (
 	)
 	const wasFocused = editorAny.view?.hasFocus?.() === true
 	try {
-		if (contentJson && contentJson.trim()) {
+		if (mappedNextJson) {
+			editorAny.commands.setContent(mappedNextJson, false)
+		} else if (contentJson && contentJson.trim()) {
 			const parsed = JSON.parse(contentJson) as Record<string, unknown>
-			editorAny.commands.setContent(parsed, false)
+			editorAny.commands.setContent(
+				mapEmojiTokensToInlineJson(parsed),
+				false,
+			)
 		} else {
-			editorAny.commands.setContent(contentHtml, false)
+			editorAny.commands.setContent(
+				mapEmojiTokensToInlineHtml(contentHtml),
+				false,
+			)
 		}
 	} catch {
-		editorAny.commands.setContent(contentHtml, false)
+		editorAny.commands.setContent(
+			mapEmojiTokensToInlineHtml(contentHtml),
+			false,
+		)
 	}
 	const restoreSelection = (): void => {
 		if (!wasFocused) return
@@ -658,6 +946,101 @@ const applyExternalDocToEditor = (
 const onInsertImage = (): void => {
 	if (isReadonly.value) return
 	imageInputRef.value?.click()
+}
+
+const insertInlineToken = (token: string): void => {
+	if (isReadonly.value) return
+	const normalized = String(token || '').trim()
+	if (!normalized) return
+	const editorAny = editorRef.value?.editor as
+		| {
+				chain?: () => {
+					focus?: () => {
+						insertContent?: (value: string) => {
+							run: () => boolean
+						}
+					}
+				}
+		  }
+		| undefined
+	const runner = editorAny?.chain?.().focus?.().insertContent?.(normalized)
+	runner?.run()
+}
+
+const insertStickerImage = (url: string, name: string): void => {
+	if (isReadonly.value) return
+	const editorAny = editorRef.value?.editor as
+		| {
+				chain?: () => {
+					focus?: () => {
+						setImage?: (attrs: {
+							src: string
+							alt?: string
+							title?: string
+							width?: string
+						}) => { run: () => boolean }
+						insertContent?: (value: string) => {
+							run: () => boolean
+						}
+					}
+				}
+		  }
+		| undefined
+	const chain = editorAny?.chain?.().focus?.()
+	chain
+		?.setImage?.({
+			src: url,
+			alt: name,
+			title: name,
+			width: '42%',
+		})
+		?.run()
+	chain?.insertContent?.(' ')?.run()
+}
+
+const onSelectEmoji = (emoji: { i: string }): void => {
+	insertInlineToken(String(emoji?.i || ''))
+	showEmojiPopover.value = false
+}
+
+const onSelectCustomEmoji = (item: {
+	url: string
+	name: string
+	type: 'sticker' | 'emoji-img'
+	token?: string
+}): void => {
+	if (item.type === 'sticker') {
+		insertStickerImage(item.url, item.name)
+	} else {
+		const token = String(item.token || `[${item.name}]`).trim()
+		const editorAny = editorRef.value?.editor as
+			| {
+					chain?: () => {
+						focus?: () => {
+							insertContent?: (value: unknown) => {
+								run: () => boolean
+							}
+						}
+					}
+			  }
+			| undefined
+		const inserted = editorAny
+			?.chain?.()
+			.focus?.()
+			.insertContent?.({
+				type: 'inlineEmoji',
+				attrs: {
+					token,
+					src: item.url,
+				},
+			})
+		if (inserted?.run) {
+			inserted.run()
+		} else {
+			insertInlineToken(token)
+		}
+	}
+	showEmojiPopover.value = false
 }
 
 const onImageFileChange = async (event: Event): Promise<void> => {
@@ -836,10 +1219,27 @@ const clampDragHandlePosition = (): void => {
 	const handleRect = handle.getBoundingClientRect()
 	const minX = canvasRect.left + 4
 	const maxX = Math.max(minX, canvasRect.right - handleRect.width - 4)
+	const minY = canvasRect.top + 4
+	const maxY = Math.max(minY, canvasRect.bottom - handleRect.height - 4)
 	const clampedX = Math.max(minX, Math.min(maxX, current.x))
-	if (Math.abs(clampedX - current.x) < 0.5) return
+	const clampedY = Math.max(minY, Math.min(maxY, current.y))
+	const outOfCanvas =
+		current.x < minX - 24 ||
+		current.x > maxX + 24 ||
+		current.y < minY - 24 ||
+		current.y > maxY + 24
+	if (outOfCanvas) {
+		handle.style.opacity = '0'
+		return
+	}
+	handle.style.opacity = '1'
+	if (
+		Math.abs(clampedX - current.x) < 0.5 &&
+		Math.abs(clampedY - current.y) < 0.5
+	)
+		return
 	dragHandleClamping = true
-	handle.style.transform = `translateX(${clampedX}px) translateY(${current.y}px)`
+	handle.style.transform = `translateX(${clampedX}px) translateY(${clampedY}px)`
 	dragHandleClamping = false
 }
 
@@ -991,7 +1391,9 @@ watch(
 	() => props.doc.id,
 	() => {
 		localTitle.value = props.doc.title
-		localContent.value = props.doc.contentHtml || ''
+		localContent.value = mapEmojiTokensToInlineHtml(
+			props.doc.contentHtml || '',
+		)
 		lastCursorSignature = ''
 		renderedCollabCursors.value = []
 		scheduleRefreshCollabCursors()
@@ -1011,10 +1413,11 @@ watch(
 	() => [props.doc.contentHtml, props.doc.contentJson] as const,
 	([nextHtmlRaw, nextJsonRaw]) => {
 		const nextHtml = String(nextHtmlRaw || '')
+		const displayHtml = mapEmojiTokensToInlineHtml(nextHtml)
 		const nextJson = String(nextJsonRaw || '')
 		const signature = `${nextHtml}::${nextJson}`
 		if (signature === lastLocalEmitSignature) {
-			localContent.value = nextHtml
+			localContent.value = displayHtml
 			return
 		}
 		if (signature === lastExternalContentSignature) return
@@ -1031,7 +1434,7 @@ watch(
 		pendingExternalContent = null
 		clearPendingExternalTimer()
 		suppressNextEditorUpdate = true
-		localContent.value = nextHtml
+		localContent.value = displayHtml
 		applyExternalDocToEditor(nextHtml, nextJson)
 		scheduleRefreshCollabCursors()
 	},
@@ -1048,13 +1451,18 @@ watch(
 onMounted(() => {
 	componentAlive = true
 	window.addEventListener('resize', onWindowResize)
-	scrollViewRef.value?.addEventListener(
-		'scroll',
-		scheduleRefreshCollabCursors,
-		{
-			passive: true,
-		},
-	)
+	scrollViewRef.value?.addEventListener('scroll', onCanvasScroll, {
+		passive: true,
+	})
+	void nextTick(() => {
+		const html = String(props.doc.contentHtml || '')
+		const json = String(props.doc.contentJson || '')
+		localContent.value = mapEmojiTokensToInlineHtml(html)
+		applyExternalDocToEditor(html, json)
+		setTimeout(() => {
+			applyExternalDocToEditor(html, json)
+		}, 80)
+	})
 	scheduleRefreshCollabCursors()
 	setTimeout(() => {
 		bindDragHandleClampObserver()
@@ -1075,10 +1483,7 @@ onBeforeUnmount(() => {
 	clearCursorSendTimer()
 	clearCursorOverlayRefreshTimer()
 	window.removeEventListener('resize', onWindowResize)
-	scrollViewRef.value?.removeEventListener(
-		'scroll',
-		scheduleRefreshCollabCursors,
-	)
+	scrollViewRef.value?.removeEventListener('scroll', onCanvasScroll)
 	editorRef.value?.editor?.destroy?.()
 })
 </script>
@@ -1138,7 +1543,6 @@ onBeforeUnmount(() => {
 					size="small"
 					class="doc-owner-avatar"
 				>
-					{{ ownerAvatarText }}
 				</n-avatar>
 			</div>
 			<IsleEditorToolbar
@@ -1146,6 +1550,29 @@ onBeforeUnmount(() => {
 				:editor="editorRef.editor"
 			>
 				<template #suffix>
+					<n-popover
+						v-model:show="showEmojiPopover"
+						trigger="click"
+						placement="bottom-start"
+						:show-arrow="false"
+						content-class="chat-emoji-popover-content"
+						style="padding: 0"
+					>
+						<template #trigger>
+							<n-button
+								quaternary
+								size="small"
+								class="toolbar-image-btn"
+								title="插入表情"
+							>
+								表情
+							</n-button>
+						</template>
+						<EmojiPicker
+							@select="onSelectEmoji"
+							@select-custom="onSelectCustomEmoji"
+						/>
+					</n-popover>
 					<n-button
 						quaternary
 						size="small"
@@ -1444,6 +1871,18 @@ onBeforeUnmount(() => {
 	box-shadow: 0 0 0 4px rgba(54, 149, 255, 0.2);
 }
 
+.editor-inner :deep(.cloud-inline-emoji-token) {
+	display: inline-block;
+	width: 18px;
+	height: 18px;
+	vertical-align: text-bottom;
+	margin: 0 1px;
+	border-radius: 2px;
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
 .image-resize-panel {
 	display: flex;
 	align-items: center;
@@ -1467,6 +1906,36 @@ onBeforeUnmount(() => {
 
 .toolbar-image-btn {
 	padding: 0 8px;
+}
+
+.doc-emoji-panel {
+	display: grid;
+	grid-template-columns: repeat(5, 1fr);
+	gap: 6px;
+	padding: 6px;
+	min-width: 180px;
+}
+
+.doc-emoji-item {
+	border: 1px solid transparent;
+	border-radius: 8px;
+	background: transparent;
+	font-size: 18px;
+	line-height: 1;
+	padding: 6px 4px;
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+.doc-emoji-item:hover {
+	background: rgba(54, 149, 255, 0.12);
+}
+
+:global(#editor-handle),
+:global(#editor-handle-bar),
+:global(#editor-handle-bar::after) {
+	animation: none !important;
+	transition: none !important;
 }
 
 @media (max-width: 768px) {

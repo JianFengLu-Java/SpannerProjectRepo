@@ -596,7 +596,7 @@ const focusEditor = (): void => {
 
 const insertImageSrc = (src: string): void => {
 	if (!editor.value) return
-	editor.value.chain().focus().setImage({ src }).insertContent(' ').run()
+	editor.value.chain().focus().setImage({ src }).run()
 	scrollToBottom()
 }
 
@@ -783,12 +783,7 @@ const insertImageFile = async (file: File): Promise<void> => {
 			throw new Error('upload-url-empty')
 		}
 		if (!editor.value) return
-		editor.value
-			.chain()
-			.focus()
-			.setImage({ src: imageUrl })
-			.insertContent(' ')
-			.run()
+		editor.value.chain().focus().setImage({ src: imageUrl }).run()
 		scrollToBottom()
 	} catch (error) {
 		console.error('聊天图片上传失败', error)
@@ -1155,8 +1150,9 @@ onUnmounted(() => {
 							<n-popover
 								v-model:show="showEmoji"
 								trigger="click"
-								placement="top"
+								placement="top-start"
 								:show-arrow="false"
+								content-class="chat-emoji-popover-content"
 								style="padding: 0"
 							>
 								<template #trigger>
@@ -1416,10 +1412,10 @@ onUnmounted(() => {
 
 :deep(.tiptap img[alt^='['][alt$=']']) {
 	display: inline-block;
-	width: 1.15em !important;
-	height: 1.15em !important;
-	max-width: 1.15em !important;
-	max-height: 1.15em !important;
+	width: 1.28em !important;
+	height: 1.28em !important;
+	max-width: 1.28em !important;
+	max-height: 1.28em !important;
 	vertical-align: -0.2em;
 	margin: 0 0.04em;
 	border: none !important;

@@ -48,7 +48,6 @@ watch(
 )
 
 onBeforeUnmount(() => {
-	cloudDocStore.stopCollabSync()
 	void cloudDocStore.flushSave()
 })
 </script>

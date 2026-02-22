@@ -81,21 +81,21 @@
 					v-else-if="shouldRenderSystemNoticeCard"
 					class="notice-card notice-card-system avatar-no-select"
 				>
-					<div class="notice-card-head">
-						<span class="notice-card-badge">系统</span>
-						<span class="notice-card-title">
-							{{ noticeTitle || '系统通知' }}
-						</span>
+					<div class="notice-card-top">
+						<span class="notice-card-badge">系统通知</span>
+						<span class="notice-card-time">{{ time }}</span>
 					</div>
-					<div class="notice-card-body">
-						<p
-							v-for="(line, index) in noticeDetailLines"
-							:key="`${index}-${line}`"
-							class="notice-card-line"
-						>
-							{{ line }}
-						</p>
+					<div
+						v-if="systemNoticeTitle"
+						class="notice-card-main-title"
+					>
+						{{ systemNoticeTitle }}
 					</div>
+
+					<div
+						class="notice-card-body notice-card-body-html"
+						v-html="systemNoticeBodyHtml"
+					></div>
 				</div>
 
 				<div
@@ -174,7 +174,12 @@
 
 				<div
 					v-else-if="isOnlyImage"
-					class="msg-content-selectable"
+					class="chat-image-bubble msg-content-selectable"
+					:class="
+						isMe
+							? 'chat-image-bubble-me'
+							: 'chat-image-bubble-other'
+					"
 					@click="handleClickEvent"
 					v-html="renderedContent"
 				/>
@@ -193,6 +198,29 @@
 						class="msg-content-selectable"
 						v-html="renderedContent"
 					></div>
+					<div
+						v-if="reactionItems && reactionItems.length"
+						class="bubble-inline-reaction avatar-no-select"
+					>
+						<div
+							v-for="reaction in reactionItems"
+							:key="reaction.key"
+							class="message-reaction-chip"
+						>
+							<img
+								v-if="reaction.imageUrl"
+								:src="reaction.imageUrl"
+								alt="reaction"
+								class="message-reaction-image"
+							/>
+							<span v-else class="message-reaction-emoji">{{
+								reaction.emoji
+							}}</span>
+							<span class="message-reaction-user">{{
+								reaction.label
+							}}</span>
+						</div>
+					</div>
 				</div>
 			</div>
 
@@ -346,7 +374,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUpdated, ref } from 'vue'
+import { computed, onMounted, onUpdated, ref, watch } from 'vue'
 import {
 	ShieldCheckmark24Regular,
 	Money24Filled,
@@ -363,6 +391,7 @@ import { useChatStore } from '@renderer/stores/chat'
 import { useCloudDocStore } from '@renderer/stores/cloudDoc'
 import { useSidebarSlotStore } from '@renderer/stores/sidebarSlot'
 import { getMergedEmojiTokenMap } from '@renderer/utils/emojiTokenMap'
+import { resolveAvatarUrl } from '@renderer/utils/avatar'
 
 const walletStore = useWalletStore()
 const chatStore = useChatStore()
@@ -387,6 +416,12 @@ const props = defineProps<{
 	deliveryStatus?: 'sending' | 'sent' | 'failed'
 	isSystemChat?: boolean
 	isVipNotice?: boolean
+	reactionItems?: Array<{
+		key: string
+		emoji?: string
+		imageUrl?: string
+		label: string
+	}>
 }>()
 const messageRootRef = ref<HTMLElement | null>(null)
 
@@ -414,9 +449,483 @@ const noticeLines = computed(() =>
 
 const noticeTitle = computed(() => noticeLines.value[0] || '')
 
-const noticeDetailLines = computed(() => {
-	if (noticeLines.value.length <= 1) return []
-	return noticeLines.value.slice(1)
+const escapeHtml = (value: string): string => {
+	return value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;')
+}
+
+const renderEmojiTokensInHtml = (source: string): string => {
+	if (!source) return source
+	if (!source.includes('[') || !source.includes(']')) return source
+	const tokenMap = getMergedEmojiTokenMap()
+	if (!Object.keys(tokenMap).length) return source
+
+	const holder = document.createElement('div')
+	holder.innerHTML = source
+	const walker = document.createTreeWalker(holder, NodeFilter.SHOW_TEXT)
+	const textNodes: Text[] = []
+	let current = walker.nextNode()
+	while (current) {
+		if (current.nodeType === Node.TEXT_NODE) {
+			textNodes.push(current as Text)
+		}
+		current = walker.nextNode()
+	}
+
+	const tokenPattern = /\[([^\]\s[]{1,24})\]/g
+	textNodes.forEach((textNode) => {
+		const raw = textNode.nodeValue || ''
+		tokenPattern.lastIndex = 0
+		if (!tokenPattern.test(raw)) return
+		tokenPattern.lastIndex = 0
+
+		const frag = document.createDocumentFragment()
+		let lastIndex = 0
+		let matched = tokenPattern.exec(raw)
+		while (matched) {
+			const token = matched[0]
+			const start = matched.index
+			const end = start + token.length
+			const mappedUrl = tokenMap[token]
+
+			if (start > lastIndex) {
+				frag.appendChild(
+					document.createTextNode(raw.slice(lastIndex, start)),
+				)
+			}
+			if (mappedUrl) {
+				const img = document.createElement('img')
+				img.className = 'inline-emoji-token'
+				img.src = mappedUrl
+				img.alt = token
+				img.title = token
+				img.setAttribute('draggable', 'false')
+				frag.appendChild(img)
+			} else {
+				frag.appendChild(document.createTextNode(token))
+			}
+			lastIndex = end
+			matched = tokenPattern.exec(raw)
+		}
+		if (lastIndex < raw.length) {
+			frag.appendChild(document.createTextNode(raw.slice(lastIndex)))
+		}
+		textNode.replaceWith(frag)
+	})
+
+	return holder.innerHTML
+}
+
+const systemNoticeRawHtml = computed(() => {
+	const source = props.content || ''
+	if (!source.trim()) return ''
+	const hasHtmlTag = /<\/?[a-z][\s\S]*>/i.test(source)
+	if (hasHtmlTag) return source.replace(/\r\n?/g, '\n')
+	return escapeHtml(source).replace(/\r\n?/g, '\n').replace(/\n/g, '<br/>')
+})
+
+const decodeHtmlEntitiesInline = (value: string): string => {
+	const text = String(value || '').trim()
+	if (!text) return ''
+	const holder = document.createElement('textarea')
+	holder.innerHTML = text
+	return holder.value || text
+}
+
+const decodeHtmlEntitiesDeep = (value: string, maxDepth = 2): string => {
+	let current = String(value || '')
+	for (let i = 0; i < maxDepth; i += 1) {
+		const decoded = decodeHtmlEntitiesInline(current)
+		if (decoded === current) break
+		current = decoded
+	}
+	return current
+}
+
+const normalizeImageCandidate = (value: string): string => {
+	const text = String(value || '').trim()
+	if (!text) return ''
+	const srcsetCandidate = text.split(',')[0]?.trim().split(/\s+/)[0] || ''
+	const candidate = srcsetCandidate || text
+	if (/^(https?:|blob:|data:image\/|file:)/i.test(candidate)) return candidate
+	if (candidate.startsWith('//')) {
+		return `${window.location.protocol}${candidate}`
+	}
+	if (candidate.startsWith('/')) {
+		return `${window.location.origin}${candidate}`
+	}
+	return ''
+}
+
+const extractPlainTextFromHtml = (source: string): string => {
+	const container = document.createElement('div')
+	container.innerHTML = source
+	return (container.textContent || '').replace(/\s+/g, ' ').trim()
+}
+
+const extractImageLikeUrlFromJson = (value: string): string => {
+	const parsed = tryParseJsonObject(value)
+	if (!parsed) return ''
+	const queue: unknown[] = [parsed]
+	const keys = new Set([
+		'src',
+		'url',
+		'image',
+		'imageurl',
+		'image_url',
+		'thumburl',
+		'thumbnail',
+		'originurl',
+		'originalurl',
+		'path',
+	])
+	while (queue.length) {
+		const node = queue.shift()
+		if (!node || typeof node !== 'object') continue
+		for (const [rawKey, rawValue] of Object.entries(
+			node as Record<string, unknown>,
+		)) {
+			const normalizedKey = rawKey.replace(/[\s_\-]/g, '').toLowerCase()
+			if (typeof rawValue === 'string') {
+				const normalizedValue = normalizeImageCandidate(rawValue)
+				if (keys.has(normalizedKey) && normalizedValue) {
+					return normalizedValue
+				}
+				if (normalizedValue) return normalizedValue
+			} else if (rawValue && typeof rawValue === 'object') {
+				queue.push(rawValue)
+			}
+		}
+	}
+	return ''
+}
+
+const imageUrlToHtml = (value: string): string => {
+	const normalized = normalizeImageCandidate(value)
+	if (!normalized) return ''
+	return `<img src="${escapeHtml(normalized)}" alt="image" class="notice-card-inline-image" />`
+}
+
+const normalizeNoticeHtmlImages = (source: string): string => {
+	const container = document.createElement('div')
+	container.innerHTML = source
+	const imgs = Array.from(container.querySelectorAll('img'))
+	let replacedBrokenImage = false
+	for (const img of imgs) {
+		const srcCandidates = [
+			img.getAttribute('src'),
+			img.getAttribute('data-src'),
+			img.getAttribute('data-origin-src'),
+			img.getAttribute('data-original-src'),
+			img.getAttribute('data-url'),
+			img.getAttribute('data-image'),
+			img.getAttribute('srcset'),
+			img.getAttribute('data-srcset'),
+			img.getAttribute('data-file'),
+			img.getAttribute('data-path'),
+		]
+			.map((item) => String(item || '').trim())
+			.filter(Boolean)
+		const styleUrl =
+			String(img.getAttribute('style') || '')
+				.match(/url\((['"]?)([^'")]+)\1\)/i)?.[2]
+				?.trim() || ''
+		const nextSrc =
+			srcCandidates
+				.map((item) => normalizeImageCandidate(item))
+				.find(Boolean) || normalizeImageCandidate(styleUrl)
+		if (!nextSrc) {
+			const fallback = document.createElement('span')
+			fallback.className = 'notice-card-image-fallback'
+			fallback.textContent = '[图片消息]'
+			img.replaceWith(fallback)
+			replacedBrokenImage = true
+			continue
+		}
+		img.setAttribute('src', nextSrc)
+		img.removeAttribute('srcset')
+		img.removeAttribute('style')
+		img.className = 'notice-card-inline-image'
+		img.setAttribute('alt', img.getAttribute('alt') || 'image')
+		img.setAttribute('loading', 'eager')
+		img.setAttribute('decoding', 'async')
+	}
+	if (replacedBrokenImage) {
+		const plain = extractPlainTextFromHtml(container.innerHTML)
+		if (!plain) {
+			return '<span class="notice-card-image-fallback">[图片消息]</span>'
+		}
+	}
+	return container.innerHTML
+}
+
+const toNoticeContentHtml = (source: string): string => {
+	const raw = String(source || '').trim()
+	if (!raw) return ''
+	const decoded = decodeHtmlEntitiesDeep(raw, 3)
+	const normalized = decoded.replace(/\r\n?/g, '\n')
+	const jsonImageUrl = extractImageLikeUrlFromJson(normalized)
+	if (jsonImageUrl) return imageUrlToHtml(jsonImageUrl)
+	const directUrl = normalized.trim()
+	if (/^https?:\/\/[^\s]+$/i.test(directUrl)) {
+		return imageUrlToHtml(directUrl)
+	}
+	const hasHtmlTag = /<\/?[a-z][\s\S]*>/i.test(normalized)
+	if (hasHtmlTag) {
+		return renderEmojiTokensInHtml(normalizeNoticeHtmlImages(normalized))
+	}
+	const imageHtml = imageUrlToHtml(normalized)
+	if (imageHtml) return imageHtml
+	return renderEmojiTokensInHtml(
+		escapeHtml(normalized).replace(/\n/g, '<br/>'),
+	)
+}
+
+const pickNoticePayloadText = (
+	payload: Record<string, unknown>,
+	keys: string[],
+): string => {
+	for (const key of keys) {
+		const text = normalizeNoticePayloadText(payload[key])
+		if (text) return text
+	}
+	return ''
+}
+
+const systemNoticeTemplate = computed(() => {
+	const payload = noticeStructuredPayload.value || {}
+	const eventType = pickNoticePayloadText(payload, [
+		'eventType',
+		'type',
+		'templateCode',
+		'event',
+	])
+		.trim()
+		.toLowerCase()
+	const action = pickNoticePayloadText(payload, [
+		'action',
+		'op',
+		'operation',
+		'status',
+	])
+		.trim()
+		.toLowerCase()
+	const actor = pickNoticePayloadText(payload, [
+		'operatorName',
+		'senderName',
+		'fromName',
+		'actorName',
+		'operatorId',
+		'from',
+	])
+	const emoji = pickNoticePayloadText(payload, [
+		'reaction',
+		'emoji',
+		'reactionEmoji',
+		'reactionKey',
+	])
+	const snippet = pickNoticePayloadText(payload, [
+		'messageContent',
+		'messagePreview',
+		'messageSnippet',
+		'contentSnippet',
+		'snippet',
+		'content',
+	])
+
+	const isReaction =
+		eventType.includes('reaction') ||
+		eventType.includes('reply_info') ||
+		eventType.includes('reply') ||
+		eventType.includes('react') ||
+		!!payload.reaction ||
+		!!payload.reactionEmoji
+
+	if (isReaction || (actor && (emoji || eventType))) {
+		const actorText = actor || systemNoticeSenderName.value || '有人'
+		const actorAvatar = pickNoticePayloadText(payload, [
+			'operatorAvatarUrl',
+			'senderAvatarUrl',
+			'fromAvatarUrl',
+			'actorAvatarUrl',
+			'operatorAvatar',
+			'senderAvatar',
+			'fromAvatar',
+			'actorAvatar',
+			'avatarUrl',
+			'avatar',
+		])
+		const actionText =
+			action.includes('remove') ||
+			action.includes('cancel') ||
+			action.includes('delete')
+				? '取消了互动'
+				: '回复了消息'
+		const snippetHtml = snippet
+			? `<div class="notice-card-quote">${toNoticeContentHtml(snippet)}</div>`
+			: ''
+		return {
+			title: '消息互动提醒',
+			bodyHtml: `${snippetHtml}${buildNoticeActionHtml({
+				actor: actorText,
+				actionText,
+				emoji,
+				avatarUrl: actorAvatar || systemNoticeSenderAvatar.value,
+			})}`,
+		}
+	}
+
+	return null
+})
+
+const systemNoticeSenderName = computed(() => {
+	const payload = noticeStructuredPayload.value || {}
+	return (
+		pickNoticePayloadText(payload, [
+			'operatorName',
+			'senderName',
+			'fromName',
+			'actorName',
+			'operatorId',
+			'from',
+		]) ||
+		props.senderName?.trim() ||
+		'系统助手'
+	)
+})
+
+const systemNoticeSenderAvatar = computed(() => {
+	const payload = noticeStructuredPayload.value || {}
+	const raw = pickNoticePayloadText(payload, [
+		'operatorAvatarUrl',
+		'senderAvatarUrl',
+		'fromAvatarUrl',
+		'actorAvatarUrl',
+		'operatorAvatar',
+		'senderAvatar',
+		'fromAvatar',
+		'actorAvatar',
+		'avatarUrl',
+		'avatar',
+	])
+	return resolveAvatarUrl(raw)
+})
+
+const buildNoticeActionHtml = (params: {
+	actor: string
+	actionText: string
+	emoji?: string
+	avatarUrl?: string
+}): string => {
+	const actor = params.actor.trim() || '有人'
+	const initial = actor.slice(0, 1).toUpperCase() || '系'
+	const avatar = resolveAvatarUrl(params.avatarUrl || '')
+	const avatarHtml = avatar
+		? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(actor)}" class="notice-card-action-avatar" />`
+		: `<span class="notice-card-action-avatar notice-card-action-avatar-fallback">${escapeHtml(initial)}</span>`
+	const emojiHtml = params.emoji?.trim() ? ` ${escapeHtml(params.emoji)}` : ''
+	return `<div class="notice-card-action">${avatarHtml}<span class="notice-card-action-text"><strong>${escapeHtml(actor)}</strong> </span>${params.actionText}${emojiHtml}</div>`
+}
+
+const normalizeNoticePayloadText = (value: unknown): string => {
+	if (value === null || value === undefined) return ''
+	if (typeof value === 'string') return value.trim()
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return String(value)
+	}
+	return ''
+}
+
+const systemNoticePayloadBodyHtml = computed(() => {
+	const payload = noticeStructuredPayload.value
+	if (!payload) return ''
+	const candidateFields = [
+		'messageContent',
+		'message',
+		'content',
+		'body',
+		'desc',
+		'description',
+		'detail',
+		'text',
+		'messageText',
+		'summary',
+	]
+	const lines: string[] = []
+	for (const field of candidateFields) {
+		const text = normalizeNoticePayloadText(payload[field])
+		if (!text) continue
+		if (field === 'messageContent') {
+			lines.push(
+				`<div class="notice-card-quote">${toNoticeContentHtml(text)}</div>`,
+			)
+		} else {
+			lines.push(
+				`<div class="notice-card-paragraph">${toNoticeContentHtml(text)}</div>`,
+			)
+		}
+		if (lines.length >= 3) break
+	}
+	if (!lines.length) {
+		const actor = normalizeNoticePayloadText(
+			payload.operatorName || payload.actorName || payload.senderName,
+		)
+		const emoji = normalizeNoticePayloadText(
+			payload.emoji || payload.reactionEmoji || payload.reaction,
+		)
+		const actorAvatar = normalizeNoticePayloadText(
+			payload.operatorAvatarUrl ||
+				payload.actorAvatarUrl ||
+				payload.senderAvatarUrl ||
+				payload.avatarUrl ||
+				payload.operatorAvatar ||
+				payload.actorAvatar ||
+				payload.senderAvatar,
+		)
+		if (actor || emoji) {
+			lines.push(
+				buildNoticeActionHtml({
+					actor: actor || '有人',
+					actionText: '回复了信息',
+					emoji,
+					avatarUrl: actorAvatar || systemNoticeSenderAvatar.value,
+				}),
+			)
+		}
+	}
+	if (!lines.length) {
+		lines.push('<p class="notice-card-action">你收到一条系统消息</p>')
+	}
+	return `<div class="notice-card-rich">${lines.join('')}</div>`
+})
+
+const systemNoticeTitle = computed(() => {
+	const payload = noticeStructuredPayload.value
+	if (payload) {
+		const payloadTitle =
+			normalizeNoticePayloadText(payload.title) ||
+			normalizeNoticePayloadText(payload.templateName) ||
+			normalizeNoticePayloadText(payload.eventName)
+		if (payloadTitle) return payloadTitle
+	}
+	return systemNoticeTemplate.value?.title || noticeTitle.value || ''
+})
+
+const systemNoticeBodyHtml = computed(() => {
+	if (systemNoticeTemplate.value?.bodyHtml) {
+		return `<div class="notice-card-rich">${renderEmojiTokensInHtml(systemNoticeTemplate.value.bodyHtml)}</div>`
+	}
+	if (systemNoticePayloadBodyHtml.value) {
+		return systemNoticePayloadBodyHtml.value
+	}
+	const html = systemNoticeRawHtml.value
+	if (!html) return '<p class="notice-card-line">暂无系统通知内容</p>'
+	const rendered = toNoticeContentHtml(html)
+	return `<div class="notice-card-rich">${rendered}</div>`
 })
 
 const normalizeFieldKey = (value: string): string =>
@@ -500,6 +1009,17 @@ const findFieldFromObject = (
 
 const noticeStructuredPayload = computed(() =>
 	extractFirstJsonObject(props.content || ''),
+)
+
+watch(
+	() => props.content,
+	(nextContent) => {
+		const parsed = extractFirstJsonObject(nextContent || '')
+		if (!parsed) return
+		console.info('[system-notice-debug] raw-content', nextContent)
+		console.info('[system-notice-debug] parsed-json', parsed)
+	},
+	{ immediate: true },
 )
 
 const extractNoticeFieldValue = (keywords: string[]): string | undefined => {
@@ -1135,82 +1655,45 @@ const handleCloudDocCardClick = async (): Promise<void> => {
 const isOnlyImage = computed(() => {
 	if (isTransferCard.value || isCloudDocShareCard.value) return false
 	if (!props.content) return false
-	let html = props.content.replace(/\s/g, '')
-	html = html
-		.replace(/<p[^>]*>/gi, '')
-		.replace(/<\/p>/gi, '')
-		.replace(/<br\s*\/?>/gi, '')
-	const imgMatches = html.match(/<img[^>]+>/gi)
-	return (
-		imgMatches &&
-		imgMatches.length > 0 &&
-		html
-			.replace(/<a[^>]*>/gi, '')
-			.replace(/<\/a>/gi, '')
-			.replace(/<img[^>]+>/gi, '') === ''
-	)
+	const decoded = decodeHtmlEntitiesDeep(props.content || '', 3).trim()
+	if (!decoded) return false
+	const imageOnlyUrl = imageUrlToHtml(decoded)
+	const candidate = imageOnlyUrl || decoded
+	const container = document.createElement('div')
+	container.innerHTML = candidate
+	const nodes = Array.from(container.childNodes).filter((node) => {
+		if (node.nodeType === Node.TEXT_NODE) {
+			return !!(node.nodeValue || '').trim()
+		}
+		if (node.nodeType === Node.ELEMENT_NODE) {
+			const el = node as HTMLElement
+			const tag = el.tagName.toLowerCase()
+			if (tag === 'br') return false
+			return true
+		}
+		return false
+	})
+	if (!nodes.length) return false
+	return nodes.every((node) => {
+		if (node.nodeType !== Node.ELEMENT_NODE) return false
+		const el = node as HTMLElement
+		const tag = el.tagName.toLowerCase()
+		if (tag === 'img') return true
+		if (tag !== 'a') return false
+		const imgChildren = Array.from(el.children).filter(
+			(child) => child.tagName.toLowerCase() === 'img',
+		)
+		return (
+			imgChildren.length === el.children.length && imgChildren.length > 0
+		)
+	})
 })
 
 const renderedContent = computed(() => {
-	const source = props.content || ''
-	if (!source || !source.includes('[') || !source.includes(']')) return source
-	const tokenMap = getMergedEmojiTokenMap()
-	if (!Object.keys(tokenMap).length) return source
-
-	const holder = document.createElement('div')
-	holder.innerHTML = source
-	const walker = document.createTreeWalker(holder, NodeFilter.SHOW_TEXT)
-	const textNodes: Text[] = []
-	let current = walker.nextNode()
-	while (current) {
-		if (current.nodeType === Node.TEXT_NODE) {
-			textNodes.push(current as Text)
-		}
-		current = walker.nextNode()
-	}
-
-	const tokenPattern = /\[([^\]\s[]{1,24})\]/g
-	textNodes.forEach((textNode) => {
-		const raw = textNode.nodeValue || ''
-		tokenPattern.lastIndex = 0
-		if (!tokenPattern.test(raw)) return
-		tokenPattern.lastIndex = 0
-
-		const frag = document.createDocumentFragment()
-		let lastIndex = 0
-		let matched = tokenPattern.exec(raw)
-		while (matched) {
-			const token = matched[0]
-			const start = matched.index
-			const end = start + token.length
-			const mappedUrl = tokenMap[token]
-
-			if (start > lastIndex) {
-				frag.appendChild(
-					document.createTextNode(raw.slice(lastIndex, start)),
-				)
-			}
-			if (mappedUrl) {
-				const img = document.createElement('img')
-				img.className = 'inline-emoji-token'
-				img.src = mappedUrl
-				img.alt = token
-				img.title = token
-				img.setAttribute('draggable', 'false')
-				frag.appendChild(img)
-			} else {
-				frag.appendChild(document.createTextNode(token))
-			}
-			lastIndex = end
-			matched = tokenPattern.exec(raw)
-		}
-		if (lastIndex < raw.length) {
-			frag.appendChild(document.createTextNode(raw.slice(lastIndex)))
-		}
-		textNode.replaceWith(frag)
-	})
-
-	return holder.innerHTML
+	const decoded = decodeHtmlEntitiesDeep(props.content || '', 3).trim()
+	if (!decoded) return ''
+	const imageOnlyUrl = imageUrlToHtml(decoded)
+	return renderEmojiTokensInHtml(imageOnlyUrl || decoded)
 })
 
 const handleClickEvent = (e: MouseEvent): void => {
@@ -1258,9 +1741,9 @@ onUpdated(attachLoadEvents)
 
 :deep(.msg-content-selectable img.inline-emoji-token) {
 	display: inline-block;
-	width: 1.15em;
-	height: 1.15em;
-	vertical-align: -0.22em;
+	width: 1.5em;
+	height: 1.5em;
+	vertical-align: -0.1em;
 	margin: 0 0.04em;
 	border: none;
 	border-radius: 0;
@@ -1312,6 +1795,29 @@ onUpdated(attachLoadEvents)
 	border-bottom-left-radius: 6px;
 }
 
+.chat-image-bubble {
+	padding: 0;
+	border-radius: 12px;
+	border: 1px solid #dbe3ef;
+	background: #f8fbff;
+	overflow: hidden;
+	line-height: 0;
+}
+
+.chat-image-bubble-me {
+	border-bottom-right-radius: 6px;
+	background: #ecf4ff;
+	border-color: #cfe2fb;
+}
+
+.chat-image-bubble-other {
+	border-bottom-left-radius: 6px;
+}
+
+.chat-image-bubble.msg-content-selectable {
+	display: block;
+}
+
 .chat-bubble-me :deep(a) {
 	color: #dbeeff;
 	text-decoration: underline;
@@ -1322,6 +1828,47 @@ onUpdated(attachLoadEvents)
 .chat-bubble-me :deep(a:hover) {
 	color: #f4f9ff;
 	text-decoration-color: rgb(244 249 255 / 90%);
+}
+
+.bubble-inline-reaction {
+	margin-top: 6px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.message-reaction-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 28px;
+	padding: 0 10px 0 9px;
+	border-radius: 999px;
+	background: rgb(255 255 255 / 75%);
+	border: 1px solid #dbe3ef;
+}
+
+.message-reaction-emoji {
+	font-size: 1.5em;
+	line-height: 1;
+}
+
+.message-reaction-image {
+	width: 1.5em;
+	height: 1.5em;
+	object-fit: contain;
+	display: block;
+}
+
+.message-reaction-user {
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1;
+	color: #52607a;
+	max-width: 7.5em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .cloud-doc-card {
@@ -1357,15 +1904,16 @@ onUpdated(attachLoadEvents)
 .notice-card {
 	min-width: 260px;
 	max-width: 360px;
-	border-radius: 14px;
-	padding: 12px;
+	border-radius: 16px;
+	padding: 12px 12px 10px;
 	border: 1px solid #dbe3f0;
 }
 
-.notice-card-head {
+.notice-card-top {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	justify-content: space-between;
+	gap: 10px;
 	margin-bottom: 8px;
 }
 
@@ -1382,15 +1930,182 @@ onUpdated(attachLoadEvents)
 	line-height: 1;
 }
 
-.notice-card-title {
+.notice-card-time {
+	font-size: 11px;
+	line-height: 1.2;
+	color: #6b7e99;
+	white-space: nowrap;
+}
+
+.notice-card-main-title {
+	margin-bottom: 8px;
 	font-size: 14px;
 	font-weight: 700;
-	line-height: 1.3;
+	line-height: 1.35;
+	color: #1f2937;
+}
+
+.notice-card-sender {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 8px;
+}
+
+.notice-card-sender-avatar-wrap {
+	width: 30px;
+	height: 30px;
+	flex-shrink: 0;
+}
+
+.notice-card-sender-avatar {
+	width: 100%;
+	height: 100%;
+	border-radius: 999px;
+	object-fit: cover;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid rgb(148 163 184 / 35%);
+	background: #fff;
+}
+
+.notice-card-sender-avatar-fallback {
+	font-size: 12px;
+	font-weight: 700;
+	color: #325a8f;
+	background: linear-gradient(160deg, #d9e8fb 0%, #c7dcf7 100%);
+}
+
+.notice-card-sender-meta {
+	min-width: 0;
+	display: grid;
+	gap: 2px;
+}
+
+.notice-card-sender-name {
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 1.25;
+	color: #1f2937;
+	max-width: 220px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.notice-card-sender-role {
+	font-size: 11px;
+	line-height: 1.2;
+	color: #64748b;
 }
 
 .notice-card-body {
 	display: grid;
 	gap: 6px;
+}
+
+.notice-card-body-html {
+	padding: 10px;
+	border-radius: 12px;
+	background: rgb(255 255 255 / 75%);
+	border: 1px solid rgb(214 226 242 / 80%);
+}
+
+.notice-card-body-html :deep(.notice-card-rich) {
+	display: grid;
+	gap: 6px;
+	font-size: 13px;
+	line-height: 1.6;
+	color: #2e3b50;
+	word-break: break-word;
+}
+
+.notice-card-body-html :deep(p) {
+	margin: 0;
+}
+
+.notice-card-body-html :deep(.notice-card-action) {
+	font-size: 1em;
+	line-height: 1.5;
+	color: #1f2937;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.notice-card-body-html :deep(.notice-card-action-text) {
+	min-width: 0;
+}
+
+.notice-card-body-html :deep(.notice-card-action-avatar) {
+	width: 18px;
+	height: 18px;
+	flex-shrink: 0;
+	border-radius: 999px;
+	object-fit: cover;
+	border: 1px solid rgb(148 163 184 / 35%);
+	background: #fff;
+}
+
+.notice-card-body-html :deep(.notice-card-action-avatar-fallback) {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	font-weight: 700;
+	color: #325a8f;
+	background: linear-gradient(160deg, #d9e8fb 0%, #c7dcf7 100%);
+}
+
+.notice-card-body-html :deep(.notice-card-paragraph) {
+	font-size: 1em;
+	line-height: 1.55;
+}
+
+.notice-card-body-html :deep(.notice-card-quote) {
+	padding: 8px 10px;
+	border-radius: 10px;
+	background: rgb(230 238 248 / 62%);
+	border-left: 3px solid #8fb2e5;
+	font-size: 12px;
+	color: #334155;
+}
+
+.notice-card-body-html :deep(.inline-emoji-token) {
+	width: 1.5em;
+	height: 1.5em;
+	vertical-align: -0.06em;
+	margin: 0 0.03em;
+}
+
+.notice-card-body-html :deep(img:not(.inline-emoji-token)) {
+	display: block;
+	max-width: 240px;
+	max-height: 220px;
+	border-radius: 8px;
+	border: 1px solid rgb(148 163 184 / 30%);
+}
+
+.notice-card-body-html :deep(img.notice-card-inline-image) {
+	display: block;
+	max-width: 240px;
+	max-height: 220px;
+	min-height: 48px;
+	object-fit: contain;
+	border-radius: 8px;
+	background: #f2f5f9;
+}
+
+.notice-card-body-html :deep(.notice-card-image-fallback) {
+	display: inline-flex;
+	align-items: center;
+	padding: 4px 8px;
+	border-radius: 8px;
+	font-size: 12px;
+	color: #51627c;
+	background: rgb(241 245 249 / 85%);
+	border: 1px solid rgb(203 213 225 / 90%);
 }
 
 .notice-card-line {

@@ -13,6 +13,7 @@ import {
 	isDicebearAvatarUrl,
 	resolveAvatarUrl,
 } from '@renderer/utils/avatar'
+import systemAvatarUrl from '@renderer/assets/system.svg'
 import {
 	privateChatWs,
 	type PrivateChatAckFrame,
@@ -36,6 +37,10 @@ import {
 	type GroupChatErrorFrame,
 	type GroupChatMessageFrame,
 } from '@renderer/services/groupChatWs'
+import {
+	messageReactionApi,
+	type ReactionItemDto,
+} from '@renderer/services/messageReactionApi'
 
 interface DbChatItem {
 	id: number
@@ -69,6 +74,10 @@ interface DbMessage {
 	serverMessageId?: string
 	deliveryStatus?: 'sending' | 'sent' | 'failed'
 	sentAt?: string
+	reactions?: string
+	quotedMessageId?: string
+	quotedFromAccount?: string
+	quotedContent?: string
 }
 
 interface OfflineMessagePullResponse {
@@ -89,6 +98,7 @@ interface HistoryMessageDto {
 	from: string
 	to: string
 	content: string
+	quote?: MessageQuote
 	clientMessageId?: string | number
 	sentAt?: string
 	timestamp?: string
@@ -138,6 +148,22 @@ interface LocalMessageSearchResult extends DbMessage {
 	chatName: string
 }
 
+interface MessageReactionEventFrame {
+	eventType?: string
+	chatId?: number | string
+	messageId?: number | string
+	serverMessageId?: string
+	clientMessageId?: string
+	groupNo?: string
+	from?: string
+	to?: string
+	operatorId?: string
+	operatorName?: string
+	reactions?: unknown
+	updatedAt?: string
+	data?: Record<string, unknown>
+}
+
 export interface GlobalMessageSearchHit {
 	chatId: number
 	chatName: string
@@ -181,10 +207,10 @@ export const useChatStore = defineStore('chat', () => {
 	const friendStore = useFriendStore()
 	const appSettingsStore = useAppSettingsStore()
 	const SYSTEM_ACCOUNT = 'SYSTEM'
+	const LEGACY_SYSTEM_ACCOUNT = 'S'
 	const SYSTEM_CHAT_NAME = '系统通知'
 	const SYSTEM_CHAT_ID_SEED = -999000001
-	const SYSTEM_AVATAR_DATA_URI =
-		'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgdmlld0JveD0iMCAwIDk2IDk2Ij4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjEwIiB5MT0iOCIgeDI9Ijg2IiB5Mj0iODgiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjNzBCOEVGIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzM4NzZFQiIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI0OCIgcj0iNDYiIGZpbGw9InVybCgjZykiLz4KICA8cGF0aCBkPSJNNjggNjhjLTIuNiAwLTQuNy0yLjEtNC43LTQuN3YtMTRjMC04LjEtNS42LTE1LjEtMTMuMi0xNi44di0yLjFjMC0xLjEtLjktMi0yLTJoMGMtMS4xIDAtMiAuOS0yIDJ2Mi4xYy03LjYgMS43LTEzLjIgOC43LTEzLjIgMTYuOHYxNGMwIDIuNi0yLjEgNC43LTQuNyA0LjdjLTEuMSAwLTIgLjktMiAyczAuOSAyIDIgMmg0MGMxLjEgMCAyLS45IDItMnMtLjktMi0yLTJ6IiBmaWxsPSIjRkZGIi8+CiAgPGNpcmNsZSBjeD0iNDgiIGN5PSI3MSIgcj0iNC42IiBmaWxsPSIjRkZGIi8+Cjwvc3ZnPgo='
+	const SYSTEM_AVATAR_DATA_URI = systemAvatarUrl
 	let localMessageIdCursor = Date.now()
 	// --- 状态定义 ---
 	const activeChatId = ref<number | null>(null)
@@ -218,12 +244,17 @@ export const useChatStore = defineStore('chat', () => {
 	const localHistoryCursorMap = ref(
 		new Map<number, { nextOffsetFromLatest: number; hasMore: boolean }>(),
 	)
+	const composingQuoteMap = ref<Record<number, ComposerMessageQuote | null>>(
+		{},
+	)
 	const loadingHistoryChatIds = ref(new Set<number>())
 	const hydratedHistoryChatIds = ref(new Set<number>())
 	const LOCAL_HISTORY_INITIAL_CHUNK_SIZE = 40
+	const REACTION_EVENT_DEDUP_TTL_MS = 15 * 1000
 	let loadingFriendsPromise: Promise<boolean> | null = null
 	let messageJumpToken = 0
 	const groupSessionSyncAtMap = new Map<string, number>()
+	const recentReactionEventMap = new Map<string, number>()
 	const GROUP_SESSION_SYNC_INTERVAL_MS = 60 * 1000
 	const shouldLogChatMergeDebug = (): boolean => {
 		if (!import.meta.env.DEV) return false
@@ -270,12 +301,15 @@ export const useChatStore = defineStore('chat', () => {
 	}
 
 	const isSystemAccount = (account: string): boolean => {
-		return account.toUpperCase() === SYSTEM_ACCOUNT
+		const normalized = account.toUpperCase()
+		return (
+			normalized === SYSTEM_ACCOUNT ||
+			normalized === LEGACY_SYSTEM_ACCOUNT
+		)
 	}
 
-	const resolveSystemChatAvatar = (avatar?: string): string => {
-		const normalized = avatar?.trim() || ''
-		return normalized || SYSTEM_AVATAR_DATA_URI
+	const resolveSystemChatAvatar = (_avatar?: string): string => {
+		return SYSTEM_AVATAR_DATA_URI
 	}
 
 	const isSystemNotificationChatItem = (chat?: ChatItem | null): boolean => {
@@ -302,7 +336,7 @@ export const useChatStore = defineStore('chat', () => {
 			hash ^= seed.charCodeAt(i)
 			hash = Math.imul(hash, 16777619)
 		}
-		return (hash >>> 0) % 1000000000 + 1000000000
+		return ((hash >>> 0) % 1000000000) + 1000000000
 	}
 
 	const derivePrivateChatId = (account: string): number | null => {
@@ -654,6 +688,107 @@ export const useChatStore = defineStore('chat', () => {
 		return date.toISOString()
 	}
 
+	const sanitizeReactionUsers = (value: unknown): string[] => {
+		if (!Array.isArray(value)) return []
+		const seen = new Set<string>()
+		const users: string[] = []
+		for (const item of value) {
+			const userId = String(item || '').trim()
+			if (!userId || seen.has(userId)) continue
+			seen.add(userId)
+			users.push(userId)
+		}
+		return users
+	}
+
+	const sanitizeMessageReactions = (value: unknown): MessageReaction[] => {
+		if (!Array.isArray(value)) return []
+		const next: MessageReaction[] = []
+		const seenKey = new Set<string>()
+		for (const item of value) {
+			if (!item || typeof item !== 'object') continue
+			const row = item as Partial<MessageReaction>
+			const key = String(row.key || '').trim()
+			if (!key || seenKey.has(key)) continue
+			const users = sanitizeReactionUsers(row.userIds)
+			const countFromField = Number(row.count || 0)
+			const count =
+				Number.isFinite(countFromField) && countFromField > 0
+					? Math.max(users.length, Math.floor(countFromField))
+					: users.length
+			if (count <= 0) continue
+			next.push({
+				key,
+				emoji: String(row.emoji || '').trim() || undefined,
+				imageUrl: String(row.imageUrl || '').trim() || undefined,
+				userIds: users,
+				count,
+				updatedAt:
+					String(row.updatedAt || '').trim() ||
+					new Date().toISOString(),
+			})
+			seenKey.add(key)
+		}
+		return next
+	}
+
+	const parseMessageReactions = (raw?: string): MessageReaction[] => {
+		const text = String(raw || '').trim()
+		if (!text) return []
+		try {
+			const parsed = JSON.parse(text) as unknown
+			return sanitizeMessageReactions(parsed)
+		} catch {
+			return []
+		}
+	}
+
+	const normalizeMessageQuote = (
+		value: unknown,
+	): MessageQuote | undefined => {
+		if (!value || typeof value !== 'object') return undefined
+		const source = value as Record<string, unknown>
+		const messageId = String(source.messageId || '').trim()
+		if (!messageId) return undefined
+		const from = String(source.from || '').trim() || undefined
+		const content =
+			typeof source.content === 'string' ? source.content : undefined
+		return {
+			messageId,
+			from,
+			content,
+		}
+	}
+
+	const parseMessageQuoteFromDb = (
+		row: Pick<DbMessage, 'quotedMessageId' | 'quotedFromAccount' | 'quotedContent'>,
+	): MessageQuote | undefined => {
+		return normalizeMessageQuote({
+			messageId: row.quotedMessageId,
+			from: row.quotedFromAccount,
+			content: row.quotedContent,
+		})
+	}
+
+	const serializeMessageReactions = (value?: MessageReaction[]): string => {
+		const safe = sanitizeMessageReactions(value || [])
+		if (!safe.length) return '[]'
+		return JSON.stringify(safe)
+	}
+
+	const fromServerReactionItems = (value: unknown): MessageReaction[] => {
+		if (!Array.isArray(value)) return []
+		const mapped = (value as ReactionItemDto[]).map((row) => ({
+			key: String(row?.key || '').trim(),
+			emoji: String(row?.emoji || '').trim() || undefined,
+			imageUrl: String(row?.imageUrl || '').trim() || undefined,
+			userIds: Array.isArray(row?.userIds) ? row.userIds : [],
+			count: Number(row?.count || 0),
+			updatedAt: String(row?.updatedAt || '').trim() || '',
+		}))
+		return sanitizeMessageReactions(mapped)
+	}
+
 	const matchesMessageFilters = (
 		message: Message,
 		options: {
@@ -717,6 +852,7 @@ export const useChatStore = defineStore('chat', () => {
 			normalizeId(source.time) ||
 			normalizeId(source.createTime)
 		const sentAt = timeIdentity
+		const quote = normalizeMessageQuote(source.quote)
 		return {
 			id: createLocalMessageId(),
 			chatId,
@@ -741,6 +877,8 @@ export const useChatStore = defineStore('chat', () => {
 			serverMessageId: normalizeId(payload.messageId),
 			deliveryStatus: 'sent',
 			sentAt,
+			reactions: fromServerReactionItems(source.reactions),
+			quote,
 		}
 	}
 
@@ -748,7 +886,8 @@ export const useChatStore = defineStore('chat', () => {
 		const sentAt = item.sentAt?.trim() || ''
 		const timestamp = item.timestamp?.trim() || ''
 		const timeKey = sentAt || timestamp || 'no-time'
-		return `${item.senderId}|${item.senderAccount || ''}|${item.type}|${timeKey}|${item.text || ''}`
+		const quoteKey = item.quote?.messageId?.trim() || ''
+		return `${item.senderId}|${item.senderAccount || ''}|${item.type}|${timeKey}|${item.text || ''}|${quoteKey}`
 	}
 
 	const compactDuplicateMessages = (rows: Message[]): Message[] => {
@@ -866,6 +1005,12 @@ export const useChatStore = defineStore('chat', () => {
 				duplicated.senderName = duplicated.senderName || item.senderName
 				duplicated.senderAvatar =
 					duplicated.senderAvatar || item.senderAvatar
+				duplicated.quote = duplicated.quote || item.quote
+				if (Array.isArray(item.reactions) && item.reactions.length) {
+					duplicated.reactions = sanitizeMessageReactions(
+						item.reactions,
+					)
+				}
 				db.saveMessage(duplicated)
 				continue
 			}
@@ -982,6 +1127,8 @@ export const useChatStore = defineStore('chat', () => {
 							? formatTimeFromIso(m.sentAt)
 							: m.timestamp,
 						hasResult: !!m.hasResult,
+						reactions: parseMessageReactions(m.reactions),
+						quote: parseMessageQuoteFromDb(m),
 					}) as Message,
 			)
 		},
@@ -1006,6 +1153,8 @@ export const useChatStore = defineStore('chat', () => {
 							? formatTimeFromIso(m.sentAt)
 							: m.timestamp,
 						hasResult: !!m.hasResult,
+						reactions: parseMessageReactions(m.reactions),
+						quote: parseMessageQuoteFromDb(m),
 					}) as Message,
 			)
 		},
@@ -1031,9 +1180,14 @@ export const useChatStore = defineStore('chat', () => {
 		},
 		saveMessage(message: Message): void {
 			const account = getCurrentAccount()
+			const quote = normalizeMessageQuote(message.quote)
 			window.electron.ipcRenderer.invoke('db-save-message', account, {
 				...message,
 				hasResult: message.hasResult ? 1 : 0,
+				reactions: serializeMessageReactions(message.reactions),
+				quotedMessageId: quote?.messageId || null,
+				quotedFromAccount: quote?.from || null,
+				quotedContent: quote?.content || null,
 			})
 		},
 		updateLastMessage(
@@ -1217,6 +1371,13 @@ export const useChatStore = defineStore('chat', () => {
 		hydratedHistoryChatIds.value.clear()
 
 		const chats = await db.getAllChats()
+		for (const chat of chats) {
+			if (!isSystemNotificationChatItem(chat)) continue
+			const nextAvatar = resolveSystemChatAvatar(chat.avatar)
+			if (chat.avatar === nextAvatar) continue
+			chat.avatar = nextAvatar
+			db.saveChat(chat)
+		}
 		await hydrateChatPreviewFromLatestMessage(chats)
 		chatlist.value = chats
 		pinnedChats.value = chats.filter((c) => c.isPinned)
@@ -1331,7 +1492,9 @@ export const useChatStore = defineStore('chat', () => {
 		if (isSystemAccount(normalizedAccount)) {
 			const existingSystemChat = findSystemNotificationChat()
 			if (existingSystemChat) {
-				const nextAvatar = resolveSystemChatAvatar(existingSystemChat.avatar)
+				const nextAvatar = resolveSystemChatAvatar(
+					existingSystemChat.avatar,
+				)
 				if (existingSystemChat.avatar !== nextAvatar) {
 					existingSystemChat.avatar = nextAvatar
 					db.saveChat(existingSystemChat)
@@ -1549,14 +1712,14 @@ export const useChatStore = defineStore('chat', () => {
 				profileError,
 			)
 			try {
-				const settingsRes = await groupChatApi.getGroupSettingsDetail(
-					normalized,
-				)
+				const settingsRes =
+					await groupChatApi.getGroupSettingsDetail(normalized)
 				const profile = settingsRes.data?.data?.groupProfile
 				const avatarFromProfile = profile?.groupAvatarUrl?.trim() || ''
 				if (avatarFromProfile) detail.groupAvatarUrl = avatarFromProfile
 				const groupNameFromProfile = profile?.groupName?.trim() || ''
-				if (groupNameFromProfile) detail.groupName = groupNameFromProfile
+				if (groupNameFromProfile)
+					detail.groupName = groupNameFromProfile
 			} catch (error) {
 				console.warn(
 					'补充群资料失败(使用基础群信息继续):',
@@ -1646,7 +1809,9 @@ export const useChatStore = defineStore('chat', () => {
 				if (groupNo) groupNoSet.add(groupNo)
 			}
 			const hasMoreFromApi =
-				typeof payload?.hasMore === 'boolean' ? payload.hasMore : undefined
+				typeof payload?.hasMore === 'boolean'
+					? payload.hasMore
+					: undefined
 			const totalPages = Number(payload?.totalPages || 0)
 			const reachedTail = records.length < pageSize
 			if (typeof hasMoreFromApi === 'boolean') {
@@ -2055,7 +2220,7 @@ export const useChatStore = defineStore('chat', () => {
 		return rows.map((row) => ({
 			chatId: row.chatId,
 			chatName: row.chatName || '未知会话',
-			message: {
+				message: {
 				id: row.id,
 				chatId: row.chatId,
 				senderId: row.senderId,
@@ -2068,10 +2233,39 @@ export const useChatStore = defineStore('chat', () => {
 				result: row.result,
 				clientMessageId: row.clientMessageId,
 				serverMessageId: row.serverMessageId,
-				deliveryStatus: row.deliveryStatus,
-				sentAt: row.sentAt,
-			} as Message,
-		}))
+					deliveryStatus: row.deliveryStatus,
+					sentAt: row.sentAt,
+					quote: parseMessageQuoteFromDb(row),
+				} as Message,
+			}))
+	}
+
+	const getComposerQuote = (chatId: number): ComposerMessageQuote | null => {
+		if (!chatId) return null
+		return composingQuoteMap.value[chatId] || null
+	}
+
+	const clearComposerQuote = (chatId: number): void => {
+		if (!chatId) return
+		composingQuoteMap.value[chatId] = null
+	}
+
+	const setComposerQuoteFromMessage = (
+		chatId: number,
+		source: Message,
+	): boolean => {
+		const messageId =
+			source.serverMessageId?.trim() ||
+			source.clientMessageId?.trim() ||
+			String(source.id || '').trim()
+		if (!chatId || !messageId) return false
+		composingQuoteMap.value[chatId] = {
+			messageId,
+			from: source.senderAccount?.trim() || undefined,
+			fromName: source.senderName?.trim() || undefined,
+			content: source.text || '',
+		}
+		return true
 	}
 
 	const handleWsAck = (payload: PrivateChatAckFrame): void => {
@@ -2122,7 +2316,9 @@ export const useChatStore = defineStore('chat', () => {
 		})
 	}
 
-	const handleIncomingCallSignal = (payload: PrivateIncomingCallFrame): void => {
+	const handleIncomingCallSignal = (
+		payload: PrivateIncomingCallFrame,
+	): void => {
 		emitIncomingCall(payload)
 	}
 
@@ -2146,6 +2342,202 @@ export const useChatStore = defineStore('chat', () => {
 		})
 	}
 
+	const resolveReactionChatId = async (
+		payload: MessageReactionEventFrame,
+		currentAccount: string,
+	): Promise<number | null> => {
+		const groupNo = String(payload.groupNo || '').trim()
+		if (groupNo) {
+			return ensureGroupSession(groupNo)
+		}
+		const from = String(payload.from || '').trim()
+		const to = String(payload.to || '').trim()
+		if (from || to) {
+			const peer = from === currentAccount ? to : from
+			if (peer) return ensureChatSession(peer)
+		}
+		const directChatId = Number(payload.chatId || 0)
+		if (Number.isFinite(directChatId) && directChatId !== 0) {
+			return directChatId
+		}
+		return null
+	}
+
+	const unwrapReactionEventPayload = (
+		raw: Record<string, unknown>,
+	): MessageReactionEventFrame => {
+		const payload = raw as MessageReactionEventFrame
+		const firstData =
+			payload.data &&
+			typeof payload.data === 'object' &&
+			!Array.isArray(payload.data)
+				? (payload.data as Record<string, unknown>)
+				: null
+		const secondData =
+			firstData?.data &&
+			typeof firstData.data === 'object' &&
+			!Array.isArray(firstData.data)
+				? (firstData.data as Record<string, unknown>)
+				: null
+		if (firstData || secondData) {
+			return {
+				...payload,
+				...(firstData || {}),
+				...(secondData || {}),
+			} as MessageReactionEventFrame
+		}
+		return payload
+	}
+
+	const resolveReactionMessageIdentity = (
+		payload: MessageReactionEventFrame,
+	): {
+		id?: number
+		serverMessageId?: string
+		clientMessageId?: string
+	} => {
+		const serverMessageId =
+			String(payload.serverMessageId || '').trim() || undefined
+		const clientMessageId =
+			String(payload.clientMessageId || '').trim() || undefined
+		const rawMessageId = String(payload.messageId || '').trim()
+		if (!rawMessageId) {
+			return {
+				id: undefined,
+				serverMessageId,
+				clientMessageId,
+			}
+		}
+		// Reactions are cross-device events; local message `id` is not stable across clients.
+		// Always treat payload.messageId as server identity fallback.
+		return {
+			id: undefined,
+			serverMessageId: serverMessageId || rawMessageId,
+			clientMessageId,
+		}
+	}
+
+	const getReactionActorLabel = (
+		payload: MessageReactionEventFrame,
+		currentAccount: string,
+	): string => {
+		const operatorName = String(payload.operatorName || '').trim()
+		if (operatorName) return operatorName
+		const operatorId =
+			String(payload.operatorId || payload.from || '').trim() || ''
+		if (!operatorId) return '有人'
+		if (operatorId === currentAccount) return '你'
+		const friend = friendStore.friends.find(
+			(item) => item.id === operatorId || item.uid === operatorId,
+		)
+		return friend?.remark?.trim() || friend?.name?.trim() || operatorId
+	}
+
+	const getReactionEmojiLabel = (
+		payload: MessageReactionEventFrame,
+	): string => {
+		const direct = String(
+			(payload as Record<string, unknown>).emoji ||
+				(payload as Record<string, unknown>).reactionEmoji ||
+				'',
+		).trim()
+		if (direct) return direct
+		const list = fromServerReactionItems(payload.reactions)
+		return String(list[0]?.emoji || '').trim()
+	}
+
+	const handleIncomingReactionEvent = async (
+		raw: Record<string, unknown>,
+	): Promise<void> => {
+		const payload = unwrapReactionEventPayload(raw)
+		const eventType = String(payload.eventType || '')
+			.trim()
+			.toLowerCase()
+		if (eventType && !eventType.includes('reaction')) {
+			return
+		}
+		const dedupKey = [
+			String(payload.chatId || ''),
+			String(payload.groupNo || ''),
+			String(payload.serverMessageId || payload.messageId || ''),
+			String(payload.clientMessageId || ''),
+			String(payload.updatedAt || ''),
+		].join('|')
+		const now = Date.now()
+		for (const [key, ts] of recentReactionEventMap.entries()) {
+			if (now - ts > REACTION_EVENT_DEDUP_TTL_MS) {
+				recentReactionEventMap.delete(key)
+			}
+		}
+		const lastTs = recentReactionEventMap.get(dedupKey) || 0
+		if (dedupKey !== '||||' && now - lastTs < REACTION_EVENT_DEDUP_TTL_MS) {
+			return
+		}
+		recentReactionEventMap.set(dedupKey, now)
+		let currentAccount = ''
+		try {
+			currentAccount = getCurrentAccount()
+		} catch {
+			return
+		}
+		const chatId = await resolveReactionChatId(payload, currentAccount)
+		const reactions = fromServerReactionItems(payload.reactions)
+		const identity = resolveReactionMessageIdentity(payload)
+		let applied = false
+		let appliedChatId = chatId || 0
+		if (chatId) {
+			applied = setMessageReactionsLocal(
+				chatId,
+				identity,
+				reactions,
+				true,
+			)
+		}
+		if (!applied) {
+			for (const [chatIdKey] of Object.entries(messages.value)) {
+				const candidateChatId = Number(chatIdKey)
+				if (!Number.isFinite(candidateChatId)) continue
+				const hit = setMessageReactionsLocal(
+					candidateChatId,
+					identity,
+					reactions,
+					true,
+				)
+				if (hit) {
+					applied = true
+					appliedChatId = candidateChatId
+					break
+				}
+			}
+		}
+		if (!applied) return
+		syncAction('setMessageReactions', {
+			chatId: appliedChatId,
+			messageIdentity: identity,
+			reactions,
+		})
+
+		const operatorId =
+			String(payload.operatorId || payload.from || '').trim() || ''
+		const actorLabel = getReactionActorLabel(payload, currentAccount)
+		const isSelfReaction =
+			operatorId === currentAccount || actorLabel === '你'
+		const isReadingCurrentChat =
+			isChatViewActive() && activeChatId.value === appliedChatId
+		if (!isSelfReaction && !isReadingCurrentChat) {
+			const chat = chatlist.value.find(
+				(item) => item.id === appliedChatId,
+			)
+			const emojiLabel = getReactionEmojiLabel(payload)
+			triggerSystemMessageReminder({
+				chatName: chat?.name || '聊天',
+				messageText: `${actorLabel || '有人'} 回复了信息${
+					emojiLabel ? ` ${emojiLabel}` : ''
+				}`,
+			})
+		}
+	}
+
 	const bindPrivateChatWs = (): void => {
 		let account = ''
 		try {
@@ -2167,6 +2559,9 @@ export const useChatStore = defineStore('chat', () => {
 		privateChatWs.connect(token, {
 			onMessage: (payload) => {
 				void handleIncomingWsMessage(payload)
+			},
+			onReaction: (payload) => {
+				void handleIncomingReactionEvent(payload)
 			},
 			onAck: handleWsAck,
 			onError: handleWsError,
@@ -2198,6 +2593,9 @@ export const useChatStore = defineStore('chat', () => {
 		groupChatWs.connect(token, {
 			onMessage: (payload) => {
 				void handleIncomingGroupWsMessage(payload)
+			},
+			onReaction: (payload) => {
+				void handleIncomingReactionEvent(payload)
 			},
 			onAck: handleGroupWsAck,
 			onError: handleGroupWsError,
@@ -2307,6 +2705,14 @@ export const useChatStore = defineStore('chat', () => {
 							data.clientMessageId,
 							data.status,
 							data.result,
+						)
+						break
+					case 'setMessageReactions':
+						setMessageReactionsLocal(
+							data.chatId,
+							data.messageIdentity,
+							sanitizeMessageReactions(data.reactions),
+							true,
 						)
 						break
 					case 'pinChat':
@@ -2455,6 +2861,198 @@ export const useChatStore = defineStore('chat', () => {
 		db.saveMessage(target)
 	}
 
+	const findMessageByIdentity = (
+		chatId: number,
+		identity: {
+			id?: number
+			clientMessageId?: string
+			serverMessageId?: string
+		},
+	): Message | undefined => {
+		const list = messages.value[chatId] || []
+		if (!list.length) return undefined
+		const serverId = identity.serverMessageId?.trim() || ''
+		const clientId = identity.clientMessageId?.trim() || ''
+		const localId =
+			typeof identity.id === 'number' ? identity.id : undefined
+		return list.find((item) => {
+			if (localId !== undefined && item.id === localId) return true
+			if (serverId && item.serverMessageId?.trim() === serverId)
+				return true
+			if (clientId && item.clientMessageId?.trim() === clientId)
+				return true
+			return false
+		})
+	}
+
+	const setMessageReactionsLocal = (
+		chatId: number,
+		identity: {
+			id?: number
+			clientMessageId?: string
+			serverMessageId?: string
+		},
+		reactions: MessageReaction[],
+		persist = true,
+	): boolean => {
+		const target = findMessageByIdentity(chatId, identity)
+		if (!target) return false
+		target.reactions = sanitizeMessageReactions(reactions)
+		if (persist) db.saveMessage(target)
+		return true
+	}
+
+	const buildToggledReactions = (
+		existing: MessageReaction[],
+		reaction: {
+			key: string
+			emoji?: string
+			imageUrl?: string
+		},
+		actorId: string,
+	): MessageReaction[] => {
+		const next = sanitizeMessageReactions(existing || [])
+		const reactionKey = reaction.key?.trim()
+		if (!reactionKey) return next
+		const now = new Date().toISOString()
+		const index = next.findIndex((item) => item.key === reactionKey)
+		if (index < 0) {
+			next.push({
+				key: reactionKey,
+				emoji: reaction.emoji?.trim() || undefined,
+				imageUrl: reaction.imageUrl?.trim() || undefined,
+				userIds: [actorId],
+				count: 1,
+				updatedAt: now,
+			})
+		} else {
+			const current = next[index]
+			const userSet = new Set(current.userIds || [])
+			if (userSet.has(actorId)) {
+				userSet.delete(actorId)
+			} else {
+				userSet.add(actorId)
+			}
+			const users = Array.from(userSet)
+			if (!users.length) {
+				next.splice(index, 1)
+			} else {
+				next[index] = {
+					...current,
+					emoji: reaction.emoji?.trim() || current.emoji,
+					imageUrl: reaction.imageUrl?.trim() || current.imageUrl,
+					userIds: users,
+					count: users.length,
+					updatedAt: now,
+				}
+			}
+		}
+		next.sort((a, b) => {
+			const at = new Date(a.updatedAt).getTime() || 0
+			const bt = new Date(b.updatedAt).getTime() || 0
+			return bt - at
+		})
+		return next
+	}
+
+	const toggleMessageReaction = async (
+		chatId: number,
+		identity: {
+			id?: number
+			clientMessageId?: string
+			serverMessageId?: string
+		},
+		reaction: {
+			key: string
+			emoji?: string
+			imageUrl?: string
+		},
+	): Promise<boolean> => {
+		const target = findMessageByIdentity(chatId, identity)
+		if (!target) return false
+		const reactionKey = reaction.key?.trim()
+		if (!reactionKey) return false
+		const actorId = String(userInfoStore.account || '').trim()
+		if (!actorId) return false
+
+		const prev = sanitizeMessageReactions(target.reactions || [])
+		const next = buildToggledReactions(prev, reaction, actorId)
+		setMessageReactionsLocal(chatId, identity, next, true)
+		syncAction('setMessageReactions', {
+			chatId,
+			messageIdentity: {
+				id: target.id,
+				clientMessageId: target.clientMessageId,
+				serverMessageId: target.serverMessageId,
+			},
+			reactions: next,
+		})
+
+		const requestId = `reaction-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+		const messagePathIdCandidates: Array<string | number> = []
+		if (target.serverMessageId?.trim()) {
+			messagePathIdCandidates.push(target.serverMessageId.trim())
+		}
+		messagePathIdCandidates.push(target.id)
+		if (target.clientMessageId?.trim()) {
+			messagePathIdCandidates.push(target.clientMessageId.trim())
+		}
+		try {
+			let response: Awaited<
+				ReturnType<typeof messageReactionApi.toggle>
+			> | null = null
+			let lastError: unknown = null
+			for (const messagePathId of messagePathIdCandidates) {
+				try {
+					response = await messageReactionApi.toggle(messagePathId, {
+						chatId,
+						serverMessageId: target.serverMessageId,
+						clientMessageId: target.clientMessageId,
+						reaction: {
+							key: reactionKey,
+							emoji: reaction.emoji?.trim() || undefined,
+							imageUrl: reaction.imageUrl?.trim() || undefined,
+						},
+						operatorId: actorId,
+						requestId,
+					})
+					break
+				} catch (error) {
+					lastError = error
+				}
+			}
+			if (!response) throw lastError || new Error('toggle 请求失败')
+			const responseReactions = response.data?.data?.reactions
+			if (Array.isArray(responseReactions)) {
+				const snapshot = fromServerReactionItems(responseReactions)
+				setMessageReactionsLocal(chatId, identity, snapshot, true)
+				syncAction('setMessageReactions', {
+					chatId,
+					messageIdentity: {
+						id: target.id,
+						clientMessageId: target.clientMessageId,
+						serverMessageId: target.serverMessageId,
+					},
+					reactions: snapshot,
+				})
+			}
+		} catch (error) {
+			console.warn('同步消息表情失败，已回滚本地状态:', error)
+			setMessageReactionsLocal(chatId, identity, prev, true)
+			syncAction('setMessageReactions', {
+				chatId,
+				messageIdentity: {
+					id: target.id,
+					clientMessageId: target.clientMessageId,
+					serverMessageId: target.serverMessageId,
+				},
+				reactions: prev,
+			})
+			return false
+		}
+		return true
+	}
+
 	const markAsReadLocal = (id: number): void => {
 		const chat = chatlist.value.find((c) => c.id === id)
 		if (chat) {
@@ -2583,10 +3181,12 @@ export const useChatStore = defineStore('chat', () => {
 		chatId: number,
 		content: string,
 		type: 'text' | 'image' | 'rich-text' | 'transfer' = 'text',
+		quote?: ComposerMessageQuote | MessageQuote,
 	): boolean => {
 		if (!chatId || !content) return false
 		const currentChat = chatlist.value.find((item) => item.id === chatId)
-		if (!currentChat || isSystemNotificationChatItem(currentChat)) return false
+		if (!currentChat || isSystemNotificationChatItem(currentChat))
+			return false
 		let currentAccount = ''
 		try {
 			currentAccount = getCurrentAccount()
@@ -2601,6 +3201,16 @@ export const useChatStore = defineStore('chat', () => {
 		}
 		const clientMessageId = createClientMessageId()
 		const sentAt = new Date().toISOString()
+		const sourceQuote = quote || getComposerQuote(chatId) || undefined
+		const normalizedQuote = normalizeMessageQuote(sourceQuote)
+		const localQuote: ComposerMessageQuote | undefined = normalizedQuote
+			? {
+					...normalizedQuote,
+					fromName:
+						(sourceQuote as ComposerMessageQuote)?.fromName?.trim() ||
+						undefined,
+				}
+			: undefined
 		const newMessage: Message = {
 			id: createLocalMessageId(),
 			chatId,
@@ -2614,6 +3224,7 @@ export const useChatStore = defineStore('chat', () => {
 			clientMessageId,
 			deliveryStatus: 'sending',
 			sentAt,
+			quote: localQuote,
 		}
 
 		if (!messages.value[chatId]) {
@@ -2638,6 +3249,9 @@ export const useChatStore = defineStore('chat', () => {
 			timestamp: newMessage.timestamp,
 			moveToTop: true,
 		})
+		if (sourceQuote) {
+			clearComposerQuote(chatId)
+		}
 
 		let sent = false
 		if (chatType === 'GROUP') {
@@ -2651,10 +3265,20 @@ export const useChatStore = defineStore('chat', () => {
 				)
 				return false
 			}
-			sent = groupChatWs.sendGroup(groupNo, content, clientMessageId)
+			sent = groupChatWs.sendGroup(
+				groupNo,
+				content,
+				clientMessageId,
+				normalizedQuote,
+			)
 		} else {
 			const to = currentChat?.peerAccount?.trim() || String(chatId)
-			sent = privateChatWs.sendPrivate(to, content, clientMessageId)
+			sent = privateChatWs.sendPrivate(
+				to,
+				content,
+				clientMessageId,
+				normalizedQuote,
+			)
 		}
 		if (sent) {
 			pendingMessageMap.value.set(clientMessageId, {
@@ -2682,15 +3306,17 @@ export const useChatStore = defineStore('chat', () => {
 	const sendMessage = (
 		content: string,
 		type: 'text' | 'image' | 'rich-text' | 'transfer' = 'text',
+		quote?: ComposerMessageQuote | MessageQuote,
 	): void => {
 		if (!activeChatId.value || !content) return
-		void sendMessageByChatId(activeChatId.value, content, type)
+		void sendMessageByChatId(activeChatId.value, content, type, quote)
 	}
 
 	const sendMessageToAccount = async (
 		account: string,
 		content: string,
 		type: 'text' | 'image' | 'rich-text' | 'transfer' = 'text',
+		quote?: ComposerMessageQuote | MessageQuote,
 	): Promise<boolean> => {
 		const normalized = account.trim()
 		if (!normalized || !content) return false
@@ -2699,7 +3325,7 @@ export const useChatStore = defineStore('chat', () => {
 		}
 		const chatId = await ensureChatSession(normalized)
 		if (!chatId) return false
-		return sendMessageByChatId(chatId, content, type)
+		return sendMessageByChatId(chatId, content, type, quote)
 	}
 
 	const pinChat = (chatId: number): void => {
@@ -2760,9 +3386,7 @@ export const useChatStore = defineStore('chat', () => {
 		}
 		const existing =
 			findPrivateChatByAccount(friend.id) ||
-			chatlist.value.find(
-				(c) => c.chatType !== 'GROUP' && c.id === id,
-			)
+			chatlist.value.find((c) => c.chatType !== 'GROUP' && c.id === id)
 		if (existing) {
 			await hydrateSingleChatPreviewFromLatestMessage(existing)
 			return existing.id
@@ -3011,6 +3635,7 @@ export const useChatStore = defineStore('chat', () => {
 		getDraft,
 		sendMessage,
 		sendMessageToAccount,
+		toggleMessageReaction,
 		pinChat,
 		unpinChat,
 		deleteChat,
@@ -3037,6 +3662,9 @@ export const useChatStore = defineStore('chat', () => {
 		loadMoreChatHistory,
 		queryChatHistory,
 		searchLocalMessagesGlobal,
+		getComposerQuote,
+		clearComposerQuote,
+		setComposerQuoteFromMessage,
 	}
 })
 
@@ -3077,6 +3705,27 @@ export interface Message {
 	serverMessageId?: string
 	deliveryStatus?: 'sending' | 'sent' | 'failed'
 	sentAt?: string
+	reactions?: MessageReaction[]
+	quote?: ComposerMessageQuote
+}
+
+export interface MessageQuote {
+	messageId: string
+	from?: string
+	content?: string
+}
+
+export interface ComposerMessageQuote extends MessageQuote {
+	fromName?: string
+}
+
+export interface MessageReaction {
+	key: string
+	emoji?: string
+	imageUrl?: string
+	userIds: string[]
+	count: number
+	updatedAt: string
 }
 
 export interface MessageJumpTarget {

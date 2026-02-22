@@ -61,11 +61,10 @@ const ensureSharedDoc = async (): Promise<void> => {
 const syncSharedDocCollab = (): void => {
 	const current = sharedDoc.value
 	if (!current?.doc?.id) {
-		cloudDocStore.stopCollabSync()
 		return
 	}
 	if (current.doc.editable === false) {
-		cloudDocStore.stopCollabSync()
+		cloudDocStore.stopCollabSyncByDocId(current.doc.id)
 		return
 	}
 	cloudDocStore.startCollabSync(current.doc.id)
@@ -89,7 +88,13 @@ watch(
 )
 
 onBeforeUnmount(() => {
-	cloudDocStore.stopCollabSync()
+	const exists = sidebarSlotStore.slots.some(
+		(item) => item.slotKey === slotKey,
+	)
+	if (!exists) {
+		const docId = String(sharedDoc.value?.doc?.id || '').trim()
+		cloudDocStore.stopCollabSyncByDocId(docId)
+	}
 })
 </script>
 

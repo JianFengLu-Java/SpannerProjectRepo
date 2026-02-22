@@ -1,5 +1,17 @@
 import request from '@renderer/utils/request'
 
+/**
+ * 云文档相关 API
+ * Api响应结构
+ * @template T - data字段的类型
+ * @template string - status字段的类型，默认为string
+ * @template number - code字段的类型，默认为number
+ * @template string - message字段的类型，默认为string
+ * @property {T} data - 响应数据
+ * @property {string} status - 响应状态，如'success'或'error'
+ * @property {number} code - 响应状态码，如200表示成功，400表示请求错误等
+ * @property {string} message - 响应消息，通常用于错误描述或提示信息
+ */
 interface ApiResponse<T> {
 	code: number
 	status: string

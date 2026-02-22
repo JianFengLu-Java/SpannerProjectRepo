@@ -8,20 +8,20 @@
 			/>
 		</div>
 
-			<div
-				class="group-settings-context min-h-0 flex-1 overflow-y-auto px-3 pb-4 space-y-3"
-			>
-				<GroupInfoCard
-					:avatar="groupAvatar"
-					:group-name="groupName"
-					:group-no="group.groupNo || '-'"
-					:summary="groupSummary"
-					:role-label="roleLabel"
-					:can-edit="canEditProfile"
-					@copy-group-no="copyGroupNo"
-					@open-qr="showInviteLinkModal = true"
-					@edit-profile="openProfileEditor"
-				/>
+		<div
+			class="group-settings-context min-h-0 flex-1 overflow-y-auto px-3 pb-4 space-y-3"
+		>
+			<GroupInfoCard
+				:avatar="groupAvatar"
+				:group-name="groupName"
+				:group-no="group.groupNo || '-'"
+				:summary="groupSummary"
+				:role-label="roleLabel"
+				:can-edit="canEditProfile"
+				@copy-group-no="copyGroupNo"
+				@open-qr="showInviteLinkModal = true"
+				@edit-profile="openProfileEditor"
+			/>
 
 			<MemberPreview
 				:members="memberPreview"
@@ -60,7 +60,10 @@
 				/>
 			</SettingSection>
 
-			<SettingSection title="权限与安全" description="降低误操作风险，提升管理效率">
+			<SettingSection
+				title="权限与安全"
+				description="降低误操作风险，提升管理效率"
+			>
 				<LinkRow
 					label="谁可以邀请成员"
 					:value="invitePermissionLabel"
@@ -139,75 +142,93 @@
 			/>
 		</div>
 
-			<n-modal
-				v-model:show="showProfileEditorModal"
-				preset="card"
-				class="app-modal-card max-w-[520px]"
-				:mask-closable="false"
-				title="编辑群资料"
-			>
-				<div class="space-y-3">
-					<n-input
-						v-model:value="profileEditorGroupName"
-						maxlength="30"
-						placeholder="请输入群名称"
-						:disabled="!canEditProfile"
-						aria-label="群名称"
-					/>
-					<div class="rounded-lg border border-border-default/50 p-3">
-						<div class="text-xs text-gray-500 mb-2">群头像</div>
-						<div class="flex items-center gap-3">
-							<n-avatar :size="56" round :src="profileEditorAvatarPreview" />
-							<div class="flex flex-col gap-2">
-								<n-button
-									size="small"
-									secondary
-									:disabled="!canManage || profileAvatarUploading"
-									@click="openGroupAvatarUpload"
-								>
-									{{ profileAvatarUploading ? '上传中...' : '上传头像' }}
-								</n-button>
-								<div class="text-[11px] text-gray-400 break-all max-w-[320px]">
-									{{ profileEditorAvatarUrl || '未上传头像，默认使用当前会话头像' }}
-								</div>
+		<n-modal
+			v-model:show="showProfileEditorModal"
+			preset="card"
+			class="app-modal-card max-w-[520px]"
+			:mask-closable="false"
+			title="编辑群资料"
+		>
+			<div class="space-y-3">
+				<n-input
+					v-model:value="profileEditorGroupName"
+					maxlength="30"
+					placeholder="请输入群名称"
+					:disabled="!canEditProfile"
+					aria-label="群名称"
+				/>
+				<div class="rounded-lg border border-border-default/50 p-3">
+					<div class="text-xs text-gray-500 mb-2">群头像</div>
+					<div class="flex items-center gap-3">
+						<n-avatar
+							:size="56"
+							round
+							:src="profileEditorAvatarPreview"
+						/>
+						<div class="flex flex-col gap-2">
+							<n-button
+								size="small"
+								secondary
+								:disabled="!canManage || profileAvatarUploading"
+								@click="openGroupAvatarUpload"
+							>
+								{{
+									profileAvatarUploading
+										? '上传中...'
+										: '上传头像'
+								}}
+							</n-button>
+							<div
+								class="text-[11px] text-gray-400 break-all max-w-[320px]"
+							>
+								{{
+									profileEditorAvatarUrl ||
+									'未上传头像，默认使用当前会话头像'
+								}}
 							</div>
 						</div>
 					</div>
-					<n-input
-						v-model:value="profileEditorSummary"
-						type="textarea"
-						:autosize="{ minRows: 3, maxRows: 6 }"
-						maxlength="120"
-						placeholder="请输入群简介"
-						:disabled="!canManage"
-						aria-label="群简介"
-					/>
-					<div class="text-xs text-gray-400">
-						普通成员仅可在允许时修改群名称；群头像与群简介仅群主/管理员可编辑。
-					</div>
 				</div>
-				<template #footer>
-					<div class="flex justify-end gap-2">
-						<n-button @click="showProfileEditorModal = false">取消</n-button>
-						<n-button
-							type="primary"
-							:loading="profileEditorSaving"
-							:disabled="!profileEditorGroupName.trim() || profileAvatarUploading"
-							@click="submitProfileEdit"
-						>
-							保存
-						</n-button>
-					</div>
-				</template>
-			</n-modal>
+				<n-input
+					v-model:value="profileEditorSummary"
+					type="textarea"
+					:autosize="{ minRows: 3, maxRows: 6 }"
+					maxlength="120"
+					placeholder="请输入群简介"
+					:disabled="!canManage"
+					aria-label="群简介"
+				/>
+				<div class="text-xs text-gray-400">
+					普通成员仅可在允许时修改群名称；群头像与群简介仅群主/管理员可编辑。
+				</div>
+			</div>
+			<template #footer>
+				<div class="flex justify-end gap-2">
+					<n-button @click="showProfileEditorModal = false"
+						>取消</n-button
+					>
+					<n-button
+						type="primary"
+						:loading="profileEditorSaving"
+						:disabled="
+							!profileEditorGroupName.trim() ||
+							profileAvatarUploading
+						"
+						@click="submitProfileEdit"
+					>
+						保存
+					</n-button>
+				</div>
+			</template>
+		</n-modal>
 
-			<n-modal
-				v-model:show="showConfirmModal"
-				preset="card"
-				class="app-modal-card max-w-[360px]"
-				:mask-closable="false"
-				title="操作确认"
-			>
+		<n-modal
+			v-model:show="showConfirmModal"
+			preset="card"
+			class="app-modal-card max-w-[360px]"
+			:mask-closable="false"
+			title="操作确认"
+		>
 			<div class="space-y-3 text-sm text-gray-600">
 				<p>{{ confirmDescription }}</p>
 				<n-input
@@ -231,12 +252,12 @@
 			</template>
 		</n-modal>
 
-			<n-modal
-				v-model:show="showMembersModal"
-				preset="card"
-				title="群成员"
-				class="app-modal-card max-w-[560px]"
-			>
+		<n-modal
+			v-model:show="showMembersModal"
+			preset="card"
+			title="群成员"
+			class="app-modal-card max-w-[560px]"
+		>
 			<div class="space-y-3">
 				<div class="flex items-center gap-2">
 					<n-input
@@ -255,32 +276,49 @@
 					<div v-if="!membersList.length" class="py-10">
 						<n-empty description="暂无成员" />
 					</div>
-					<div v-else class="max-h-[360px] overflow-y-auto pr-1 space-y-2">
+					<div
+						v-else
+						class="max-h-[360px] overflow-y-auto pr-1 space-y-2"
+					>
 						<div
 							v-for="member in membersList"
 							:key="member.account"
 							class="rounded-lg border border-border-default/50 px-3 py-2 flex items-center justify-between gap-3"
 						>
 							<div class="min-w-0 flex items-center gap-2">
-								<n-avatar :size="28" round :src="member.avatarUrl" />
+								<n-avatar
+									:size="28"
+									round
+									:src="member.avatarUrl"
+								/>
 								<div class="min-w-0">
-									<div class="text-sm text-text-main truncate">
+									<div
+										class="text-sm text-text-main truncate"
+									>
 										{{ member.name || member.account }}
 									</div>
-									<div class="text-[11px] text-gray-400 truncate">
+									<div
+										class="text-[11px] text-gray-400 truncate"
+									>
 										{{ member.account }}
 									</div>
 								</div>
 							</div>
 							<div class="flex items-center gap-2">
-								<n-tag size="small" :bordered="false">{{ roleText(member.role) }}</n-tag>
+								<n-tag size="small" :bordered="false">{{
+									roleText(member.role)
+								}}</n-tag>
 								<n-button
 									v-if="isOwner && member.role !== 'OWNER'"
 									size="tiny"
 									secondary
 									@click="toggleMemberRole(member)"
 								>
-									{{ member.role === 'ADMIN' ? '降为成员' : '设为管理员' }}
+									{{
+										member.role === 'ADMIN'
+											? '降为成员'
+											: '设为管理员'
+									}}
 								</n-button>
 								<n-button
 									v-if="canManage && canRemoveMember(member)"
@@ -296,17 +334,38 @@
 					</div>
 				</n-spin>
 
-				<div class="flex items-center justify-between text-xs text-gray-400">
-					<div>第 {{ membersPage }} / {{ Math.max(membersTotalPages, 1) }} 页，共 {{ membersTotal }} 人</div>
+				<div
+					class="flex items-center justify-between text-xs text-gray-400"
+				>
+					<div>
+						第 {{ membersPage }} /
+						{{ Math.max(membersTotalPages, 1) }} 页，共
+						{{ membersTotal }} 人
+					</div>
 					<div class="flex gap-2">
-						<n-button size="tiny" :disabled="membersPage <= 1" @click="loadMembersPage(membersPage - 1)">上一页</n-button>
-						<n-button size="tiny" :disabled="membersPage >= membersTotalPages" @click="loadMembersPage(membersPage + 1)">下一页</n-button>
+						<n-button
+							size="tiny"
+							:disabled="membersPage <= 1"
+							@click="loadMembersPage(membersPage - 1)"
+							>上一页</n-button
+						>
+						<n-button
+							size="tiny"
+							:disabled="membersPage >= membersTotalPages"
+							@click="loadMembersPage(membersPage + 1)"
+							>下一页</n-button
+						>
 					</div>
 				</div>
 			</div>
 		</n-modal>
 
-			<n-modal v-model:show="showInviteModal" preset="card" title="添加成员" class="app-modal-card max-w-[520px]">
+		<n-modal
+			v-model:show="showInviteModal"
+			preset="card"
+			title="添加成员"
+			class="app-modal-card max-w-[520px]"
+		>
 			<div class="space-y-3">
 				<n-select
 					v-model:value="inviteAccounts"
@@ -316,7 +375,9 @@
 					:options="inviteFriendOptions"
 					placeholder="选择要邀请的好友"
 				/>
-				<div class="text-xs text-gray-400">已选择 {{ inviteAccounts.length }} 人</div>
+				<div class="text-xs text-gray-400">
+					已选择 {{ inviteAccounts.length }} 人
+				</div>
 			</div>
 			<template #footer>
 				<div class="flex justify-end gap-2">
@@ -333,27 +394,49 @@
 			</template>
 		</n-modal>
 
-			<n-modal v-model:show="showAnnouncementModal" preset="card" title="群公告历史" class="app-modal-card max-w-[560px]">
+		<n-modal
+			v-model:show="showAnnouncementModal"
+			preset="card"
+			title="群公告历史"
+			class="app-modal-card max-w-[560px]"
+		>
 			<n-spin :show="announcementsLoading">
 				<div v-if="!announcementsList.length" class="py-10">
 					<n-empty description="暂无公告" />
 				</div>
-				<div v-else class="max-h-[360px] overflow-y-auto pr-1 space-y-2">
+				<div
+					v-else
+					class="max-h-[360px] overflow-y-auto pr-1 space-y-2"
+				>
 					<div
 						v-for="item in announcementsList"
 						:key="item.announcementId"
 						class="rounded-lg border border-border-default/50 px-3 py-2"
 					>
-						<div class="text-sm text-text-main whitespace-pre-wrap break-words">{{ item.content }}</div>
+						<div
+							class="text-sm text-text-main whitespace-pre-wrap break-words"
+						>
+							{{ item.content }}
+						</div>
 						<div class="mt-1 text-[11px] text-gray-400">
-							{{ item.publisherName || item.publisherAccount || '-' }} · {{ item.updatedAt || item.createdAt || '-' }}
+							{{
+								item.publisherName ||
+								item.publisherAccount ||
+								'-'
+							}}
+							· {{ item.updatedAt || item.createdAt || '-' }}
 						</div>
 					</div>
 				</div>
 			</n-spin>
 		</n-modal>
 
-			<n-modal v-model:show="showAnnouncementEditorModal" preset="card" title="编辑公告" class="app-modal-card max-w-[520px]">
+		<n-modal
+			v-model:show="showAnnouncementEditorModal"
+			preset="card"
+			title="编辑公告"
+			class="app-modal-card max-w-[520px]"
+		>
 			<div class="space-y-3">
 				<n-input
 					v-model:value="announcementEditorContent"
@@ -362,37 +445,73 @@
 					maxlength="500"
 					placeholder="请输入公告内容"
 				/>
-				<div class="text-xs text-gray-400">{{ announcementEditorContent.length }}/500</div>
+				<div class="text-xs text-gray-400">
+					{{ announcementEditorContent.length }}/500
+				</div>
 			</div>
 			<template #footer>
 				<div class="flex justify-end gap-2">
-					<n-button @click="showAnnouncementEditorModal = false">取消</n-button>
-					<n-button type="primary" :loading="announcementSaving" @click="submitAnnouncementEdit">保存</n-button>
+					<n-button @click="showAnnouncementEditorModal = false"
+						>取消</n-button
+					>
+					<n-button
+						type="primary"
+						:loading="announcementSaving"
+						@click="submitAnnouncementEdit"
+						>保存</n-button
+					>
 				</div>
 			</template>
 		</n-modal>
 
-			<n-modal v-model:show="showMediaModal" preset="card" title="媒体统计" class="app-modal-card max-w-[420px]">
+		<n-modal
+			v-model:show="showMediaModal"
+			preset="card"
+			title="媒体统计"
+			class="app-modal-card max-w-[420px]"
+		>
 			<div class="grid grid-cols-3 gap-3">
-				<div class="rounded-lg border border-border-default/50 p-3 text-center">
+				<div
+					class="rounded-lg border border-border-default/50 p-3 text-center"
+				>
 					<div class="text-xs text-gray-400">群文件</div>
-					<div class="text-lg font-semibold text-text-main mt-1">{{ mediaOverview?.fileCount ?? 0 }}</div>
+					<div class="text-lg font-semibold text-text-main mt-1">
+						{{ mediaOverview?.fileCount ?? 0 }}
+					</div>
 				</div>
-				<div class="rounded-lg border border-border-default/50 p-3 text-center">
+				<div
+					class="rounded-lg border border-border-default/50 p-3 text-center"
+				>
 					<div class="text-xs text-gray-400">图片/视频</div>
-					<div class="text-lg font-semibold text-text-main mt-1">{{ mediaOverview?.imageVideoCount ?? 0 }}</div>
+					<div class="text-lg font-semibold text-text-main mt-1">
+						{{ mediaOverview?.imageVideoCount ?? 0 }}
+					</div>
 				</div>
-				<div class="rounded-lg border border-border-default/50 p-3 text-center">
+				<div
+					class="rounded-lg border border-border-default/50 p-3 text-center"
+				>
 					<div class="text-xs text-gray-400">链接</div>
-					<div class="text-lg font-semibold text-text-main mt-1">{{ mediaOverview?.linkCount ?? 0 }}</div>
+					<div class="text-lg font-semibold text-text-main mt-1">
+						{{ mediaOverview?.linkCount ?? 0 }}
+					</div>
 				</div>
 			</div>
-			<div class="mt-3 text-xs text-gray-400">当前聚焦：{{ mediaFocusText }}</div>
+			<div class="mt-3 text-xs text-gray-400">
+				当前聚焦：{{ mediaFocusText }}
+			</div>
 		</n-modal>
 
-			<n-modal v-model:show="showReportModal" preset="card" title="举报群聊" class="app-modal-card max-w-[520px]">
+		<n-modal
+			v-model:show="showReportModal"
+			preset="card"
+			title="举报群聊"
+			class="app-modal-card max-w-[520px]"
+		>
 			<div class="space-y-3">
-				<n-select v-model:value="reportReasonType" :options="reportReasonOptions" />
+				<n-select
+					v-model:value="reportReasonType"
+					:options="reportReasonOptions"
+				/>
 				<n-input
 					v-model:value="reportDescription"
 					type="textarea"
@@ -407,38 +526,63 @@
 			<template #footer>
 				<div class="flex justify-end gap-2">
 					<n-button @click="showReportModal = false">取消</n-button>
-					<n-button type="error" :loading="reportSubmitting" @click="submitReport">提交举报</n-button>
+					<n-button
+						type="error"
+						:loading="reportSubmitting"
+						@click="submitReport"
+						>提交举报</n-button
+					>
 				</div>
 			</template>
 		</n-modal>
 
-			<n-modal v-model:show="showInviteLinkModal" preset="card" title="二维码/邀请链接" class="app-modal-card max-w-[420px]">
+		<n-modal
+			v-model:show="showInviteLinkModal"
+			preset="card"
+			title="二维码/邀请链接"
+			class="app-modal-card max-w-[420px]"
+		>
 			<div class="space-y-3 text-sm">
 				<div class="rounded-lg border border-border-default/50 p-3">
 					<div class="text-xs text-gray-400">邀请链接</div>
-					<div class="mt-1 break-all text-text-main">{{ inviteLink }}</div>
+					<div class="mt-1 break-all text-text-main">
+						{{ inviteLink }}
+					</div>
 				</div>
-				<n-button block secondary @click="copyInviteLink">复制邀请链接</n-button>
+				<n-button block secondary @click="copyInviteLink"
+					>复制邀请链接</n-button
+				>
 			</div>
 		</n-modal>
 
-				<n-modal v-model:show="showChatBackgroundModal" preset="card" title="聊天背景" class="app-modal-card max-w-[420px]">
+		<n-modal
+			v-model:show="showChatBackgroundModal"
+			preset="card"
+			title="聊天背景"
+			class="app-modal-card max-w-[420px]"
+		>
 			<div class="space-y-3">
-				<n-select v-model:value="chatBackgroundTheme" :options="chatBackgroundOptions" />
-				<div class="h-20 rounded-lg border border-border-default/50" :class="chatBackgroundClass" />
+				<n-select
+					v-model:value="chatBackgroundTheme"
+					:options="chatBackgroundOptions"
+				/>
+				<div
+					class="h-20 rounded-lg border border-border-default/50"
+					:class="chatBackgroundClass"
+				/>
 				<div class="text-xs text-gray-400">该设置仅本地生效。</div>
-				</div>
-			</n-modal>
+			</div>
+		</n-modal>
 
-			<AvatarUploadEditor
-				ref="groupAvatarUploadEditorRef"
-				title="编辑群头像"
-				:upload-url="groupAvatarUploadUrl"
-				@uploaded="handleGroupAvatarUploaded"
-				@uploading-change="handleGroupAvatarUploadingChange"
-			/>
-		</div>
-	</template>
+		<AvatarUploadEditor
+			ref="groupAvatarUploadEditorRef"
+			title="编辑群头像"
+			:upload-url="groupAvatarUploadUrl"
+			@uploaded="handleGroupAvatarUploaded"
+			@uploading-change="handleGroupAvatarUploadingChange"
+		/>
+	</div>
+</template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
@@ -541,7 +685,9 @@ const profileEditorGroupName = ref('')
 const profileEditorAvatarUrl = ref('')
 const profileEditorSummary = ref('')
 const profileAvatarUploading = ref(false)
-const groupAvatarUploadEditorRef = ref<{ openFileDialog: () => void } | null>(null)
+const groupAvatarUploadEditorRef = ref<{ openFileDialog: () => void } | null>(
+	null,
+)
 
 const messageMute = ref(false)
 const chatPinned = ref(Boolean(props.group.isPinned))
@@ -603,7 +749,9 @@ const roleLabel = computed(() => {
 })
 
 const isOwner = computed(
-	() => (profileFromApi.value?.myRole || props.group.myRole || 'MEMBER') === 'OWNER',
+	() =>
+		(profileFromApi.value?.myRole || props.group.myRole || 'MEMBER') ===
+		'OWNER',
 )
 const canManage = computed(() => {
 	const role = profileFromApi.value?.myRole || props.group.myRole || 'MEMBER'
@@ -736,7 +884,10 @@ const persistLocalSettingsCache = (): void => {
 	if (!groupNo.value) return
 	try {
 		const snapshot = buildLocalCacheSnapshot()
-		window.localStorage.setItem(getSettingsCacheKey(), JSON.stringify(snapshot))
+		window.localStorage.setItem(
+			getSettingsCacheKey(),
+			JSON.stringify(snapshot),
+		)
 	} catch (error) {
 		console.warn('写入群设置本地缓存失败:', error)
 	}
@@ -839,9 +990,7 @@ const normalizeMembersPayload = (
 				? payload.count
 				: records.length
 	const page =
-		'page' in payload && typeof payload.page === 'number'
-			? payload.page
-			: 1
+		'page' in payload && typeof payload.page === 'number' ? payload.page : 1
 	const size =
 		'size' in payload && typeof payload.size === 'number'
 			? payload.size
@@ -866,7 +1015,8 @@ const roleText = (role: GroupRole): string => {
 }
 
 const canRemoveMember = (member: GroupMember): boolean => {
-	const myRole = profileFromApi.value?.myRole || props.group.myRole || 'MEMBER'
+	const myRole =
+		profileFromApi.value?.myRole || props.group.myRole || 'MEMBER'
 	if (member.account === userInfoStore.account) return false
 	if (myRole === 'OWNER') return member.role !== 'OWNER'
 	if (myRole === 'ADMIN') return member.role === 'MEMBER'
@@ -898,7 +1048,8 @@ const openProfileEditor = (): void => {
 		return
 	}
 	profileEditorGroupName.value = groupName.value
-	profileEditorAvatarUrl.value = profileFromApi.value?.groupAvatarUrl?.trim() || ''
+	profileEditorAvatarUrl.value =
+		profileFromApi.value?.groupAvatarUrl?.trim() || ''
 	profileEditorSummary.value = profileFromApi.value?.summary?.trim() || ''
 	showProfileEditorModal.value = true
 }
@@ -936,7 +1087,10 @@ const submitProfileEdit = async (): Promise<void> => {
 	}
 	profileEditorSaving.value = true
 	try {
-		const response = await groupChatApi.updateGroupProfile(groupNo.value, payload)
+		const response = await groupChatApi.updateGroupProfile(
+			groupNo.value,
+			payload,
+		)
 		const nextProfile = response.data?.data
 		if (nextProfile) {
 			profileFromApi.value = nextProfile
@@ -1008,7 +1162,10 @@ const diffMySettingsWithCache = (
 	if (cache.mySettings.chatPinned !== Boolean(serverSettings?.chatPinned)) {
 		patch.chatPinned = cache.mySettings.chatPinned
 	}
-	if (cache.mySettings.saveToContacts !== Boolean(serverSettings?.saveToContacts)) {
+	if (
+		cache.mySettings.saveToContacts !==
+		Boolean(serverSettings?.saveToContacts)
+	) {
 		patch.saveToContacts = cache.mySettings.saveToContacts
 	}
 	return patch
@@ -1020,7 +1177,10 @@ const diffPermissionsWithCache = (
 	const cache = readLocalSettingsCache()
 	if (!cache) return {}
 	const patch: GroupPermissionsPatch = {}
-	if (cache.permissions.inviteMode !== (serverProfile?.inviteMode || 'ADMIN_ONLY')) {
+	if (
+		cache.permissions.inviteMode !==
+		(serverProfile?.inviteMode || 'ADMIN_ONLY')
+	) {
 		patch.inviteMode = cache.permissions.inviteMode
 	}
 	if (
@@ -1033,7 +1193,8 @@ const diffPermissionsWithCache = (
 		cache.permissions.joinVerificationEnabled !==
 		Boolean(serverProfile?.joinVerificationEnabled)
 	) {
-		patch.joinVerificationEnabled = cache.permissions.joinVerificationEnabled
+		patch.joinVerificationEnabled =
+			cache.permissions.joinVerificationEnabled
 	}
 	return patch
 }
@@ -1068,16 +1229,21 @@ const loadMembersPage = async (page = 1): Promise<void> => {
 const loadGroupSettingsDetail = async (): Promise<void> => {
 	if (!groupNo.value) return
 	try {
-		const [detailRes, latestAnnouncementRes, previewRes] = await Promise.all([
-			groupChatApi.getGroupSettingsDetail(groupNo.value),
-			groupChatApi.getLatestAnnouncement(groupNo.value),
-			groupChatApi.getGroupMembersPreview(groupNo.value).catch(() => null),
-		])
+		const [detailRes, latestAnnouncementRes, previewRes] =
+			await Promise.all([
+				groupChatApi.getGroupSettingsDetail(groupNo.value),
+				groupChatApi.getLatestAnnouncement(groupNo.value),
+				groupChatApi
+					.getGroupMembersPreview(groupNo.value)
+					.catch(() => null),
+			])
 		const detail = detailRes.data?.data
 		profileFromApi.value = detail?.groupProfile || null
 		mediaOverview.value = detail?.mediaOverview || null
 		latestAnnouncement.value =
-			latestAnnouncementRes.data?.data || detail?.latestAnnouncement || null
+			latestAnnouncementRes.data?.data ||
+			detail?.latestAnnouncement ||
+			null
 		applyMySettings(detail?.mySettings)
 		applyPermissions(detail?.groupProfile)
 		if (previewRes?.data?.data && Array.isArray(previewRes.data.data)) {
@@ -1093,7 +1259,9 @@ const loadGroupSettingsDetail = async (): Promise<void> => {
 			})
 		}
 		if (canManage.value) {
-			const permissionPatch = diffPermissionsWithCache(detail?.groupProfile)
+			const permissionPatch = diffPermissionsWithCache(
+				detail?.groupProfile,
+			)
 			if (Object.keys(permissionPatch).length) {
 				await updatePermissionsRemote(permissionPatch, {
 					reloadOnError: false,
@@ -1117,7 +1285,10 @@ const updateMySettingsRemote = async (
 ): Promise<void> => {
 	if (!groupNo.value) return
 	try {
-		const response = await groupChatApi.updateMySettings(groupNo.value, payload)
+		const response = await groupChatApi.updateMySettings(
+			groupNo.value,
+			payload,
+		)
 		applyMySettings(response.data?.data)
 		if (typeof payload.chatPinned === 'boolean') {
 			if (payload.chatPinned) {
@@ -1150,7 +1321,10 @@ const updatePermissionsRemote = async (
 ): Promise<void> => {
 	if (!groupNo.value || !canManage.value) return
 	try {
-		const response = await groupChatApi.updatePermissions(groupNo.value, payload)
+		const response = await groupChatApi.updatePermissions(
+			groupNo.value,
+			payload,
+		)
 		const profile = response.data?.data
 		if (profile) {
 			profileFromApi.value = profile
@@ -1180,10 +1354,7 @@ const toggleInvitePermission = async (): Promise<void> => {
 		invitePermission.value === 'ALL' ? 'ADMIN_ONLY' : 'ALL'
 	invitePermission.value = nextValue
 	persistLocalSettingsCache()
-	await updatePermissionsRemote(
-		{ inviteMode: nextValue },
-		{ silent: true },
-	)
+	await updatePermissionsRemote({ inviteMode: nextValue }, { silent: true })
 	message.success(`已切换为：${nextValue === 'ALL' ? '所有人' : '仅管理员'}`)
 }
 
@@ -1219,12 +1390,17 @@ const submitInviteMembers = async (): Promise<void> => {
 		const success = response.data?.data?.successAccounts || []
 		const failed = response.data?.data?.failed || []
 		if (failed.length) {
-			message.warning(`成功 ${success.length} 人，失败 ${failed.length} 人`)
+			message.warning(
+				`成功 ${success.length} 人，失败 ${failed.length} 人`,
+			)
 		} else {
 			message.success(`邀请成功 ${success.length} 人`)
 		}
 		showInviteModal.value = false
-		await Promise.all([loadMembersPage(membersPage.value), loadGroupSettingsDetail()])
+		await Promise.all([
+			loadMembersPage(membersPage.value),
+			loadGroupSettingsDetail(),
+		])
 	} catch (error) {
 		console.warn('批量邀请失败:', error)
 		message.error('邀请失败，请稍后再试')
@@ -1235,12 +1411,17 @@ const submitInviteMembers = async (): Promise<void> => {
 
 const removeMember = async (member: GroupMember): Promise<void> => {
 	if (!groupNo.value) return
-	const ok = window.confirm(`确认移除成员 ${member.name || member.account} 吗？`)
+	const ok = window.confirm(
+		`确认移除成员 ${member.name || member.account} 吗？`,
+	)
 	if (!ok) return
 	try {
 		await groupChatApi.removeMember(groupNo.value, member.account)
 		message.success('成员已移除')
-		await Promise.all([loadMembersPage(membersPage.value), loadGroupSettingsDetail()])
+		await Promise.all([
+			loadMembersPage(membersPage.value),
+			loadGroupSettingsDetail(),
+		])
 	} catch (error) {
 		console.warn('移除成员失败:', error)
 		message.error('移除成员失败')
@@ -1251,9 +1432,16 @@ const toggleMemberRole = async (member: GroupMember): Promise<void> => {
 	if (!groupNo.value || !isOwner.value) return
 	const nextRole: GroupRole = member.role === 'ADMIN' ? 'MEMBER' : 'ADMIN'
 	try {
-		await groupChatApi.updateMemberRole(groupNo.value, member.account, nextRole)
+		await groupChatApi.updateMemberRole(
+			groupNo.value,
+			member.account,
+			nextRole,
+		)
 		message.success('成员角色已更新')
-		await Promise.all([loadMembersPage(membersPage.value), loadGroupSettingsDetail()])
+		await Promise.all([
+			loadMembersPage(membersPage.value),
+			loadGroupSettingsDetail(),
+		])
 	} catch (error) {
 		console.warn('更新成员角色失败:', error)
 		message.error('更新成员角色失败')
@@ -1265,7 +1453,11 @@ const openAnnouncementHistory = async (): Promise<void> => {
 	showAnnouncementModal.value = true
 	announcementsLoading.value = true
 	try {
-		const response = await groupChatApi.getAnnouncements(groupNo.value, 1, 30)
+		const response = await groupChatApi.getAnnouncements(
+			groupNo.value,
+			1,
+			30,
+		)
 		announcementsList.value = response.data?.data?.records || []
 	} catch (error) {
 		console.warn('加载公告历史失败:', error)
@@ -1281,7 +1473,8 @@ const openAnnouncementEditor = (): void => {
 		message.warning('仅群主/管理员可发布公告')
 		return
 	}
-	announcementEditorContent.value = latestAnnouncement.value?.content?.trim() || ''
+	announcementEditorContent.value =
+		latestAnnouncement.value?.content?.trim() || ''
 	showAnnouncementEditorModal.value = true
 }
 
@@ -1302,7 +1495,10 @@ const submitAnnouncementEdit = async (): Promise<void> => {
 			)
 			latestAnnouncement.value = response.data?.data || null
 		} else {
-			const response = await groupChatApi.createAnnouncement(groupNo.value, normalized)
+			const response = await groupChatApi.createAnnouncement(
+				groupNo.value,
+				normalized,
+			)
 			latestAnnouncement.value = response.data?.data || null
 		}
 		message.success('公告已更新')

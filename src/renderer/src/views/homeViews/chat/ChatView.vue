@@ -832,8 +832,8 @@ onUnmounted(() => {})
 
 :deep(.summary-inline-emoji) {
 	display: inline-block;
-	width: 0.9em;
-	height: 0.9em;
+	width: 1.02em;
+	height: 1.02em;
 	vertical-align: -0.16em;
 	margin: 0 0.03em;
 	border: none;

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useUserInfoStore } from './userInfo'
+import { useCloudDocStore } from './cloudDoc'
 
 export type SidebarSlotIcon =
 	| 'user'
@@ -31,16 +32,53 @@ interface SidebarSlotCachePayload {
 
 export const useSidebarSlotStore = defineStore('sidebarSlot', () => {
 	const userInfoStore = useUserInfoStore()
+	const cloudDocStore = useCloudDocStore()
 	const slots = ref<SidebarSlotItem[]>([])
 	const activeSlotKey = ref<string | null>(null)
 	const isHydrating = ref(false)
+	const CLOUD_DOC_SLOT_PREFIX = 'cloud-doc:'
+	const CLOUD_DOC_SHARE_SLOT_PREFIX = 'cloud-doc-share:'
+
+	const resolveDocIdFromSlot = (
+		slot: SidebarSlotItem | undefined,
+	): string => {
+		if (!slot) return ''
+		const slotKey = String(slot.slotKey || '')
+		if (slot.componentKey === 'cloud-doc-editor') {
+			if (!slotKey.startsWith(CLOUD_DOC_SLOT_PREFIX)) return ''
+			return slotKey.slice(CLOUD_DOC_SLOT_PREFIX.length).trim()
+		}
+		if (slot.componentKey === 'cloud-doc-shared-editor') {
+			if (!slotKey.startsWith(CLOUD_DOC_SHARE_SLOT_PREFIX)) return ''
+			const shareNo = slotKey
+				.slice(CLOUD_DOC_SHARE_SLOT_PREFIX.length)
+				.trim()
+			if (!shareNo) return ''
+			const shared = cloudDocStore.sharedDocs.find(
+				(item) => item.shareNo === shareNo,
+			)
+			return String(shared?.doc?.id || '').trim()
+		}
+		return ''
+	}
+
+	const hasSlotForDocId = (docId: string): boolean => {
+		const normalizedDocId = String(docId || '').trim()
+		if (!normalizedDocId) return false
+		return slots.value.some((item) => {
+			return resolveDocIdFromSlot(item) === normalizedDocId
+		})
+	}
 
 	const getScopedCacheKey = (account: string): string =>
 		`${SIDEBAR_SLOT_CACHE_KEY}:${account || 'anonymous'}`
 
 	const activeSlot = computed<SidebarSlotItem | null>(() => {
 		if (!activeSlotKey.value) return null
-		return slots.value.find((slot) => slot.slotKey === activeSlotKey.value) || null
+		return (
+			slots.value.find((slot) => slot.slotKey === activeSlotKey.value) ||
+			null
+		)
 	})
 
 	const hydrateFromCache = (account: string): void => {
@@ -49,16 +87,22 @@ export const useSidebarSlotStore = defineStore('sidebarSlot', () => {
 			const scopedKey = getScopedCacheKey(account)
 			let raw = window.localStorage.getItem(scopedKey)
 			if (!raw) {
-				const legacyRaw = window.localStorage.getItem(LEGACY_SIDEBAR_SLOT_CACHE_KEY)
+				const legacyRaw = window.localStorage.getItem(
+					LEGACY_SIDEBAR_SLOT_CACHE_KEY,
+				)
 				if (legacyRaw) {
 					raw = legacyRaw
 					window.localStorage.setItem(scopedKey, legacyRaw)
-					window.localStorage.removeItem(LEGACY_SIDEBAR_SLOT_CACHE_KEY)
+					window.localStorage.removeItem(
+						LEGACY_SIDEBAR_SLOT_CACHE_KEY,
+					)
 				}
 			}
 			if (!raw) return
 			const payload = JSON.parse(raw) as Partial<SidebarSlotCachePayload>
-			const cachedSlots = Array.isArray(payload.slots) ? payload.slots : []
+			const cachedSlots = Array.isArray(payload.slots)
+				? payload.slots
+				: []
 			const normalized = cachedSlots
 				.filter(
 					(item): item is SidebarSlotItem =>
@@ -108,10 +152,13 @@ export const useSidebarSlotStore = defineStore('sidebarSlot', () => {
 	}
 
 	const upsertSlot = (definition: SidebarSlotDefinition): SidebarSlotItem => {
-		const existed = slots.value.find((slot) => slot.slotKey === definition.slotKey)
+		const existed = slots.value.find(
+			(slot) => slot.slotKey === definition.slotKey,
+		)
 		if (existed) {
 			// 差异更新：只变更发生变化的字段，减少不必要的响应式更新
-			if (existed.title !== definition.title) existed.title = definition.title
+			if (existed.title !== definition.title)
+				existed.title = definition.title
 			if (existed.icon !== definition.icon) existed.icon = definition.icon
 			if (existed.componentKey !== definition.componentKey) {
 				existed.componentKey = definition.componentKey
@@ -140,9 +187,14 @@ export const useSidebarSlotStore = defineStore('sidebarSlot', () => {
 	}
 
 	const removeSlot = (slotKey: string): void => {
+		const removed = slots.value.find((slot) => slot.slotKey === slotKey)
+		const removedDocId = resolveDocIdFromSlot(removed)
 		slots.value = slots.value.filter((slot) => slot.slotKey !== slotKey)
 		if (activeSlotKey.value === slotKey) {
 			activeSlotKey.value = null
+		}
+		if (removedDocId && !hasSlotForDocId(removedDocId)) {
+			cloudDocStore.stopCollabSyncByDocId(removedDocId)
 		}
 	}
 

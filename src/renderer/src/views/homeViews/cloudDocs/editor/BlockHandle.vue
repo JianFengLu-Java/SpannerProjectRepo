@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { NButton, NIcon } from 'naive-ui'
-import {
-	Add24Regular,
-	ReOrderDotsVertical24Regular,
-} from '@vicons/fluent'
+import { Add24Regular, ReOrderDotsVertical24Regular } from '@vicons/fluent'
 
 const props = withDefaults(
 	defineProps<{
@@ -21,7 +18,10 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-	(e: 'drag-start', payload: { blockId: string; clientX: number; clientY: number }): void
+	(
+		e: 'drag-start',
+		payload: { blockId: string; clientX: number; clientY: number },
+	): void
 	(e: 'add'): void
 	(e: 'hover-enter'): void
 	(e: 'hover-leave'): void
@@ -33,7 +33,10 @@ const onDragStart = (event: DragEvent): void => {
 	// Set dataTransfer for the drag operation
 	event.dataTransfer?.setData('application/x-block-id', props.blockId)
 	event.dataTransfer?.setData('text/plain', `__block__:${props.blockId}`)
-	event.dataTransfer?.setData(`application/x-spanner-block-id-${props.blockId}`, '')
+	event.dataTransfer?.setData(
+		`application/x-spanner-block-id-${props.blockId}`,
+		'',
+	)
 	event.dataTransfer!.effectAllowed = 'move'
 	// Emit coordinates for handle positioning
 	emit('drag-start', {
@@ -53,7 +56,12 @@ const onDragStart = (event: DragEvent): void => {
 		@mouseleave="emit('hover-leave')"
 	>
 		<div class="block-rail">
-			<n-button size="tiny" quaternary class="rail-btn" @click="emit('add')">
+			<n-button
+				size="tiny"
+				quaternary
+				class="rail-btn"
+				@click="emit('add')"
+			>
 				<template #icon>
 					<n-icon size="14"><Add24Regular /></n-icon>
 				</template>
@@ -79,14 +87,13 @@ const onDragStart = (event: DragEvent): void => {
 	padding: 2px;
 	opacity: 0;
 	pointer-events: none;
-	transform: translateX(2px);
-	transition: opacity 0.12s ease, transform 0.12s ease;
+	transform: none;
 }
 
 .block-handle-visible {
 	opacity: 1;
 	pointer-events: auto;
-	transform: translateX(0);
+	transform: none;
 }
 
 .block-rail {

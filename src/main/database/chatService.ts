@@ -32,6 +32,10 @@ export interface DbMessage {
 	serverMessageId?: string
 	deliveryStatus?: 'sending' | 'sent' | 'failed'
 	sentAt?: string
+	reactions?: string
+	quotedMessageId?: string
+	quotedFromAccount?: string
+	quotedContent?: string
 }
 
 export interface DbMessageSearchResult extends DbMessage {
@@ -194,7 +198,7 @@ export const chatService = {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			db.all(
-				'SELECT id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt FROM user_messages WHERE userAccount = ? AND chatId = ? ORDER BY CASE WHEN sentAt IS NULL OR sentAt = \'\' THEN 1 ELSE 0 END ASC, sentAt ASC, id ASC',
+				'SELECT id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent FROM user_messages WHERE userAccount = ? AND chatId = ? ORDER BY CASE WHEN sentAt IS NULL OR sentAt = \'\' THEN 1 ELSE 0 END ASC, sentAt ASC, id ASC',
 				[userAccount, chatId],
 				(err, rows) => {
 					if (err) reject(err)
@@ -217,9 +221,9 @@ export const chatService = {
 		return new Promise((resolve, reject) => {
 			db.all(
 				`
-				SELECT id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt
+				SELECT id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent
 				FROM (
-					SELECT id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt
+					SELECT id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent
 					FROM user_messages
 					WHERE userAccount = ? AND chatId = ?
 					ORDER BY CASE WHEN sentAt IS NULL OR sentAt = '' THEN 1 ELSE 0 END ASC, sentAt DESC, id DESC
@@ -241,8 +245,8 @@ export const chatService = {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			const stmt = db.prepare(`
-				INSERT OR REPLACE INTO user_messages (userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT OR REPLACE INTO user_messages (userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`)
 			stmt.run(
 				[
@@ -259,6 +263,10 @@ export const chatService = {
 					message.serverMessageId || null,
 					message.deliveryStatus || null,
 					message.sentAt || null,
+					message.reactions || null,
+					message.quotedMessageId || null,
+					message.quotedFromAccount || null,
+					message.quotedContent || null,
 				],
 				(err: Error | null) => {
 					if (err) reject(err)
@@ -297,6 +305,10 @@ export const chatService = {
 					m.serverMessageId,
 					m.deliveryStatus,
 					m.sentAt,
+					m.reactions,
+					m.quotedMessageId,
+					m.quotedFromAccount,
+					m.quotedContent,
 					c.name AS chatName
 				FROM user_messages m
 				INNER JOIN user_chats c

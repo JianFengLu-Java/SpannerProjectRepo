@@ -1,25 +1,67 @@
 <template>
-	<div class="h-full w-full rounded-[14px] border border-border-default bg-card-bg overflow-hidden flex flex-col">
-		<div class="h-11 shrink-0 border-b border-border-default px-3 flex items-center gap-2 bg-page-bg/80 browser-toolbar">
-			<n-button class="no-drag" quaternary size="small" :disabled="!canGoBack" @click="goBack">
+	<div
+		class="h-full w-full rounded-[14px] border border-border-default bg-card-bg overflow-hidden flex flex-col"
+	>
+		<div
+			class="h-11 shrink-0 border-b border-border-default px-3 flex items-center gap-2 bg-page-bg/80 browser-toolbar"
+		>
+			<n-button
+				class="no-drag"
+				quaternary
+				size="small"
+				:disabled="!canGoBack"
+				@click="goBack"
+			>
 				<n-icon size="16"><ArrowBackOutline /></n-icon>
 			</n-button>
-			<n-button class="no-drag" quaternary size="small" :disabled="!canGoForward" @click="goForward">
+			<n-button
+				class="no-drag"
+				quaternary
+				size="small"
+				:disabled="!canGoForward"
+				@click="goForward"
+			>
 				<n-icon size="16"><ArrowForwardOutline /></n-icon>
 			</n-button>
-			<n-button class="no-drag" quaternary size="small" @click="reloadPage">
+			<n-button
+				class="no-drag"
+				quaternary
+				size="small"
+				@click="reloadPage"
+			>
 				<n-icon size="16"><RefreshOutline /></n-icon>
 			</n-button>
 			<div class="flex-1 min-w-0 px-2 drag-region">
-				<div class="text-[12px] text-text-main truncate" :title="displayTitle">{{ displayTitle }}</div>
-				<div class="text-[11px] text-gray-500 truncate" :title="displayUrl">{{ displayUrl }}</div>
+				<div
+					class="text-[12px] text-text-main truncate"
+					:title="displayTitle"
+				>
+					{{ displayTitle }}
+				</div>
+				<div
+					class="text-[11px] text-gray-500 truncate"
+					:title="displayUrl"
+				>
+					{{ displayUrl }}
+				</div>
 			</div>
-			<n-button class="no-drag" quaternary size="small" @click="openExternal">
+			<n-button
+				class="no-drag"
+				quaternary
+				size="small"
+				@click="openExternal"
+			>
 				<n-icon size="16"><OpenOutline /></n-icon>
 			</n-button>
 		</div>
-		<div ref="browserContentRef" class="flex-1 min-h-0 relative browser-content">
-			<div v-if="!activeSession" class="h-full w-full flex items-center justify-center text-sm text-gray-500">
+		<div
+			ref="browserContentRef"
+			class="flex-1 min-h-0 relative browser-content"
+		>
+			<div
+				v-if="!activeSession"
+				class="h-full w-full flex items-center justify-center text-sm text-gray-500"
+			>
 				当前没有可展示的页面
 			</div>
 			<webview
@@ -35,14 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-	computed,
-	nextTick,
-	onBeforeUnmount,
-	onMounted,
-	ref,
-	watch,
-} from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { NButton, NIcon } from 'naive-ui'
 import {
 	ArrowBackOutline,
@@ -61,10 +96,7 @@ interface BrowserWebviewElement extends HTMLElement {
 	reload: () => void
 	loadURL: (url: string) => void
 	getURL: () => string
-	executeJavaScript: (
-		code: string,
-		userGesture?: boolean,
-	) => Promise<unknown>
+	executeJavaScript: (code: string, userGesture?: boolean) => Promise<unknown>
 	addEventListener: (
 		type: string,
 		listener: (event: Event) => void,
@@ -94,11 +126,12 @@ let resizeNotifyTimer: ReturnType<typeof setTimeout> | null = null
 const activeSession = computed(() => browserStore.activeSession)
 
 const displayTitle = computed(() => activeSession.value?.title || '网页')
-const displayUrl = computed(() => currentUrl.value || activeSession.value?.url || '')
+const displayUrl = computed(
+	() => currentUrl.value || activeSession.value?.url || '',
+)
 const webviewSizeStyle = computed<Record<string, string>>(() => {
 	const width = contentWidth.value > 0 ? `${contentWidth.value}px` : '100%'
-	const height =
-		contentHeight.value > 0 ? `${contentHeight.value}px` : '100%'
+	const height = contentHeight.value > 0 ? `${contentHeight.value}px` : '100%'
 	return {
 		width,
 		height,
@@ -161,7 +194,10 @@ const syncWebviewSize = (): void => {
 	const clientWidth = Math.max(0, Math.floor(content.clientWidth))
 	const clientHeight = Math.max(0, Math.floor(content.clientHeight))
 	const fallbackWidth = Math.max(0, Math.floor(window.innerWidth - rect.left))
-	const fallbackHeight = Math.max(0, Math.floor(window.innerHeight - rect.top))
+	const fallbackHeight = Math.max(
+		0,
+		Math.floor(window.innerHeight - rect.top),
+	)
 	contentWidth.value = Math.max(clientWidth, fallbackWidth)
 	contentHeight.value = Math.max(clientHeight, fallbackHeight)
 	scheduleWebviewResizeNotify()

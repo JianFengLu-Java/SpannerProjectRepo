@@ -147,6 +147,9 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 	let collabSyncDocId: string | null = null
 	let collabSyncing = false
 	let collabWsBoundDocId: string | null = null
+	let collabPresenceRetryTimer: ReturnType<typeof setTimeout> | null = null
+	let collabReconnectTimer: ReturnType<typeof setTimeout> | null = null
+	const collabPresenceSnapshotAtByDocId = ref<Record<string, number>>({})
 	const localPatchOpIds = new Set<string>()
 	const savingDocIds = new Set<string>()
 
@@ -169,6 +172,33 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 		if (!saveTimer) return
 		clearTimeout(saveTimer)
 		saveTimer = null
+	}
+
+	const clearPresenceRetryTimer = (): void => {
+		if (!collabPresenceRetryTimer) return
+		clearTimeout(collabPresenceRetryTimer)
+		collabPresenceRetryTimer = null
+	}
+
+	const clearCollabReconnectTimer = (): void => {
+		if (!collabReconnectTimer) return
+		clearTimeout(collabReconnectTimer)
+		collabReconnectTimer = null
+	}
+
+	const scheduleCollabReconnect = (docId: string): void => {
+		const normalizedDocId = String(docId || '').trim()
+		if (!normalizedDocId) return
+		clearCollabReconnectTimer()
+		collabReconnectTimer = setTimeout(() => {
+			if (collabSyncDocId !== normalizedDocId) return
+			const state = getCollabDocState(normalizedDocId)
+			if (!state || !state.inCollabMode) return
+			console.info('[cloud-docs.ws] reconnect:retry', {
+				docId: normalizedDocId,
+			})
+			void ensureCollabWs(normalizedDocId)
+		}, 1200)
 	}
 
 	const ensureCollabDocState = (
@@ -353,6 +383,8 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 
 	const stopCollabSync = (): void => {
 		const stoppingDocId = collabSyncDocId
+		clearCollabReconnectTimer()
+		clearPresenceRetryTimer()
 		if (collabWsBoundDocId) {
 			cloudDocWs.leave({ docId: collabWsBoundDocId })
 			collabWsBoundDocId = null
@@ -373,7 +405,16 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 				state.pendingOps = []
 				state.ackedOps.clear()
 			}
+			clearDocCursors(stoppingDocId)
+			clearDocOnlineCount(stoppingDocId)
 		}
+	}
+
+	const stopCollabSyncByDocId = (docId: string): void => {
+		const normalized = String(docId || '').trim()
+		if (!normalized) return
+		if (collabSyncDocId !== normalized) return
+		stopCollabSync()
 	}
 
 	const pickCursorColor = (seed: string): string => {
@@ -632,6 +673,10 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 			.toLowerCase()
 
 		if (eventType === 'presence.snapshot') {
+			collabPresenceSnapshotAtByDocId.value = {
+				...collabPresenceSnapshotAtByDocId.value,
+				[docId]: Date.now(),
+			}
 			const members = Array.isArray(payload.members)
 				? payload.members
 				: []
@@ -682,9 +727,12 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 		if (eventType === 'cursor.leave' || eventType === 'presence.leave') {
 			removeDocCursor(docId, userId)
 			const current = collabOnlineCountByDocId.value[docId]
-			if (Number.isFinite(current)) {
-				setDocOnlineCount(docId, Math.max(0, Number(current) - 1))
-			}
+			const minByCursor =
+				(collabCursorsByDocId.value[docId] || []).length + 1
+			const decremented = Number.isFinite(current)
+				? Math.max(0, Number(current) - 1)
+				: minByCursor
+			setDocOnlineCount(docId, Math.max(minByCursor, decremented))
 			return
 		}
 		const range = extractCursorRange(payload)
@@ -700,14 +748,10 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 			head: range.head,
 			updatedAt: String(event.at || new Date().toISOString()),
 		})
-		if (eventType === 'presence.join') {
-			const current = collabOnlineCountByDocId.value[docId]
-			const fallback =
-				(collabCursorsByDocId.value[docId] || []).length + 1
-			setDocOnlineCount(
-				docId,
-				Number.isFinite(current) ? Number(current) + 1 : fallback,
-			)
+		const current = collabOnlineCountByDocId.value[docId]
+		const minByCursor = (collabCursorsByDocId.value[docId] || []).length + 1
+		if (!Number.isFinite(current) || Number(current) < minByCursor) {
+			setDocOnlineCount(docId, minByCursor)
 		}
 	}
 
@@ -808,20 +852,12 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 					String(scope.doc.contentHtml || '')
 			const shouldForceReplace =
 				reason === 'ACK_CONFLICT' || reason === 'SAVE_409'
+			// 协作优先：正文发生变化时即使版本号未前进，也以服务端全量为准，避免重连后长期分叉。
 			if (
 				!shouldForceReplace &&
-				latestVersion <= localVersion &&
-				!sameBody
+				sameBody &&
+				latestVersion < localVersion
 			) {
-				console.warn(
-					'[cloud-docs.collab] resync:skip-stale-overwrite',
-					{
-						docId: normalizedDocId,
-						reason,
-						localVersion,
-						latestVersion,
-					},
-				)
 				return
 			}
 			if (scope.sharedRef) {
@@ -861,14 +897,30 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 		cloudDocWs.connect(token, {
 			onConnected: () => {
 				console.info('[cloud-docs.ws] connected')
-				const state = ensureCollabDocState(targetId)
+				clearCollabReconnectTimer()
+				const currentDocId = String(collabSyncDocId || '').trim()
+				if (!currentDocId) return
+				const state = ensureCollabDocState(currentDocId)
 				state.connected = true
-				if (collabSyncDocId) {
-					cloudDocWs.join({ docId: collabSyncDocId })
-					collabWsBoundDocId = collabSyncDocId
-					trySendNextPendingPatch(collabSyncDocId)
-					void resyncDocById(collabSyncDocId, 'RECONNECT')
+				if (collabWsBoundDocId && collabWsBoundDocId !== currentDocId) {
+					cloudDocWs.leave({ docId: collabWsBoundDocId })
 				}
+				cloudDocWs.join({ docId: currentDocId })
+				collabWsBoundDocId = currentDocId
+				setDocOnlineCount(currentDocId, 1)
+				clearPresenceRetryTimer()
+				const joinedAt = Date.now()
+				collabPresenceRetryTimer = setTimeout(() => {
+					const lastSnapshotAt =
+						collabPresenceSnapshotAtByDocId.value[currentDocId] || 0
+					if (lastSnapshotAt >= joinedAt) return
+					console.debug('[cloud-docs.ws] join:retry-no-snapshot', {
+						docId: currentDocId,
+					})
+					cloudDocWs.join({ docId: currentDocId })
+				}, 1500)
+				trySendNextPendingPatch(currentDocId)
+				void resyncDocById(currentDocId, 'RECONNECT')
 			},
 			onEvent: (event) => {
 				console.debug('[cloud-docs.ws] event', event)
@@ -960,8 +1012,16 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 				}
 			},
 			onDisconnected: () => {
-				const state = getCollabDocState(targetId)
+				const currentDocId = String(
+					collabSyncDocId || targetId || '',
+				).trim()
+				if (!currentDocId) return
+				const state = getCollabDocState(currentDocId)
 				if (state) state.connected = false
+				clearPresenceRetryTimer()
+				clearDocCursors(currentDocId)
+				clearDocOnlineCount(currentDocId)
+				scheduleCollabReconnect(currentDocId)
 			},
 		})
 		if (collabSyncDocId) {
@@ -992,6 +1052,7 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 		const state = ensureCollabDocState(targetId, seedVersion)
 		state.inCollabMode = true
 		state.pauseSending = false
+		clearCollabReconnectTimer()
 		if (collabSyncDocId === targetId && collabSyncTimer) return
 		if (collabWsBoundDocId && collabWsBoundDocId !== targetId) {
 			cloudDocWs.leave({ docId: collabWsBoundDocId })
@@ -1856,6 +1917,7 @@ export const useCloudDocStore = defineStore('cloudDoc', () => {
 		loadReceivedShares,
 		startCollabSync,
 		stopCollabSync,
+		stopCollabSyncByDocId,
 		getDocCursors,
 		getDocOnlineCount,
 	}

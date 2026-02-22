@@ -127,6 +127,10 @@ function createTables(): Promise<void> {
 									serverMessageId TEXT,
 									deliveryStatus TEXT,
 									sentAt TEXT,
+									reactions TEXT,
+									quotedMessageId TEXT,
+									quotedFromAccount TEXT,
+									quotedContent TEXT,
 									PRIMARY KEY (userAccount, chatId, id)
 								)
 								`,
@@ -211,6 +215,10 @@ async function ensureUserScopedTableColumns(): Promise<void> {
 	await addColumnIfMissing('user_messages', 'serverMessageId', 'TEXT')
 	await addColumnIfMissing('user_messages', 'deliveryStatus', 'TEXT')
 	await addColumnIfMissing('user_messages', 'sentAt', 'TEXT')
+	await addColumnIfMissing('user_messages', 'reactions', 'TEXT')
+	await addColumnIfMissing('user_messages', 'quotedMessageId', 'TEXT')
+	await addColumnIfMissing('user_messages', 'quotedFromAccount', 'TEXT')
+	await addColumnIfMissing('user_messages', 'quotedContent', 'TEXT')
 
 	// 查询性能索引：会话排序、历史分页、全局检索定位
 	await runSql(
@@ -294,12 +302,16 @@ async function ensureUserMessagesPrimaryKey(): Promise<void> {
 				serverMessageId TEXT,
 				deliveryStatus TEXT,
 				sentAt TEXT,
+				reactions TEXT,
+				quotedMessageId TEXT,
+				quotedFromAccount TEXT,
+				quotedContent TEXT,
 				PRIMARY KEY (userAccount, chatId, id)
 			)
 		`)
 		await runSql(`
-			INSERT OR IGNORE INTO user_messages_v2 (userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt)
-			SELECT userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result, NULL, NULL, NULL, NULL
+			INSERT OR IGNORE INTO user_messages_v2 (userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent)
+			SELECT userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 			FROM user_messages
 		`)
 		await runSql('DROP TABLE user_messages')

@@ -48,8 +48,14 @@ const ensureActiveDoc = async (): Promise<void> => {
 	await cloudDocStore.init()
 	const id = slotDocId.value
 	if (!id) return
-	if (activeDoc.value?.id === id) return
-	await cloudDocStore.selectDoc(id)
+	if (activeDoc.value?.id !== id) {
+		await cloudDocStore.selectDoc(id)
+		return
+	}
+	const current = docs.value.find((doc) => doc.id === id)
+	if (current?.editable !== false) {
+		cloudDocStore.startCollabSync(id)
+	}
 }
 
 const syncSlotTitle = (): void => {
@@ -80,7 +86,12 @@ watch(
 )
 
 onBeforeUnmount(() => {
-	cloudDocStore.stopCollabSync()
+	const exists = sidebarSlotStore.slots.some(
+		(item) => item.slotKey === slotKey,
+	)
+	if (!exists) {
+		cloudDocStore.stopCollabSyncByDocId(slotDocId.value)
+	}
 	void cloudDocStore.flushSave()
 })
 </script>

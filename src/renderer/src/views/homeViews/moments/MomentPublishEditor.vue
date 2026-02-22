@@ -283,11 +283,7 @@ onUnmounted(() => {
 				}"
 				aria-label="二级标题"
 				@click="
-					editor
-						?.chain()
-						.focus()
-						.toggleHeading({ level: 2 })
-						.run()
+					editor?.chain().focus().toggleHeading({ level: 2 }).run()
 				"
 			>
 				H2
@@ -302,11 +298,7 @@ onUnmounted(() => {
 				}"
 				aria-label="三级标题"
 				@click="
-					editor
-						?.chain()
-						.focus()
-						.toggleHeading({ level: 3 })
-						.run()
+					editor?.chain().focus().toggleHeading({ level: 3 }).run()
 				"
 			>
 				H3
@@ -314,7 +306,9 @@ onUnmounted(() => {
 			<button
 				type="button"
 				class="toolbar-btn"
-				:class="{ 'toolbar-btn-active': editor?.isActive('bulletList') }"
+				:class="{
+					'toolbar-btn-active': editor?.isActive('bulletList'),
+				}"
 				aria-label="无序列表"
 				@click="editor?.chain().focus().toggleBulletList().run()"
 			>
@@ -323,7 +317,9 @@ onUnmounted(() => {
 			<button
 				type="button"
 				class="toolbar-btn"
-				:class="{ 'toolbar-btn-active': editor?.isActive('orderedList') }"
+				:class="{
+					'toolbar-btn-active': editor?.isActive('orderedList'),
+				}"
 				aria-label="有序列表"
 				@click="editor?.chain().focus().toggleOrderedList().run()"
 			>
@@ -332,7 +328,9 @@ onUnmounted(() => {
 			<button
 				type="button"
 				class="toolbar-btn toolbar-btn-label"
-				:class="{ 'toolbar-btn-active': editor?.isActive('blockquote') }"
+				:class="{
+					'toolbar-btn-active': editor?.isActive('blockquote'),
+				}"
 				aria-label="引用"
 				@click="editor?.chain().focus().toggleBlockquote().run()"
 			>
@@ -412,7 +410,9 @@ onUnmounted(() => {
 				<span class="publish-editor-hint">支持粘贴、拖拽、排序</span>
 				<span
 					class="publish-editor-counter"
-					:class="{ 'publish-editor-counter-danger': isContentTooLong }"
+					:class="{
+						'publish-editor-counter-danger': isContentTooLong,
+					}"
 				>
 					{{ contentTextLength }}/{{ CONTENT_TEXT_LIMIT }}
 				</span>
@@ -428,7 +428,6 @@ onUnmounted(() => {
 	height: 100%;
 	max-height: 100%;
 	min-height: 0;
-	overflow: hidden;
 }
 
 .publish-editor-title {

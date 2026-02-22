@@ -62,6 +62,7 @@ class CloudDocWsService {
 	private handlers: CloudDocWsHandlers = {}
 	private activeToken = ''
 	private connecting = false
+	private pendingJoinDocId: string | null = null
 
 	connect(token: string, handlers: CloudDocWsHandlers = {}): void {
 		const normalized = token.trim().replace(/^Bearer\s+/i, '')
@@ -83,18 +84,34 @@ class CloudDocWsService {
 			onConnect: () => {
 				this.connecting = false
 				this.subscribeChannels()
+				if (this.pendingJoinDocId) {
+					try {
+						this.client?.publish({
+							destination: '/app/cloud-docs.join',
+							body: JSON.stringify({
+								docId: this.pendingJoinDocId,
+							}),
+						})
+					} catch (error) {
+						console.error('重连后自动加入云文档协作失败:', error)
+					}
+				}
 				this.handlers.onConnected?.()
 			},
 			onDisconnect: () => {
+				this.connecting = false
 				this.handlers.onDisconnected?.()
 			},
 			onWebSocketClose: () => {
+				this.connecting = false
 				this.handlers.onDisconnected?.()
 			},
 			onWebSocketError: () => {
+				this.connecting = false
 				this.handlers.onDisconnected?.()
 			},
 			onStompError: (frame) => {
+				this.connecting = false
 				this.handlers.onError?.({
 					code: frame.headers['message'] || 'STOMP_ERROR',
 					message: frame.body || 'Cloud doc websocket STOMP error',
@@ -139,7 +156,9 @@ class CloudDocWsService {
 	}
 
 	join(payload: CloudDocJoinLeaveBody): boolean {
-		if (!this.client?.connected || !payload.docId) return false
+		if (!payload.docId) return false
+		this.pendingJoinDocId = payload.docId
+		if (!this.client?.connected) return false
 		try {
 			this.client.publish({
 				destination: '/app/cloud-docs.join',
@@ -159,6 +178,9 @@ class CloudDocWsService {
 				destination: '/app/cloud-docs.leave',
 				body: JSON.stringify(payload),
 			})
+			if (this.pendingJoinDocId === payload.docId) {
+				this.pendingJoinDocId = null
+			}
 			return true
 		} catch (error) {
 			console.error('离开云文档协作失败:', error)
@@ -197,6 +219,7 @@ class CloudDocWsService {
 	disconnect(): void {
 		this.connecting = false
 		this.activeToken = ''
+		this.pendingJoinDocId = null
 		if (this.client) {
 			void this.client.deactivate()
 			this.client = null

@@ -19,6 +19,23 @@ const normalizeEmojiName = (raw: string): string => {
 
 export const toEmojiToken = (name: string): string => `[${name}]`
 
+const appendTokenAlias = (
+	map: Record<string, string>,
+	name: string,
+	url: string,
+): void => {
+	const normalizedName = normalizeEmojiName(name)
+	if (!normalizedName || !url) return
+	map[toEmojiToken(normalizedName)] = url
+	const numericMatch = normalizedName.match(/^表情0*(\d+)$/)
+	if (!numericMatch) return
+	const rawNum = numericMatch[1]
+	if (!rawNum) return
+	const trimmedNum = String(Number(rawNum))
+	if (!trimmedNum || trimmedNum === 'NaN') return
+	map[toEmojiToken(`表情${trimmedNum}`)] = url
+}
+
 export const getBuiltInEmojiTokenMap = (): Record<string, string> => {
 	const map: Record<string, string> = {}
 	Object.entries(builtInEmojiImages).forEach(([filePath, url]) => {
@@ -27,7 +44,7 @@ export const getBuiltInEmojiTokenMap = (): Record<string, string> => {
 		const num = matched?.[1] || ''
 		const name = num ? `表情${num}` : normalizeEmojiName(fileName)
 		if (!name || !url) return
-		map[toEmojiToken(name)] = url
+		appendTokenAlias(map, name, url)
 	})
 	return map
 }
@@ -44,7 +61,7 @@ export const getStoredEmojiTokenMap = (): Record<string, string> => {
 			const name = normalizeEmojiName(item?.name || '')
 			const url = (item?.url || '').trim()
 			if (!name || !url) return
-			map[toEmojiToken(name)] = url
+			appendTokenAlias(map, name, url)
 		})
 	} catch (error) {
 		console.warn('读取原生表情 token 映射失败', error)
@@ -61,7 +78,7 @@ export const getStoredEmojiTokenMap = (): Record<string, string> => {
 			const name = normalizeEmojiName(item?.name || '')
 			const url = (item?.url || '').trim()
 			if (!name || !url) return
-			map[toEmojiToken(name)] = url
+			appendTokenAlias(map, name, url)
 		})
 	} catch (error) {
 		console.warn('读取收藏表情 token 映射失败', error)

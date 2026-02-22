@@ -25,7 +25,7 @@
 		</div>
 
 		<!-- 内容区 -->
-		<div class="p-3">
+		<div class="p-3 moment-card-body">
 			<h3
 				class="text-[13px] font-bold text-gray-800 dark:text-gray-100 line-clamp-2 mb-2 leading-snug group-hover:text-primary transition-colors"
 			>
@@ -33,7 +33,7 @@
 			</h3>
 			<p
 				v-if="summaryText"
-				class="text-[12px] leading-5 text-gray-500 dark:text-gray-300 line-clamp-1 mb-2.5"
+				class="summary-text text-[12px] leading-5 text-gray-500 dark:text-gray-300 mb-2.5"
 			>
 				{{ summaryText }}
 			</p>
@@ -165,9 +165,28 @@ const formatCount = (count: number): string | number => {
 	overflow: hidden;
 }
 
-.line-clamp-1 {
+.summary-text {
+	display: -webkit-box;
+	-webkit-line-clamp: 1;
+	-webkit-box-orient: vertical;
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+}
+
+@media (min-width: 1200px) {
+	.moment-card {
+		margin-bottom: 18px;
+	}
+
+	.moment-card-body {
+		padding: 14px;
+	}
+
+	.moment-card h3 {
+		font-size: 14px;
+	}
+
+	.summary-text {
+		-webkit-line-clamp: 2;
+	}
 }
 </style>

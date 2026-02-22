@@ -3,13 +3,17 @@
 		<div class="preview-bg-layer"></div>
 
 		<header class="preview-top app-drag-region">
-			<div class="top-left app-no-drag">
+			<div class="top-left pl-20 app-no-drag">
 				<p class="title">图片预览</p>
 				<p class="meta">{{ currentMeta }}</p>
 			</div>
 			<div class="top-actions app-no-drag">
-				<n-button quaternary size="small" @click="handleDownload">下载</n-button>
-				<n-button quaternary size="small" @click="closeWindow">关闭</n-button>
+				<n-button quaternary size="small" @click="handleDownload"
+					>下载</n-button
+				>
+				<n-button quaternary size="small" @click="closeWindow"
+					>关闭</n-button
+				>
 			</div>
 		</header>
 
@@ -23,10 +27,7 @@
 				<n-icon size="20"><ChevronBack /></n-icon>
 			</button>
 
-			<div
-				class="stage app-no-drag"
-				@mousedown="onDragStart"
-			>
+			<div class="stage app-no-drag" @mousedown="onDragStart">
 				<img
 					v-if="currentSrc"
 					:key="currentSrc"
@@ -39,7 +40,9 @@
 					:style="imageStyle"
 					draggable="false"
 				/>
-				<div v-if="isLoading && !hasError" class="state">正在加载图片...</div>
+				<div v-if="isLoading && !hasError" class="state">
+					正在加载图片...
+				</div>
 				<div v-else-if="hasError" class="state error">图片加载失败</div>
 			</div>
 
@@ -56,14 +59,24 @@
 		<footer class="preview-footer app-no-drag">
 			<div class="toolbar">
 				<n-button quaternary circle size="small" @click="zoomOut">
-					<template #icon><n-icon><Remove /></n-icon></template>
+					<template #icon
+						><n-icon><Remove /></n-icon
+					></template>
 				</n-button>
 				<n-button quaternary circle size="small" @click="zoomIn">
-					<template #icon><n-icon><Add /></n-icon></template>
+					<template #icon
+						><n-icon><Add /></n-icon
+					></template>
 				</n-button>
-				<n-button quaternary size="small" @click="resetTransform">重置</n-button>
-				<n-button quaternary size="small" @click="rotateLeft">左转</n-button>
-				<n-button quaternary size="small" @click="rotateRight">右转</n-button>
+				<n-button quaternary size="small" @click="resetTransform"
+					>重置</n-button
+				>
+				<n-button quaternary size="small" @click="rotateLeft"
+					>左转</n-button
+				>
+				<n-button quaternary size="small" @click="rotateRight"
+					>右转</n-button
+				>
 				<span class="scale-label">{{ Math.round(scale * 100) }}%</span>
 			</div>
 
@@ -87,12 +100,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { NButton, NIcon, useMessage } from 'naive-ui'
-import {
-	Add,
-	Remove,
-	ChevronBack,
-	ChevronForward,
-} from '@vicons/ionicons5'
+import { Add, Remove, ChevronBack, ChevronForward } from '@vicons/ionicons5'
 
 const route = useRoute()
 const message = useMessage()
@@ -142,10 +150,15 @@ const parseRouteImages = (): void => {
 		try {
 			const json = JSON.parse(rawList)
 			if (Array.isArray(json)) {
-				parsedList = json.map((item) => String(item || '').trim()).filter(Boolean)
+				parsedList = json
+					.map((item) => String(item || '').trim())
+					.filter(Boolean)
 			}
 		} catch {
-			parsedList = rawList.split(',').map((item) => item.trim()).filter(Boolean)
+			parsedList = rawList
+				.split(',')
+				.map((item) => item.trim())
+				.filter(Boolean)
 		}
 	}
 
@@ -323,8 +336,16 @@ onBeforeUnmount(() => {
 	position: absolute;
 	inset: 0;
 	background:
-		radial-gradient(circle at 20% 10%, rgba(96, 165, 250, 0.18), transparent 42%),
-		radial-gradient(circle at 80% 90%, rgba(125, 211, 252, 0.16), transparent 45%),
+		radial-gradient(
+			circle at 20% 10%,
+			rgba(96, 165, 250, 0.18),
+			transparent 42%
+		),
+		radial-gradient(
+			circle at 80% 90%,
+			rgba(125, 211, 252, 0.16),
+			transparent 45%
+		),
 		linear-gradient(160deg, #f4f8ff 0%, #edf3ff 55%, #eaf1ff 100%);
 	pointer-events: none;
 }
@@ -373,7 +394,6 @@ onBeforeUnmount(() => {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 16px 24px;
 	overflow: hidden;
 }
 

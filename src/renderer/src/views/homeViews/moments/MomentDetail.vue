@@ -6,20 +6,10 @@
 		>
 			<div class="flex items-center gap-3 no-drag">
 				<span class="font-bold text-gray-800 dark:text-gray-100"
-					>动态详情</span
+					>详情</span
 				>
 			</div>
 			<div class="flex items-center gap-2 no-drag">
-				<n-button
-					circle
-					secondary
-					class="no-drag relative z-40 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
-					@click="$emit('back')"
-				>
-					<template #icon>
-						<n-icon size="20"><ArrowLeft24Regular /></n-icon>
-					</template>
-				</n-button>
 				<n-button class="no-drag" circle secondary>
 					<template #icon>
 						<n-icon size="20"><Share24Regular /></n-icon>
@@ -39,6 +29,16 @@
 						</template>
 					</n-button>
 				</n-dropdown>
+				<n-button
+					circle
+					secondary
+					class="no-drag relative z-40 hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors"
+					@click="$emit('back')"
+				>
+					<template #icon>
+						<n-icon size="20"><CloseCircleOutline /></n-icon>
+					</template>
+				</n-button>
 			</div>
 		</div>
 
@@ -275,12 +275,12 @@
 			</n-button>
 		</div>
 
-			<n-modal
-				v-model:show="showEditModal"
-				preset="card"
-				class="app-modal-card"
-				:style="editModalStyle"
-				title="编辑动态"
+		<n-modal
+			v-model:show="showEditModal"
+			preset="card"
+			class="app-modal-card"
+			:style="editModalStyle"
+			title="编辑动态"
 			:mask-closable="false"
 			:bordered="false"
 			size="huge"
@@ -314,6 +314,8 @@ import {
 	Star24Regular,
 	Edit24Regular,
 	Heart16Regular,
+	ClosedCaption24Regular,
+	ClosedCaption24Filled,
 } from '@vicons/fluent'
 import {
 	NButton,
@@ -331,6 +333,7 @@ import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useFriendStore } from '@renderer/stores/friend'
 import { createMomentCoverDataUrl } from '@renderer/utils/momentCover'
 import MomentPublishEditor from './MomentPublishEditor.vue'
+import { CloseCircleOutline } from '@vicons/ionicons5'
 
 const props = defineProps<{
 	moment: Moment
@@ -378,7 +381,10 @@ const isAuthor = computed(() => {
 
 const authorAccount = computed(() => props.moment.author.account?.trim() || '')
 const detailPreviewCover = computed(() => {
-	return props.moment.cover?.trim() || createMomentCoverDataUrl(props.moment.title)
+	return (
+		props.moment.cover?.trim() ||
+		createMomentCoverDataUrl(props.moment.title)
+	)
 })
 const effectiveFriendStatus = computed(
 	() => friendStatusOverride.value ?? props.moment.friendStatusWithAuthor,

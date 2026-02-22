@@ -84,7 +84,6 @@
 	.app-modal-card.n-card,
 	.app-modal-card .n-card {
 		border-radius: 8px !important;
-		overflow: hidden;
 		border: none !important;
 		box-shadow: 0 16px 46px rgba(15, 23, 42, 0.14);
 	}
@@ -191,7 +190,11 @@
 	.app-modal-header,
 	.modal-header-section,
 	.modal-header-gradient {
-		background: linear-gradient(180deg, #3695ff 0%, #2f7fe7 100%) !important;
+		background: linear-gradient(
+			180deg,
+			#3695ff 0%,
+			#2f7fe7 100%
+		) !important;
 	}
 
 	.app-modal-close,

@@ -300,11 +300,15 @@
 			:mask-closable="true"
 			transform-origin="center"
 		>
-			<div class="next-global-search-modal w-[min(92vw,680px)] max-h-[90vh] flex flex-col">
+			<div
+				class="next-global-search-modal w-[min(92vw,680px)] max-h-[90vh] flex flex-col"
+			>
 				<div class="modal-header-section">
 					<div class="flex items-center justify-between w-full">
 						<div>
-							<div class="text-[15px] font-semibold text-white">全局搜索</div>
+							<div class="text-[15px] font-semibold text-white">
+								全局搜索
+							</div>
 							<div class="text-[11px] text-blue-100/90">
 								快速定位页面、联系人与聊天记录
 							</div>
@@ -341,10 +345,14 @@
 					</div>
 				</div>
 
-				<div class="search-modal-body p-5 bg-white dark:bg-zinc-900 flex-1 overflow-y-auto">
+				<div
+					class="search-modal-body p-5 bg-white dark:bg-zinc-900 flex-1 overflow-y-auto"
+				>
 					<div class="search-content min-h-[240px]">
 						<div v-if="!globalSearchQuery.trim()" class="space-y-3">
-							<div class="text-xs text-gray-400 dark:text-gray-500">
+							<div
+								class="text-xs text-gray-400 dark:text-gray-500"
+							>
 								快捷入口
 							</div>
 							<div class="grid grid-cols-3 gap-2.5">
@@ -361,10 +369,14 @@
 										</n-icon>
 									</div>
 									<div class="min-w-0">
-										<div class="truncate text-xs font-semibold text-text-main">
+										<div
+											class="truncate text-xs font-semibold text-text-main"
+										>
 											{{ item.label }}
 										</div>
-										<div class="truncate text-[11px] text-gray-400 dark:text-gray-500">
+										<div
+											class="truncate text-[11px] text-gray-400 dark:text-gray-500"
+										>
 											{{ item.description }}
 										</div>
 									</div>
@@ -373,9 +385,13 @@
 						</div>
 
 						<div v-else class="space-y-2">
-							<div class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
+							<div
+								class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500"
+							>
 								<span>
-									匹配结果 ({{ filteredGlobalSearchEntries.length }})
+									匹配结果 ({{
+										filteredGlobalSearchEntries.length
+									}})
 								</span>
 								<span v-if="isSearchingGlobalChatRecords">
 									正在检索聊天记录...
@@ -398,10 +414,14 @@
 										</n-icon>
 									</div>
 									<div class="min-w-0 flex-1">
-										<div class="truncate text-sm font-medium text-text-main">
+										<div
+											class="truncate text-sm font-medium text-text-main"
+										>
 											{{ item.label }}
 										</div>
-										<div class="truncate text-xs text-gray-400 dark:text-gray-500">
+										<div
+											class="truncate text-xs text-gray-400 dark:text-gray-500"
+										>
 											{{ item.description }}
 										</div>
 									</div>
@@ -438,7 +458,9 @@
 								<span>关闭</span>
 							</div>
 						</div>
-						<div>当前可搜索 {{ globalSearchEntries.length }} 项</div>
+						<div>
+							当前可搜索 {{ globalSearchEntries.length }} 项
+						</div>
 					</div>
 				</div>
 			</div>

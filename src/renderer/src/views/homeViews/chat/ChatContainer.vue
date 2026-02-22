@@ -5,6 +5,7 @@ import { storeToRefs } from 'pinia'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { useFriendStore } from '@renderer/stores/friend'
 import ChatMessage from './ChatMessage.vue'
+import EmojiPicker from '@renderer/components/EmojiPicker.vue'
 import { resolveAvatarUrl } from '@renderer/utils/avatar'
 import { useMessage } from 'naive-ui'
 
@@ -35,6 +36,7 @@ const isLoadingMore = ref(false)
 const hasMoreByChat = new Map<number, boolean>()
 const shouldStickToBottom = ref(true)
 const BOTTOM_STICK_THRESHOLD = 220
+const BOTTOM_RESUME_THRESHOLD = 24
 const TOP_PRELOAD_THRESHOLD = 180
 const TOP_LOAD_DEBOUNCE_MS = 120
 const TOP_LOAD_MIN_VISIBLE_MS = 300
@@ -46,6 +48,7 @@ let scrollIndicatorTimer: ReturnType<typeof setTimeout> | null = null
 let jumpHighlightTimer: ReturnType<typeof setTimeout> | null = null
 const isScrolling = ref(false)
 const highlightedMessageKey = ref('')
+const userDetachedFromBottom = ref(false)
 const SCROLL_INDICATOR_HIDE_DELAY_MS = 700
 type ScrollMode = 'auto' | 'smooth'
 
@@ -183,6 +186,18 @@ const showDropdown = ref(false)
 const xRef = ref(0)
 const yRef = ref(0)
 const currentOptions = ref<Array<Record<string, unknown>>>([])
+const showReactionPicker = ref(false)
+const reactionPickerX = ref(0)
+const reactionPickerY = ref(0)
+const reactionPickerRef = ref<HTMLElement | null>(null)
+const reactionTarget = ref<{
+	chatId: number
+	identity: {
+		id?: number
+		clientMessageId?: string
+		serverMessageId?: string
+	}
+} | null>(null)
 const contextData = ref<{
 	type: 'text' | 'image'
 	extra: MenuContextExtra
@@ -245,6 +260,118 @@ const getTransferStatus = (
 	return transferStatusMap.value[businessNo] || 'pending'
 }
 
+const getMessageIdentity = (item: Message): {
+	id?: number
+	clientMessageId?: string
+	serverMessageId?: string
+} => {
+	return {
+		id: item.id,
+		clientMessageId: item.clientMessageId?.trim() || undefined,
+		serverMessageId: item.serverMessageId?.trim() || undefined,
+	}
+}
+
+const closeReactionPicker = (): void => {
+	showReactionPicker.value = false
+	reactionTarget.value = null
+}
+
+const openReactionPickerFromMenu = (msg: Message): void => {
+	const chatId = activeChat.value?.id
+	if (!chatId) return
+	reactionTarget.value = {
+		chatId,
+		identity: getMessageIdentity(msg),
+	}
+	reactionPickerX.value = Math.max(12, xRef.value - 20)
+	reactionPickerY.value = Math.max(12, yRef.value - 340)
+	showReactionPicker.value = true
+}
+
+const pickReaction = (payload: {
+	key: string
+	emoji?: string
+	imageUrl?: string
+}): void => {
+	const target = reactionTarget.value
+	const reactionKey = payload.key?.trim() || ''
+	if (!target || !reactionKey) return
+	void chatStore.toggleMessageReaction(target.chatId, target.identity, {
+		key: reactionKey,
+		emoji: payload.emoji?.trim() || undefined,
+		imageUrl: payload.imageUrl?.trim() || undefined,
+	})
+	closeReactionPicker()
+}
+
+const resolveReactionUserName = (account: string): string => {
+	const normalized = normalizeAccount(account)
+	if (!normalized) return ''
+	const selfAccount = normalizeAccount(userInfo.account)
+	if (selfAccount && normalized === selfAccount) {
+		return userInfo.userName?.trim() || '我'
+	}
+	const friend = friends.value.find(
+		(row) => row.id === normalized || row.uid === normalized,
+	)
+	if (friend) {
+		return friend.remark?.trim() || friend.name?.trim() || normalized
+	}
+	const member = groupMemberProfileMap.value[normalized]
+	if (member?.name?.trim()) return member.name.trim()
+	if (
+		activeChat.value?.chatType === 'PRIVATE' &&
+		normalizeAccount(activeChat.value.peerAccount) === normalized
+	) {
+		return activeChat.value.name?.trim() || normalized
+	}
+	return normalized
+}
+
+const getReactionUserLabel = (
+	userIds: string[],
+): string => {
+	const names: string[] = []
+	const seen = new Set<string>()
+	for (const userId of userIds) {
+		const name = resolveReactionUserName(userId)
+		if (!name || seen.has(name)) continue
+		seen.add(name)
+		names.push(name)
+	}
+	if (!names.length) return ''
+	return names.join('、')
+}
+
+const getRenderableReactions = (
+	item: Message,
+): Array<{ key: string; emoji?: string; imageUrl?: string; label: string }> => {
+	const list = Array.isArray(item.reactions) ? item.reactions : []
+	return list
+		.filter((reaction) => Number(reaction.count || 0) > 0)
+		.map((reaction) => ({
+			key: reaction.key,
+			emoji: reaction.emoji,
+			imageUrl: reaction.imageUrl,
+			label:
+				getReactionUserLabel(
+					Array.isArray(reaction.userIds) ? reaction.userIds : [],
+				) || `x${Math.max(1, Number(reaction.count || 0))}`,
+		}))
+}
+
+const handleGlobalPointerDown = (event: MouseEvent): void => {
+	if (!showReactionPicker.value) return
+	const target = event.target as Node | null
+	if (reactionPickerRef.value?.contains(target)) return
+	closeReactionPicker()
+}
+
+const handleGlobalKeydown = (event: KeyboardEvent): void => {
+	if (event.key === 'Escape') closeReactionPicker()
+}
+
 const onShowMenu = (
 	e: MouseEvent,
 	type: 'text' | 'image',
@@ -252,21 +379,27 @@ const onShowMenu = (
 	msg: Message,
 ): void => {
 	e.preventDefault()
+	closeReactionPicker()
 	showDropdown.value = false
 	avatarMenuData.value = null
 	contextData.value = { type, extra, msg }
 
 	if (type === 'image') {
-		currentOptions.value = [
+		const imageOptions: Array<Record<string, unknown>> = [
 			{ label: '查看图片', key: 'view' },
 			{ label: '复制图片链接', key: 'copy-link' },
 			{ label: '保存到本地', key: 'save' },
 			{ type: 'divider', key: 'd1' },
 			{ label: '删除', key: 'delete' },
 		]
+		if (msg.senderId !== 'me') {
+			imageOptions.unshift({ label: '表情回复', key: 'reaction' })
+		}
+		imageOptions.splice(1, 0, { label: '引用', key: 'quote' })
+		currentOptions.value = imageOptions
 	} else {
 		const hasSelection = !!extra?.text
-		currentOptions.value = [
+		const textOptions: Array<Record<string, unknown>> = [
 			{
 				label: hasSelection ? '复制选中文字' : '复制整条消息',
 				key: 'copy',
@@ -275,6 +408,11 @@ const onShowMenu = (
 			{ type: 'divider', key: 'd1' },
 			{ label: '删除', key: 'delete' },
 		]
+		if (msg.senderId !== 'me') {
+			textOptions.splice(1, 0, { label: '表情回复', key: 'reaction' })
+		}
+		textOptions.splice(1, 0, { label: '引用', key: 'quote' })
+		currentOptions.value = textOptions
 	}
 
 	nextTick(() => {
@@ -297,6 +435,7 @@ const onShowAvatarMenu = (
 	extra: { senderAccount?: string; senderName?: string },
 ): void => {
 	e.preventDefault()
+	closeReactionPicker()
 	showDropdown.value = false
 	contextData.value = null
 	const account = normalizeAccount(extra.senderAccount)
@@ -333,12 +472,13 @@ const insertMentionFromAvatarMenu = (): void => {
 	)
 }
 
-const handleMenuSelect = (key: string): void => {
-	showDropdown.value = false
-	if (key === 'mention-user') {
-		insertMentionFromAvatarMenu()
-		return
-	}
+	const handleMenuSelect = (key: string): void => {
+		showDropdown.value = false
+		closeReactionPicker()
+		if (key === 'mention-user') {
+			insertMentionFromAvatarMenu()
+			return
+		}
 	if (key === 'add-friend') {
 		const payload = avatarMenuData.value
 		if (!payload?.account) return
@@ -352,10 +492,27 @@ const handleMenuSelect = (key: string): void => {
 			})
 		return
 	}
-	avatarMenuData.value = null
-	const { extra, msg } = contextData.value || {}
+		avatarMenuData.value = null
+		const { extra, msg } = contextData.value || {}
 
-	switch (key) {
+		switch (key) {
+		case 'quote': {
+			const chatId = activeChat.value?.id
+			if (!chatId || !msg) return
+			const payload = {
+				chatId,
+				message: msg,
+			}
+			window.dispatchEvent(
+				new CustomEvent('chat-set-quote', { detail: payload }),
+			)
+			break
+		}
+		case 'reaction':
+			if (msg && msg.senderId !== 'me') {
+				openReactionPickerFromMenu(msg)
+			}
+			break
 		case 'copy': {
 			const text = extra?.text || msg?.text?.replace(/<[^>]*>/g, '') || ''
 			navigator.clipboard.writeText(text)
@@ -576,8 +733,9 @@ const handleImageLoaded = (): void => {
 	const distanceToBottom =
 		viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
 	if (
-		shouldStickToBottom.value ||
-		distanceToBottom < BOTTOM_STICK_THRESHOLD
+		!userDetachedFromBottom.value &&
+		(shouldStickToBottom.value ||
+			distanceToBottom < BOTTOM_STICK_THRESHOLD)
 	) {
 		scrollToLatestMessage('auto')
 	}
@@ -629,6 +787,7 @@ const scheduleTopLoad = (): void => {
 
 const onViewportScroll = (): void => {
 	if (isSwitching.value) return
+	if (showReactionPicker.value) closeReactionPicker()
 	const viewport = getViewport()
 	if (!viewport) return
 	isScrolling.value = true
@@ -645,6 +804,11 @@ const onViewportScroll = (): void => {
 	const distanceToBottom =
 		viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
 	shouldStickToBottom.value = distanceToBottom < BOTTOM_STICK_THRESHOLD
+	if (distanceToBottom <= BOTTOM_RESUME_THRESHOLD) {
+		userDetachedFromBottom.value = false
+	} else if (isScrollingUp) {
+		userDetachedFromBottom.value = true
+	}
 
 	if (isScrollingUp && currentTop <= TOP_PRELOAD_THRESHOLD) {
 		scheduleTopLoad()
@@ -683,11 +847,7 @@ watch(
 		if (isAppend) {
 			const latestMessage = props.messages[newLen - 1]
 			const isOutgoing = latestMessage?.senderId === 'me'
-			if (
-				!isOutgoing &&
-				!nearBottomBeforeAppend &&
-				!shouldStickToBottom.value
-			) {
+			if (!isOutgoing && (userDetachedFromBottom.value || !nearBottomBeforeAppend)) {
 				return
 			}
 			scrollToLatestMessage('auto')
@@ -702,6 +862,7 @@ watch(
 		await nextTick()
 		if (newId) {
 			shouldStickToBottom.value = true
+			userDetachedFromBottom.value = false
 			if (!hasMoreByChat.has(newId)) {
 				hasMoreByChat.set(newId, true)
 			}
@@ -753,9 +914,13 @@ watch(
 
 onMounted(() => {
 	scrollToLatestMessage('auto')
+	window.addEventListener('mousedown', handleGlobalPointerDown, true)
+	window.addEventListener('keydown', handleGlobalKeydown)
 })
 
 onBeforeUnmount(() => {
+	window.removeEventListener('mousedown', handleGlobalPointerDown, true)
+	window.removeEventListener('keydown', handleGlobalKeydown)
 	if (topLoadDebounceTimer) {
 		clearTimeout(topLoadDebounceTimer)
 		topLoadDebounceTimer = null
@@ -816,6 +981,7 @@ onBeforeUnmount(() => {
 					:enable-avatar-menu="isGroupChatActive && item.senderId !== 'me'"
 					:avatar="resolveMessageAvatar(item)"
 					:time="item.timestamp"
+					:reaction-items="getRenderableReactions(item)"
 					@image-loaded="handleImageLoaded"
 					@avatar-contextmenu="
 						(e, extra) => onShowAvatarMenu(e, extra || {})
@@ -839,6 +1005,38 @@ onBeforeUnmount(() => {
 			@select="handleMenuSelect"
 			@clickoutside="showDropdown = false"
 		/>
+
+		<div
+			v-if="showReactionPicker"
+			ref="reactionPickerRef"
+			class="reaction-picker-panel"
+			:style="{
+				left: `${reactionPickerX}px`,
+				top: `${reactionPickerY}px`,
+			}"
+			@contextmenu.prevent
+		>
+			<EmojiPicker
+				@select="
+					(emoji) =>
+						pickReaction({
+							key: `u:${emoji?.i || ''}`,
+							emoji: emoji?.i || '',
+						})
+				"
+				@select-custom="
+					(item) =>
+						pickReaction({
+							key:
+								item?.token?.trim()
+									? `t:${item.token.trim()}`
+									: `i:${item?.url || ''}`,
+							emoji: item?.token || item?.name || '',
+							imageUrl: item?.url || '',
+						})
+				"
+			/>
+		</div>
 	</div>
 </template>
 
@@ -889,5 +1087,14 @@ onBeforeUnmount(() => {
 .message-viewport:hover::-webkit-scrollbar-thumb,
 .message-viewport.is-scrolling::-webkit-scrollbar-thumb {
 	background-color: rgba(148, 163, 184, 0.65);
+}
+
+.reaction-picker-panel {
+	position: fixed;
+	z-index: 72;
+}
+
+.reaction-picker-panel :deep(.emoji-picker-container) {
+	width: 308px;
 }
 </style>

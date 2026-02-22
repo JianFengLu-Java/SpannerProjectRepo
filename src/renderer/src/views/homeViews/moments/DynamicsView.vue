@@ -19,7 +19,7 @@
 						<h2
 							class="text-2xl font-black text-text-main tracking-tight shrink-0"
 						>
-							发现精彩
+							动态
 						</h2>
 						<div
 							class="flex items-center gap-1 bg-gray-100/50 dark:bg-zinc-800/60 p-1 rounded-2xl shrink-0"
@@ -57,7 +57,7 @@
 						<n-input
 							v-model:value="momentStore.searchQuery"
 							placeholder="搜索内容..."
-							class="rounded-2xl bg-gray-100/50 dark:bg-zinc-800/60 border-none transition-all no-drag duration-300"
+							class="bg-gray-100/50 dark:bg-zinc-800/60 border-none transition-all no-drag duration-300"
 							:class="[containerWidth < 650 ? 'flex-1' : 'w-64']"
 							size="medium"
 						>
@@ -70,7 +70,7 @@
 
 						<n-button
 							type="primary"
-							class="h-10 px-4 shadow-lg shadow-primary/20 shrink-0 no-drag rounded-xl font-bold"
+							class="h-10 px-4 shrink-0 no-drag rounded-xl font-bold"
 							@click="handlePublish"
 						>
 							<template #icon>
@@ -81,8 +81,8 @@
 					</div>
 				</div>
 
-				<!-- 热门话题 -->
-				<div
+				<!-- 热门话题/暂时不用，先注释 -->
+				<!-- <div
 					v-if="viewMode === 'feed' && containerWidth > 500"
 					class="flex items-center gap-3 overflow-x-auto no-scrollbar pb-2"
 				>
@@ -93,7 +93,7 @@
 					>
 						# {{ tag }}
 					</div>
-				</div>
+				</div> -->
 			</div>
 
 			<!-- 动态内容区 (瀑布流布局) -->
@@ -313,6 +313,7 @@ const showPublishModal = ref(false)
 const publishing = ref(false)
 const showBackToTop = ref(false)
 const viewMode = ref<'feed' | 'about-me'>('feed')
+const FEED_SECTION_MAX_WIDTH = 1240
 // activeTab, searchQuery, selectedMoment 已由于需要保持状态移至 Store
 
 const publishModalStyle = computed(() => {
@@ -341,16 +342,20 @@ const gridStyle = computed(() => {
 	}
 
 	const gap = 16
-	const contentWidth = Math.max(containerWidth.value - 48, 0)
+	const sectionOuterWidth = Math.min(
+		Math.max(containerWidth.value - 48, 0),
+		FEED_SECTION_MAX_WIDTH,
+	)
+	const contentWidth = Math.max(sectionOuterWidth - 28, 0)
 	const targetCardWidth =
 		containerWidth.value >= 1800
-			? 160
+			? 280
 			: containerWidth.value >= 1400
-				? 170
-				: 180
-	const columns = Math.max(
-		2,
-		Math.floor((contentWidth + gap) / (targetCardWidth + gap)),
+				? 260
+				: 230
+	const columns = Math.min(
+		4,
+		Math.max(2, Math.floor((contentWidth + gap) / (targetCardWidth + gap))),
 	)
 
 	return {
@@ -404,7 +409,7 @@ const promoBanners = [
 		tag: '活动预告',
 		title: '春季摄影企划开启',
 		subtitle: '投稿即有机会入选官方合集，并获得流量扶持',
-		image: 'https://images.unsplash.com/photo-1493244040629-496f6d136cc3?auto=format&fit=crop&w=1600&q=80',
+		image: 'https://images.pexels.com/photos/35962569/pexels-photo-35962569.jpeg',
 	},
 ] as const
 
@@ -627,11 +632,11 @@ onUnmounted(() => {
 
 .promo-carousel-shell {
 	margin: 2px auto 14px;
-	width: min(980px, 100%);
+	width: min(1240px, 100%);
 }
 
 .feed-cards-section {
-	width: min(980px, 100%);
+	width: min(1240px, 100%);
 	margin: 0 auto;
 	padding: 14px 14px 10px;
 	border-radius: 0;

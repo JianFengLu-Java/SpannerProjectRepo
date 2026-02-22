@@ -111,6 +111,11 @@ export interface GroupHistoryMessageDto {
 	groupNo: string
 	from: string
 	content: string
+	quote?: {
+		messageId: string
+		from?: string
+		content?: string
+	}
 	clientMessageId?: string | number
 	sentAt?: string
 }
