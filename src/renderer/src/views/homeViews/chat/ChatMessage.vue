@@ -192,6 +192,13 @@
 					<div class="cloud-doc-card-desc">点击打开云文档</div>
 				</div>
 
+				<div
+					v-else-if="isRecalled"
+					class="chat-recalled-bubble avatar-no-select"
+				>
+					该消息已撤回
+				</div>
+
 				<div v-else-if="isOnlyImage" class="chat-image-wrapper">
 					<div
 						v-if="quote"
@@ -503,6 +510,7 @@ const props = defineProps<{
 	deliveryStatus?: 'sending' | 'sent' | 'failed'
 	isSystemChat?: boolean
 	isVipNotice?: boolean
+	recalled?: boolean
 	reactionItems?: Array<{
 		key: string
 		emoji?: string
@@ -691,7 +699,7 @@ const extractImageLikeUrlFromJson = (value: string): string => {
 		for (const [rawKey, rawValue] of Object.entries(
 			node as Record<string, unknown>,
 		)) {
-			const normalizedKey = rawKey.replace(/[\s_\-]/g, '').toLowerCase()
+			const normalizedKey = rawKey.replace(/[\s_-]/g, '').toLowerCase()
 			if (typeof rawValue === 'string') {
 				const normalizedValue = normalizeImageCandidate(rawValue)
 				if (keys.has(normalizedKey) && normalizedValue) {
@@ -2024,6 +2032,7 @@ const handleCloudDocCardClick = async (): Promise<void> => {
 }
 
 const isOnlyImage = computed(() => {
+	if (isRecalled.value) return false
 	if (isTransferCard.value || isCloudDocShareCard.value) return false
 	if (!props.content) return false
 	const decoded = decodeHtmlEntitiesDeep(props.content || '', 3).trim()
@@ -2061,11 +2070,14 @@ const isOnlyImage = computed(() => {
 })
 
 const renderedContent = computed(() => {
+	if (isRecalled.value) return '该消息已撤回'
 	const decoded = decodeHtmlEntitiesDeep(props.content || '', 3).trim()
 	if (!decoded) return ''
 	const imageOnlyUrl = imageUrlToHtml(decoded)
 	return renderEmojiTokensInHtml(imageOnlyUrl || decoded)
 })
+
+const isRecalled = computed(() => !!props.recalled)
 
 const quoteSender = computed(() => {
 	if (!props.quote) return ''
@@ -2296,6 +2308,16 @@ onUpdated(attachLoadEvents)
 	font-size: 11px;
 	line-height: 1.2;
 	color: inherit;
+}
+
+.chat-recalled-bubble {
+	max-width: 460px;
+	border-radius: 10px;
+	padding: 6px 10px;
+	font-size: 12px;
+	line-height: 1.4;
+	color: #9ca3af;
+	background: rgba(148, 163, 184, 0.14);
 }
 
 .chat-bubble-me :deep(a) {

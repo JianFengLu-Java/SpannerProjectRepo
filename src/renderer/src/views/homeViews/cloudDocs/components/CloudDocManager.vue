@@ -118,11 +118,7 @@ const formatTime = (time: string): string => {
 	border-radius: 10px;
 	border: 1px solid
 		color-mix(in srgb, var(--color-border-default) 74%, #bed6ff);
-	background: linear-gradient(
-		165deg,
-		color-mix(in srgb, var(--color-card-bg) 96%, #ffffff),
-		color-mix(in srgb, var(--color-card-bg) 88%, #ecf4ff)
-	);
+	background: #ffffff;
 }
 
 .doc-manager-heading {

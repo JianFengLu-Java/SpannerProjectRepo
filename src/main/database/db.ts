@@ -135,6 +135,9 @@ function createTables(): Promise<void> {
 									quotedFromAccount TEXT,
 									quotedFromName TEXT,
 									quotedContent TEXT,
+									recalled INTEGER DEFAULT 0,
+									recalledAt TEXT,
+									recallDeadlineAt TEXT,
 									PRIMARY KEY (userAccount, chatId, id)
 								)
 								`,
@@ -227,6 +230,9 @@ async function ensureUserScopedTableColumns(): Promise<void> {
 	await addColumnIfMissing('user_messages', 'quotedFromAccount', 'TEXT')
 	await addColumnIfMissing('user_messages', 'quotedFromName', 'TEXT')
 	await addColumnIfMissing('user_messages', 'quotedContent', 'TEXT')
+	await addColumnIfMissing('user_messages', 'recalled', 'INTEGER DEFAULT 0')
+	await addColumnIfMissing('user_messages', 'recalledAt', 'TEXT')
+	await addColumnIfMissing('user_messages', 'recallDeadlineAt', 'TEXT')
 
 	// 查询性能索引：会话排序、历史分页、全局检索定位
 	await runSql(
@@ -318,12 +324,15 @@ async function ensureUserMessagesPrimaryKey(): Promise<void> {
 				quotedFromAccount TEXT,
 				quotedFromName TEXT,
 				quotedContent TEXT,
+				recalled INTEGER DEFAULT 0,
+				recalledAt TEXT,
+				recallDeadlineAt TEXT,
 				PRIMARY KEY (userAccount, chatId, id)
 			)
 		`)
 		await runSql(`
-			INSERT OR IGNORE INTO user_messages_v2 (userAccount, id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent)
-			SELECT userAccount, id, chatId, senderId, NULL, NULL, NULL, text, timestamp, type, hasResult, result, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+			INSERT OR IGNORE INTO user_messages_v2 (userAccount, id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent, recalled, recalledAt, recallDeadlineAt)
+			SELECT userAccount, id, chatId, senderId, NULL, NULL, NULL, text, timestamp, type, hasResult, result, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL
 			FROM user_messages
 		`)
 		await runSql('DROP TABLE user_messages')

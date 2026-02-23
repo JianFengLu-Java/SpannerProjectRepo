@@ -15,6 +15,9 @@ export interface GroupChatMessageFrame {
 	quote?: MessageQuote
 	clientMessageId?: string
 	sentAt?: string
+	recalled?: boolean
+	recalledAt?: string
+	recallDeadlineAt?: string
 }
 
 export interface GroupChatAckFrame {
@@ -35,6 +38,7 @@ export interface GroupChatErrorFrame {
 interface GroupChatWsHandlers {
 	onMessage?: (payload: GroupChatMessageFrame) => void
 	onReaction?: (payload: Record<string, unknown>) => void
+	onRecall?: (payload: Record<string, unknown>) => void
 	onAck?: (payload: GroupChatAckFrame) => void
 	onError?: (payload: GroupChatErrorFrame) => void
 	onConnected?: () => void
@@ -123,6 +127,10 @@ class GroupChatWsService {
 					string,
 					unknown
 				>
+					if (this.isRecallLikeFrame(payload)) {
+						this.handlers.onRecall?.(payload)
+						return
+					}
 					if (this.isReactionLikeFrame(payload)) {
 						if (this.shouldLogReactionDebug()) {
 							console.info('[chat-reaction-debug][ws-group]', {
@@ -188,6 +196,26 @@ class GroupChatWsService {
 				}
 			})
 		}
+
+		const recallDestinations = [
+			'/user/queue/group.messages.recalled',
+			'/user/queue/group.message.recalled',
+			'/user/queue/messages.recalled',
+			'/user/queue/message.recalled',
+		]
+		for (const destination of recallDestinations) {
+			this.subscribeOnce(destination, (frame) => {
+				try {
+					const payload = JSON.parse(frame.body) as Record<
+						string,
+						unknown
+					>
+					this.handlers.onRecall?.(payload)
+				} catch (error) {
+					console.error('解析群聊撤回事件失败:', error)
+				}
+			})
+		}
 	}
 
 	private subscribeOnce(
@@ -223,6 +251,17 @@ class GroupChatWsService {
 		return directFields.some(
 			(value) => String(value || '').trim().length > 0,
 		)
+	}
+
+	private isRecallLikeFrame(payload: Record<string, unknown>): boolean {
+		const eventType = String(payload.eventType || '')
+			.trim()
+			.toLowerCase()
+		if (eventType.includes('recall') || eventType.includes('recalled')) {
+			return true
+		}
+		if (payload.recalled === true) return true
+		return String(payload.recalledAt || '').trim().length > 0
 	}
 
 	sendGroup(

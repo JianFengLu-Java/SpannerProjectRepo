@@ -130,6 +130,9 @@ export interface GroupHistoryMessageDto {
 	}
 	clientMessageId?: string | number
 	sentAt?: string
+	recalled?: boolean
+	recalledAt?: string
+	recallDeadlineAt?: string
 }
 
 export interface GroupHistoryPageData {

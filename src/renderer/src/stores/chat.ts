@@ -50,6 +50,7 @@ import {
 	messageReactionApi,
 	type ReactionItemDto,
 } from '@renderer/services/messageReactionApi'
+import { messageRecallApi } from '@renderer/services/messageRecallApi'
 import { useMomentStore } from '@renderer/stores/moment'
 
 interface DbChatItem {
@@ -92,6 +93,9 @@ interface DbMessage {
 	quotedFromAccount?: string
 	quotedFromName?: string
 	quotedContent?: string
+	recalled?: number
+	recalledAt?: string
+	recallDeadlineAt?: string
 }
 
 interface OfflineMessagePullResponse {
@@ -124,6 +128,9 @@ interface HistoryMessageDto {
 	time?: string
 	createTime?: string
 	type?: string
+	recalled?: boolean
+	recalledAt?: string
+	recallDeadlineAt?: string
 }
 
 interface ChatHistoryPageData {
@@ -180,6 +187,22 @@ interface MessageReactionEventFrame {
 	operatorName?: string
 	reactions?: unknown
 	updatedAt?: string
+	data?: Record<string, unknown>
+}
+
+interface MessageRecallEventFrame {
+	eventType?: string
+	messageType?: 'PRIVATE' | 'GROUP'
+	chatId?: number | string
+	messageId?: number | string
+	serverMessageId?: string
+	clientMessageId?: string
+	groupNo?: string
+	from?: string
+	to?: string
+	recalled?: boolean
+	recalledAt?: string
+	recallDeadlineAt?: string
 	data?: Record<string, unknown>
 }
 
@@ -273,10 +296,12 @@ export const useChatStore = defineStore('chat', () => {
 	const REACTION_OPEN_SYNC_LIMIT = 80
 	const REACTION_OPEN_SYNC_CONCURRENCY = 5
 	const REACTION_OPEN_SYNC_COOLDOWN_MS = 8 * 1000
+	const MESSAGE_RECALL_WINDOW_MS = 24 * 60 * 60 * 1000
 	let loadingFriendsPromise: Promise<boolean> | null = null
 	let messageJumpToken = 0
 	const groupSessionSyncAtMap = new Map<string, number>()
 	const recentReactionEventMap = new Map<string, number>()
+	const recentRecallEventMap = new Map<string, number>()
 	const recentReactionOpenSyncAtMap = new Map<number, number>()
 	const GROUP_SESSION_SYNC_INTERVAL_MS = 60 * 1000
 	const shouldLogChatMergeDebug = (): boolean => {
@@ -349,7 +374,7 @@ export const useChatStore = defineStore('chat', () => {
 		)
 	}
 
-	const resolveSystemChatAvatar = (_avatar?: string): string => {
+	const resolveSystemChatAvatar = (): string => {
 		return SYSTEM_AVATAR_DATA_URI
 	}
 
@@ -705,7 +730,9 @@ export const useChatStore = defineStore('chat', () => {
 		text: string
 		type: Message['type']
 		senderId: Message['senderId']
+		recalled?: boolean
 	}): string => {
+		if (message.recalled) return '该消息已撤回'
 		const parseCallSummaryPreview = (content: string): string | null => {
 			const text = (content || '').trim()
 			if (!text) return null
@@ -1232,6 +1259,47 @@ export const useChatStore = defineStore('chat', () => {
 		const quote = normalizeMessageQuote(source.quote)
 		const normalizedServerMessageId =
 			extractMessageIdFromPayload(source) || normalizeId(payload.messageId)
+		const normalizeBoolean = (value: unknown): boolean | undefined => {
+			if (typeof value === 'boolean') return value
+			if (typeof value === 'number') return value > 0
+			if (typeof value === 'string') {
+				const lowered = value.trim().toLowerCase()
+				if (
+					lowered === 'true' ||
+					lowered === '1' ||
+					lowered === 'yes' ||
+					lowered === 'y'
+				) {
+					return true
+				}
+				if (
+					lowered === 'false' ||
+					lowered === '0' ||
+					lowered === 'no' ||
+					lowered === 'n'
+				) {
+					return false
+				}
+			}
+			return undefined
+		}
+		const recalled =
+			normalizeBoolean(source.recalled) ??
+			normalizeBoolean(dataNode?.recalled) ??
+			normalizeBoolean((payload as unknown as { recalled?: unknown }).recalled) ??
+			false
+		const recalledAt =
+			normalizeId(source.recalledAt) ||
+			normalizeId(dataNode?.recalledAt) ||
+			normalizeId(
+				(payload as unknown as { recalledAt?: unknown }).recalledAt,
+			)
+		const recallDeadlineAt =
+			normalizeId(source.recallDeadlineAt) ||
+			normalizeId(dataNode?.recallDeadlineAt) ||
+			normalizeId(
+				(payload as unknown as { recallDeadlineAt?: unknown }).recallDeadlineAt,
+			)
 		return {
 			id: createLocalMessageId(),
 			chatId,
@@ -1340,6 +1408,9 @@ export const useChatStore = defineStore('chat', () => {
 			sentAt,
 			reactions: fromServerReactionItems(source.reactions),
 			quote,
+			recalled,
+			recalledAt,
+			recallDeadlineAt,
 		}
 	}
 
@@ -1467,6 +1538,17 @@ export const useChatStore = defineStore('chat', () => {
 				duplicated.senderAvatar =
 					duplicated.senderAvatar || item.senderAvatar
 				duplicated.quote = duplicated.quote || item.quote
+				duplicated.recalled = Boolean(
+					duplicated.recalled || item.recalled,
+				)
+				duplicated.recalledAt =
+					duplicated.recalledAt || item.recalledAt
+				duplicated.recallDeadlineAt =
+					duplicated.recallDeadlineAt || item.recallDeadlineAt
+				if (duplicated.recalled) {
+					duplicated.reactions = []
+					duplicated.quote = undefined
+				}
 				if (Array.isArray(item.reactions) && item.reactions.length) {
 					duplicated.reactions = sanitizeMessageReactions(
 						item.reactions,
@@ -1567,7 +1649,7 @@ export const useChatStore = defineStore('chat', () => {
 					? formatTimeFromIso(c.lastMessageAt)
 					: c.timestamp,
 				avatar: isSystemAccount((c.peerAccount || '').trim())
-					? resolveSystemChatAvatar(c.avatar)
+					? resolveSystemChatAvatar()
 					: c.avatar,
 				online: !!c.online,
 				isPinned: !!c.isPinned,
@@ -1590,6 +1672,9 @@ export const useChatStore = defineStore('chat', () => {
 						hasResult: !!m.hasResult,
 						reactions: parseMessageReactions(m.reactions),
 						quote: parseMessageQuoteFromDb(m),
+						recalled: !!m.recalled,
+						recalledAt: m.recalledAt || undefined,
+						recallDeadlineAt: m.recallDeadlineAt || undefined,
 					}) as Message,
 			)
 		},
@@ -1616,6 +1701,9 @@ export const useChatStore = defineStore('chat', () => {
 						hasResult: !!m.hasResult,
 						reactions: parseMessageReactions(m.reactions),
 						quote: parseMessageQuoteFromDb(m),
+						recalled: !!m.recalled,
+						recalledAt: m.recalledAt || undefined,
+						recallDeadlineAt: m.recallDeadlineAt || undefined,
 					}) as Message,
 			)
 		},
@@ -1663,6 +1751,9 @@ export const useChatStore = defineStore('chat', () => {
 				quotedFromAccount: quote?.from || null,
 				quotedFromName: quote?.fromName || null,
 				quotedContent: quote?.content || null,
+				recalled: message.recalled ? 1 : 0,
+				recalledAt: message.recalledAt || null,
+				recallDeadlineAt: message.recallDeadlineAt || null,
 			}
 			window.electron.ipcRenderer.invoke('db-save-message', account, {
 				...payload,
@@ -1851,7 +1942,7 @@ export const useChatStore = defineStore('chat', () => {
 		const chats = await db.getAllChats()
 		for (const chat of chats) {
 			if (!isSystemNotificationChatItem(chat)) continue
-			const nextAvatar = resolveSystemChatAvatar(chat.avatar)
+			const nextAvatar = resolveSystemChatAvatar()
 			if (chat.avatar === nextAvatar) continue
 			chat.avatar = nextAvatar
 			db.saveChat(chat)
@@ -1970,9 +2061,7 @@ export const useChatStore = defineStore('chat', () => {
 		if (isSystemAccount(normalizedAccount)) {
 			const existingSystemChat = findSystemNotificationChat()
 			if (existingSystemChat) {
-				const nextAvatar = resolveSystemChatAvatar(
-					existingSystemChat.avatar,
-				)
+				const nextAvatar = resolveSystemChatAvatar()
 				if (existingSystemChat.avatar !== nextAvatar) {
 					existingSystemChat.avatar = nextAvatar
 					db.saveChat(existingSystemChat)
@@ -1987,7 +2076,7 @@ export const useChatStore = defineStore('chat', () => {
 				chatType: 'PRIVATE',
 				peerAccount: SYSTEM_ACCOUNT,
 				name: SYSTEM_CHAT_NAME,
-				avatar: resolveSystemChatAvatar(''),
+				avatar: resolveSystemChatAvatar(),
 				lastMessage: '',
 				timestamp: formatTimeFromIso(),
 				lastMessageAt: new Date().toISOString(),
@@ -2120,6 +2209,20 @@ export const useChatStore = defineStore('chat', () => {
 					hydratedFromPayload.senderAvatar
 				duplicatedByIdentity.quote =
 					duplicatedByIdentity.quote || hydratedFromPayload.quote
+				duplicatedByIdentity.recalled = Boolean(
+					duplicatedByIdentity.recalled ||
+						hydratedFromPayload.recalled,
+				)
+				duplicatedByIdentity.recalledAt =
+					duplicatedByIdentity.recalledAt ||
+					hydratedFromPayload.recalledAt
+				duplicatedByIdentity.recallDeadlineAt =
+					duplicatedByIdentity.recallDeadlineAt ||
+					hydratedFromPayload.recallDeadlineAt
+				if (duplicatedByIdentity.recalled) {
+					duplicatedByIdentity.reactions = []
+					duplicatedByIdentity.quote = undefined
+				}
 				duplicatedByIdentity.deliveryStatus = 'sent'
 				duplicatedByIdentity.hasResult = false
 				duplicatedByIdentity.result = undefined
@@ -2420,6 +2523,18 @@ export const useChatStore = defineStore('chat', () => {
 				hydratedFromPayload.senderAvatar
 			duplicatedByIdentity.quote =
 				duplicatedByIdentity.quote || hydratedFromPayload.quote
+			duplicatedByIdentity.recalled = Boolean(
+				duplicatedByIdentity.recalled || hydratedFromPayload.recalled,
+			)
+			duplicatedByIdentity.recalledAt =
+				duplicatedByIdentity.recalledAt || hydratedFromPayload.recalledAt
+			duplicatedByIdentity.recallDeadlineAt =
+				duplicatedByIdentity.recallDeadlineAt ||
+				hydratedFromPayload.recallDeadlineAt
+			if (duplicatedByIdentity.recalled) {
+				duplicatedByIdentity.reactions = []
+				duplicatedByIdentity.quote = undefined
+			}
 			duplicatedByIdentity.deliveryStatus = 'sent'
 			duplicatedByIdentity.hasResult = false
 			duplicatedByIdentity.result = undefined
@@ -2806,6 +2921,9 @@ export const useChatStore = defineStore('chat', () => {
 				deliveryStatus: row.deliveryStatus,
 				sentAt: row.sentAt,
 				quote: parseMessageQuoteFromDb(row),
+				recalled: !!row.recalled,
+				recalledAt: row.recalledAt || undefined,
+				recallDeadlineAt: row.recallDeadlineAt || undefined,
 			} as Message,
 		}))
 	}
@@ -3090,25 +3208,98 @@ const handleCallSignal = (
 	): string => {
 		const operatorName = String(payload.operatorName || '').trim()
 		if (operatorName) return operatorName
-		const frame = payload as Record<string, unknown>
-		const operatorIdCandidates = [
-			payload.operatorId,
-			frame.operatorAccount,
-			frame.operatorUserId,
-			frame.operatorUid,
-			frame.reactorId,
-			frame.actorId,
-		]
 		const operatorId =
-			operatorIdCandidates
-				.map((value) => String(value || '').trim())
-				.find((value) => !!value) || ''
+			resolveReactionOperatorIdStrict(payload) ||
+			resolveReactionOperatorIdFallback(payload)
 		if (!operatorId) return '有人'
 		if (operatorId === currentAccount) return '你'
 		const friend = friendStore.friends.find(
 			(item) => item.id === operatorId || item.uid === operatorId,
 		)
 		return friend?.remark?.trim() || friend?.name?.trim() || operatorId
+	}
+
+	const resolveReactionOperatorIdStrict = (
+		payload: MessageReactionEventFrame,
+	): string => {
+		const frame = payload as Record<string, unknown>
+		const operatorNode =
+			typeof frame.operator === 'object' && frame.operator !== null
+				? (frame.operator as Record<string, unknown>)
+				: null
+		const candidates: unknown[] = [
+			payload.operatorId,
+			frame.operatorAccount,
+			frame.operatorUserId,
+			frame.operatorUid,
+			frame.reactorId,
+			frame.actorId,
+			operatorNode?.account,
+			operatorNode?.userAccount,
+			operatorNode?.uid,
+			operatorNode?.userId,
+			operatorNode?.id,
+		]
+		for (const item of candidates) {
+			if (item === null || item === undefined) continue
+			if (typeof item === 'object') continue
+			const normalized = String(item).trim()
+			if (normalized) return normalized
+		}
+		return ''
+	}
+
+	const resolveReactionOperatorIdFallback = (
+		payload: MessageReactionEventFrame,
+	): string => {
+		const frame = payload as Record<string, unknown>
+		const fromNode =
+			typeof frame.from === 'object' && frame.from !== null
+				? (frame.from as Record<string, unknown>)
+				: null
+		const candidates: unknown[] = [
+			frame.from,
+			frame.fromAccount,
+			frame.senderAccount,
+			frame.senderId,
+			frame.account,
+			fromNode?.account,
+			fromNode?.userAccount,
+			fromNode?.uid,
+			fromNode?.userId,
+			fromNode?.id,
+		]
+		for (const item of candidates) {
+			if (item === null || item === undefined) continue
+			if (typeof item === 'object') continue
+			const normalized = String(item).trim()
+			if (normalized) return normalized
+		}
+		return ''
+	}
+
+	const resolveReactionAccountId = (value: unknown): string => {
+		if (value === null || value === undefined) return ''
+		if (typeof value === 'string' || typeof value === 'number') {
+			return String(value).trim()
+		}
+		if (typeof value === 'object') {
+			const source = value as Record<string, unknown>
+			const candidates: unknown[] = [
+				source.account,
+				source.userAccount,
+				source.uid,
+				source.userId,
+				source.id,
+			]
+			for (const candidate of candidates) {
+				if (candidate === null || candidate === undefined) continue
+				if (typeof candidate === 'object') continue
+				const normalized = String(candidate).trim()
+				if (normalized) return normalized
+			}
+		}
+		return ''
 	}
 
 	const getReactionEmojiLabel = (
@@ -3396,31 +3587,53 @@ const handleCallSignal = (
 			})
 		}
 
-		const frame = payload as Record<string, unknown>
-		const operatorIdCandidates = [
-			payload.operatorId,
-			frame.operatorAccount,
-			frame.operatorUserId,
-			frame.operatorUid,
-			frame.reactorId,
-			frame.actorId,
-		]
-		const operatorId =
-			operatorIdCandidates
-				.map((value) => String(value || '').trim())
-				.find((value) => !!value) || ''
+		const operatorId = resolveReactionOperatorIdStrict(payload)
 		const actorLabel = getReactionActorLabel(payload, currentAccount)
-		const isSelfReaction = !!operatorId && operatorId === currentAccount
-		if (!isSelfReaction) {
-			const chat = chatlist.value.find(
-				(item) => item.id === (applied ? appliedChatId : chatId || 0),
-			)
+		const frame = payload as Record<string, unknown>
+		const fromAccount =
+			resolveReactionAccountId(payload.from) ||
+			resolveReactionAccountId(frame.fromAccount) ||
+			resolveReactionAccountId(frame.senderAccount)
+		const toAccount =
+			resolveReactionAccountId(payload.to) ||
+			resolveReactionAccountId(frame.toAccount)
+		const isSelfReaction =
+			(!!operatorId && operatorId === currentAccount) ||
+			(!operatorId && !!fromAccount && fromAccount === currentAccount)
+		const resolvedChatId = applied ? appliedChatId : chatId || 0
+		const targetMessage =
+			resolvedChatId > 0
+				? findMessageByIdentity(resolvedChatId, identity)
+				: undefined
+		const targetSenderAccount = String(
+			targetMessage?.senderAccount || '',
+		).trim()
+		const reactedToCurrentUser = !!targetMessage
+			? targetMessage.senderId === 'me' ||
+				(targetSenderAccount &&
+					targetSenderAccount === currentAccount)
+			: false
+		const chat = chatlist.value.find((item) => item.id === resolvedChatId)
+		const systemDelivery =
+			isSystemNotificationChatItem(chat) ||
+			isSystemAccount(fromAccount.toUpperCase()) ||
+			isSystemAccount(toAccount.toUpperCase())
+		const addressedCurrentUser = !!toAccount && toAccount === currentAccount
+		if (
+			!isSelfReaction &&
+			(reactedToCurrentUser || addressedCurrentUser || systemDelivery)
+		) {
 			const emojiLabel = getReactionEmojiLabel(payload)
 			if (debugReaction) {
 				console.info('[chat-reaction-debug] notify-trigger', {
 					operatorId,
+					fromAccount,
+					toAccount,
 					actorLabel,
 					isSelfReaction,
+					reactedToCurrentUser,
+					addressedCurrentUser,
+					systemDelivery,
 					chatName: chat?.name || '聊天',
 					emojiLabel,
 				})
@@ -3432,9 +3645,167 @@ const handleCallSignal = (
 				}`,
 			})
 		} else if (debugReaction) {
-			console.info('[chat-reaction-debug] notify-skipped-self', {
+			console.info('[chat-reaction-debug] notify-skipped', {
 				operatorId,
 				currentAccount,
+				fromAccount,
+				toAccount,
+				isSelfReaction,
+				reactedToCurrentUser,
+				addressedCurrentUser,
+				systemDelivery,
+				resolvedChatId,
+				targetMessageId:
+					targetMessage?.serverMessageId ||
+					targetMessage?.clientMessageId ||
+					targetMessage?.id,
+			})
+		}
+	}
+
+	const unwrapRecallEventPayload = (
+		raw: Record<string, unknown>,
+	): MessageRecallEventFrame => {
+		const payload = raw as MessageRecallEventFrame
+		const firstData =
+			payload.data &&
+			typeof payload.data === 'object' &&
+			!Array.isArray(payload.data)
+				? (payload.data as Record<string, unknown>)
+				: null
+		const secondData =
+			firstData?.data &&
+			typeof firstData.data === 'object' &&
+			!Array.isArray(firstData.data)
+				? (firstData.data as Record<string, unknown>)
+				: null
+		if (firstData || secondData) {
+			return {
+				...payload,
+				...(firstData || {}),
+				...(secondData || {}),
+			} as MessageRecallEventFrame
+		}
+		return payload
+	}
+
+	const shouldHandleRecallEvent = (payload: MessageRecallEventFrame): boolean => {
+		const eventType = String(payload.eventType || '')
+			.trim()
+			.toLowerCase()
+		if (eventType.includes('recall') || eventType.includes('recalled')) {
+			return true
+		}
+		if (payload.recalled === true) return true
+		return String(payload.recalledAt || '').trim().length > 0
+	}
+
+	const resolveRecallMessageIdentity = (
+		payload: MessageRecallEventFrame,
+	): {
+		id?: number
+		serverMessageId?: string
+		clientMessageId?: string
+	} => {
+		const rawMessageId =
+			extractMessageIdFromPayload(payload as unknown as Record<string, unknown>) ||
+			String(payload.messageId || '').trim()
+		return {
+			id: undefined,
+			serverMessageId: rawMessageId || undefined,
+			clientMessageId: String(payload.clientMessageId || '').trim() || undefined,
+		}
+	}
+
+	const handleIncomingRecallEvent = async (
+		raw: Record<string, unknown>,
+	): Promise<void> => {
+		const payload = unwrapRecallEventPayload(raw)
+		if (!shouldHandleRecallEvent(payload)) return
+
+		const dedupKey = [
+			String(payload.chatId || ''),
+			String(payload.groupNo || ''),
+			String(payload.serverMessageId || payload.messageId || ''),
+			String(payload.clientMessageId || ''),
+			String(payload.recalledAt || ''),
+		].join('|')
+		const now = Date.now()
+		for (const [key, ts] of recentRecallEventMap.entries()) {
+			if (now - ts > REACTION_EVENT_DEDUP_TTL_MS) {
+				recentRecallEventMap.delete(key)
+			}
+		}
+		const lastTs = recentRecallEventMap.get(dedupKey) || 0
+		if (dedupKey !== '||||' && now - lastTs < REACTION_EVENT_DEDUP_TTL_MS) {
+			return
+		}
+		recentRecallEventMap.set(dedupKey, now)
+
+		let currentAccount = ''
+		try {
+			currentAccount = getCurrentAccount()
+		} catch {
+			return
+		}
+
+		const chatId = await resolveReactionChatId(
+			payload as unknown as MessageReactionEventFrame,
+			currentAccount,
+		)
+		const identity = resolveRecallMessageIdentity(payload)
+		const recalledAt = String(payload.recalledAt || '').trim() || new Date().toISOString()
+		const recallDeadlineAt =
+			String(payload.recallDeadlineAt || '').trim() || undefined
+		let applied = false
+		let appliedChatId = chatId || 0
+
+		if (chatId) {
+			applied = setMessageRecallLocal(
+				chatId,
+				identity,
+				{
+					recalled: true,
+					recalledAt,
+					recallDeadlineAt,
+				},
+				true,
+			)
+			if (applied) {
+				refreshChatLastMessagePreview(chatId)
+			}
+		}
+
+		if (!applied) {
+			for (const [chatIdKey] of Object.entries(messages.value)) {
+				const candidateChatId = Number(chatIdKey)
+				if (!Number.isFinite(candidateChatId)) continue
+				const hit = setMessageRecallLocal(
+					candidateChatId,
+					identity,
+					{
+						recalled: true,
+						recalledAt,
+						recallDeadlineAt,
+					},
+					true,
+				)
+				if (hit) {
+					applied = true
+					appliedChatId = candidateChatId
+					refreshChatLastMessagePreview(candidateChatId)
+					break
+				}
+			}
+		}
+
+		if (applied) {
+			syncAction('setMessageRecall', {
+				chatId: appliedChatId,
+				messageIdentity: identity,
+				recalled: true,
+				recalledAt,
+				recallDeadlineAt,
 			})
 		}
 	}
@@ -3463,6 +3834,9 @@ const handleCallSignal = (
 			},
 			onReaction: (payload) => {
 				void handleIncomingReactionEvent(payload)
+			},
+			onRecall: (payload) => {
+				void handleIncomingRecallEvent(payload)
 			},
 			onAck: handleWsAck,
 			onError: handleWsError,
@@ -3500,6 +3874,9 @@ const handleCallSignal = (
 			},
 			onReaction: (payload) => {
 				void handleIncomingReactionEvent(payload)
+			},
+			onRecall: (payload) => {
+				void handleIncomingRecallEvent(payload)
 			},
 			onAck: handleGroupWsAck,
 			onError: handleGroupWsError,
@@ -3620,6 +3997,19 @@ const handleCallSignal = (
 							sanitizeMessageReactions(data.reactions),
 							true,
 						)
+						break
+					case 'setMessageRecall':
+						setMessageRecallLocal(
+							data.chatId,
+							data.messageIdentity,
+							{
+								recalled: Boolean(data.recalled),
+								recalledAt: data.recalledAt,
+								recallDeadlineAt: data.recallDeadlineAt,
+							},
+							true,
+						)
+						refreshChatLastMessagePreview(data.chatId)
 						break
 					case 'pinChat':
 						pinChatLocal(data.chatId)
@@ -3819,6 +4209,84 @@ const handleCallSignal = (
 		return true
 	}
 
+	const getMessageRecallDeadlineMs = (message: Message): number => {
+		const explicitDeadline = parseIsoLikeDate(message.recallDeadlineAt || '')
+		if (explicitDeadline) return explicitDeadline.getTime()
+		const sentAt = parseIsoLikeDate(message.sentAt || '')
+		if (!sentAt) return 0
+		return sentAt.getTime() + MESSAGE_RECALL_WINDOW_MS
+	}
+
+	const canRecallMessage = (
+		chatId: number,
+		identity: {
+			id?: number
+			clientMessageId?: string
+			serverMessageId?: string
+		},
+	): boolean => {
+		const target = findMessageByIdentity(chatId, identity)
+		if (!target) return false
+		if (target.senderId !== 'me' || target.recalled) return false
+		const deadlineMs = getMessageRecallDeadlineMs(target)
+		if (!deadlineMs) return true
+		return Date.now() <= deadlineMs
+	}
+
+	const setMessageRecallLocal = (
+		chatId: number,
+		identity: {
+			id?: number
+			clientMessageId?: string
+			serverMessageId?: string
+		},
+		payload: {
+			recalled: boolean
+			recalledAt?: string
+			recallDeadlineAt?: string
+		},
+		persist = true,
+	): boolean => {
+		const target = findMessageByIdentity(chatId, identity)
+		if (!target) return false
+		target.recalled = !!payload.recalled
+		target.recalledAt = payload.recalledAt?.trim() || target.recalledAt
+		target.recallDeadlineAt =
+			payload.recallDeadlineAt?.trim() || target.recallDeadlineAt
+		if (target.recalled) {
+			target.reactions = []
+			target.quote = undefined
+		}
+		if (persist) db.saveMessage(target)
+		return true
+	}
+
+	const refreshChatLastMessagePreview = (chatId: number): void => {
+		const chat = chatlist.value.find((item) => item.id === chatId)
+		if (!chat) return
+		const list = messages.value[chatId] || []
+		if (!list.length) return
+		let latest = list[0]
+		let latestMs = getTimeMs(latest.sentAt || latest.recalledAt || '')
+		for (let i = 1; i < list.length; i += 1) {
+			const row = list[i]
+			const rowMs = getTimeMs(row.sentAt || row.recalledAt || '')
+			if (rowMs >= latestMs) {
+				latest = row
+				latestMs = rowMs
+			}
+		}
+		const preview = getMessagePreview(latest)
+		chat.lastMessage = preview
+		chat.timestamp =
+			latest.timestamp ||
+			(latest.sentAt ? formatTimeFromIso(latest.sentAt) : formatTimeFromIso())
+		if (latest.sentAt?.trim()) {
+			chat.lastMessageAt = latest.sentAt.trim()
+		}
+		db.saveChat(chat)
+	}
+
 	const buildReactionDigest = (reactions: MessageReaction[]): string => {
 		const safe = sanitizeMessageReactions(reactions)
 		return safe
@@ -3983,6 +4451,7 @@ const handleCallSignal = (
 	): Promise<boolean> => {
 		const target = findMessageByIdentity(chatId, identity)
 		if (!target) return false
+		if (target.recalled) return false
 		const reactionKey = reaction.key?.trim()
 		if (!reactionKey) return false
 		const actorId = String(userInfoStore.account || '').trim()
@@ -4064,6 +4533,153 @@ const handleCallSignal = (
 			return false
 		}
 		return true
+	}
+
+	const recallMessage = async (
+		chatId: number,
+		identity: {
+			id?: number
+			clientMessageId?: string
+			serverMessageId?: string
+		},
+	): Promise<{ success: boolean; reason?: string }> => {
+		const target = findMessageByIdentity(chatId, identity)
+		if (!target) {
+			return { success: false, reason: '未找到消息' }
+		}
+		if (target.senderId !== 'me') {
+			return { success: false, reason: '只能撤回自己发送的消息' }
+		}
+		if (target.recalled) {
+			return { success: false, reason: '消息已撤回' }
+		}
+		if (!canRecallMessage(chatId, identity)) {
+			return { success: false, reason: '撤回时间已超过 24 小时' }
+		}
+
+		const pathIdCandidates = [
+			target.serverMessageId?.trim() || '',
+			target.clientMessageId?.trim() || '',
+		].filter(Boolean)
+		if (!pathIdCandidates.length) {
+			return { success: false, reason: '消息尚未同步到服务端，暂不可撤回' }
+		}
+
+		const previousState = {
+			recalled: !!target.recalled,
+			recalledAt: target.recalledAt,
+			recallDeadlineAt: target.recallDeadlineAt,
+			reactions: sanitizeMessageReactions(target.reactions || []),
+			quote: target.quote,
+		}
+		const optimisticRecalledAt = new Date().toISOString()
+		setMessageRecallLocal(
+			chatId,
+			identity,
+			{
+				recalled: true,
+				recalledAt: optimisticRecalledAt,
+			},
+			true,
+		)
+		refreshChatLastMessagePreview(chatId)
+		syncAction('setMessageRecall', {
+			chatId,
+			messageIdentity: {
+				id: target.id,
+				clientMessageId: target.clientMessageId,
+				serverMessageId: target.serverMessageId,
+			},
+			recalled: true,
+			recalledAt: optimisticRecalledAt,
+			recallDeadlineAt: target.recallDeadlineAt,
+		})
+
+		try {
+			const chat = chatlist.value.find((item) => item.id === chatId)
+			const messageType = chat?.chatType === 'GROUP' ? 'GROUP' : 'PRIVATE'
+			let response: Awaited<
+				ReturnType<typeof messageRecallApi.recall>
+			> | null = null
+			let lastError: unknown = null
+			for (const messagePathId of pathIdCandidates) {
+				try {
+					response = await messageRecallApi.recall(messagePathId, {
+						messageType,
+						groupNo:
+							messageType === 'GROUP'
+								? chat?.groupNo?.trim() || undefined
+								: undefined,
+					})
+					break
+				} catch (error) {
+					lastError = error
+				}
+			}
+			if (!response) throw lastError || new Error('撤回请求失败')
+			const recalledAt =
+				String(response.data?.data?.recalledAt || '').trim() ||
+				optimisticRecalledAt
+			const recallDeadlineAt =
+				String(response.data?.data?.recallDeadlineAt || '').trim() ||
+				target.recallDeadlineAt
+			setMessageRecallLocal(
+				chatId,
+				identity,
+				{
+					recalled: true,
+					recalledAt,
+					recallDeadlineAt,
+				},
+				true,
+			)
+			refreshChatLastMessagePreview(chatId)
+			syncAction('setMessageRecall', {
+				chatId,
+				messageIdentity: {
+					id: target.id,
+					clientMessageId: target.clientMessageId,
+					serverMessageId: target.serverMessageId,
+				},
+				recalled: true,
+				recalledAt,
+				recallDeadlineAt,
+			})
+			return { success: true }
+		} catch (error) {
+			setMessageRecallLocal(
+				chatId,
+				identity,
+				{
+					recalled: previousState.recalled,
+					recalledAt: previousState.recalledAt,
+					recallDeadlineAt: previousState.recallDeadlineAt,
+				},
+				false,
+			)
+			const rollbackTarget = findMessageByIdentity(chatId, identity)
+			if (rollbackTarget) {
+				rollbackTarget.reactions = previousState.reactions
+				rollbackTarget.quote = previousState.quote
+				db.saveMessage(rollbackTarget)
+			}
+			refreshChatLastMessagePreview(chatId)
+			syncAction('setMessageRecall', {
+				chatId,
+				messageIdentity: {
+					id: target.id,
+					clientMessageId: target.clientMessageId,
+					serverMessageId: target.serverMessageId,
+				},
+				recalled: previousState.recalled,
+				recalledAt: previousState.recalledAt,
+				recallDeadlineAt: previousState.recallDeadlineAt,
+			})
+			const responseMessage =
+				(error as { response?: { data?: { message?: string } } })
+					?.response?.data?.message || '消息撤回失败，请稍后重试'
+			return { success: false, reason: responseMessage }
+		}
 	}
 
 	const markAsReadLocal = (id: number): void => {
@@ -4947,6 +5563,8 @@ const handleCallSignal = (
 		sendMessage,
 		sendMessageToAccount,
 		toggleMessageReaction,
+		recallMessage,
+		canRecallMessage,
 		pinChat,
 		unpinChat,
 		deleteChat,
@@ -5018,6 +5636,9 @@ export interface Message {
 	sentAt?: string
 	reactions?: MessageReaction[]
 	quote?: ComposerMessageQuote
+	recalled?: boolean
+	recalledAt?: string
+	recallDeadlineAt?: string
 }
 
 export interface MessageQuote {

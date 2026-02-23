@@ -15,6 +15,9 @@ export interface PrivateChatMessageFrame {
 	quote?: MessageQuote
 	clientMessageId?: string
 	sentAt?: string
+	recalled?: boolean
+	recalledAt?: string
+	recallDeadlineAt?: string
 }
 
 export interface PrivateChatAckFrame {
@@ -75,6 +78,7 @@ export interface PrivateCallSignalFrame {
 interface PrivateChatWsHandlers {
 	onMessage?: (payload: PrivateChatMessageFrame) => void
 	onReaction?: (payload: Record<string, unknown>) => void
+	onRecall?: (payload: Record<string, unknown>) => void
 	onAck?: (payload: PrivateChatAckFrame) => void
 	onError?: (payload: PrivateChatErrorFrame) => void
 	onIncomingCall?: (payload: PrivateIncomingCallFrame) => void
@@ -169,6 +173,10 @@ class PrivateChatWsService {
 					string,
 					unknown
 				>
+					if (this.isRecallLikeFrame(payload)) {
+						this.handlers.onRecall?.(payload)
+						return
+					}
 					if (this.isReactionLikeFrame(payload)) {
 						if (this.shouldLogReactionDebug()) {
 							console.info('[chat-reaction-debug][ws-private]', {
@@ -300,6 +308,24 @@ class PrivateChatWsService {
 				}
 			})
 		}
+
+		const recallDestinations = [
+			'/user/queue/messages.recalled',
+			'/user/queue/message.recalled',
+		]
+		for (const destination of recallDestinations) {
+			this.subscribeOnce(destination, (frame) => {
+				try {
+					const payload = JSON.parse(frame.body) as Record<
+						string,
+						unknown
+					>
+					this.handlers.onRecall?.(payload)
+				} catch (error) {
+					console.error('解析私聊撤回事件失败:', error)
+				}
+			})
+		}
 	}
 
 	private subscribeOnce(
@@ -335,6 +361,17 @@ class PrivateChatWsService {
 		return directFields.some(
 			(value) => String(value || '').trim().length > 0,
 		)
+	}
+
+	private isRecallLikeFrame(payload: Record<string, unknown>): boolean {
+		const eventType = String(payload.eventType || '')
+			.trim()
+			.toLowerCase()
+		if (eventType.includes('recall') || eventType.includes('recalled')) {
+			return true
+		}
+		if (payload.recalled === true) return true
+		return String(payload.recalledAt || '').trim().length > 0
 	}
 
 	sendPrivate(

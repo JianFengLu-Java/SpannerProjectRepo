@@ -144,7 +144,7 @@ onMounted(() => {
 	flex-direction: column;
 	gap: 8px;
 	padding: 8px;
-	background: linear-gradient(135deg, #f5f9ff 0%, #edf4ff 48%, #e4efff 100%);
+	background: #fff;
 }
 
 .docs-manage-header {

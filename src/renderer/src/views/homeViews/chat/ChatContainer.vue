@@ -349,6 +349,12 @@ const getMessageIdentity = (
 	}
 }
 
+const isMessageRecallable = (item: Message): boolean => {
+	const chatId = activeChat.value?.id
+	if (!chatId) return false
+	return chatStore.canRecallMessage(chatId, getMessageIdentity(item))
+}
+
 const closeReactionPicker = (): void => {
 	showReactionPicker.value = false
 	reactionTarget.value = null
@@ -480,8 +486,14 @@ const onShowMenu = (
 			{ type: 'divider', key: 'd1' },
 			{ label: '删除', key: 'delete' },
 		]
-		if (msg.senderId !== 'me') {
+		if (msg.senderId !== 'me' && !msg.recalled) {
 			imageOptions.unshift({ label: '表情回复', key: 'reaction' })
+		} else if (msg.senderId === 'me') {
+			imageOptions.unshift({
+				label: '撤回',
+				key: 'recall',
+				disabled: !isMessageRecallable(msg),
+			})
 		}
 		imageOptions.splice(1, 0, { label: '引用', key: 'quote' })
 		currentOptions.value = imageOptions
@@ -496,8 +508,14 @@ const onShowMenu = (
 			{ type: 'divider', key: 'd1' },
 			{ label: '删除', key: 'delete' },
 		]
-		if (msg.senderId !== 'me') {
+		if (msg.senderId !== 'me' && !msg.recalled) {
 			textOptions.splice(1, 0, { label: '表情回复', key: 'reaction' })
+		} else if (msg.senderId === 'me') {
+			textOptions.splice(1, 0, {
+				label: '撤回',
+				key: 'recall',
+				disabled: !isMessageRecallable(msg),
+			})
 		}
 		textOptions.splice(1, 0, { label: '引用', key: 'quote' })
 		currentOptions.value = textOptions
@@ -601,6 +619,20 @@ const handleMenuSelect = (key: string): void => {
 				openReactionPickerFromMenu(msg)
 			}
 			break
+		case 'recall': {
+			const chatId = activeChat.value?.id
+			if (!msg || !chatId) return
+			void chatStore
+				.recallMessage(chatId, getMessageIdentity(msg))
+				.then((result) => {
+					if (result.success) {
+						message.success('消息已撤回')
+					} else {
+						message.error(result.reason || '消息撤回失败')
+					}
+				})
+			break
+		}
 		case 'copy': {
 			const text = extra?.text || msg?.text?.replace(/<[^>]*>/g, '') || ''
 			navigator.clipboard.writeText(text)
@@ -1079,8 +1111,9 @@ onBeforeUnmount(() => {
 					:sender-avatar="item.senderAvatar || ''"
 					:avatar="resolveMessageAvatar(item)"
 					:time="item.timestamp"
-					:reaction-items="getRenderableReactions(item)"
+					:reaction-items="item.recalled ? [] : getRenderableReactions(item)"
 					:quote="item.quote"
+					:recalled="item.recalled"
 					@image-loaded="handleImageLoaded"
 					@jump-to-quote="(id) => handleQuoteJump(id, item)"
 					@avatar-contextmenu="

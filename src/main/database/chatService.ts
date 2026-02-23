@@ -40,6 +40,9 @@ export interface DbMessage {
 	quotedFromAccount?: string
 	quotedFromName?: string
 	quotedContent?: string
+	recalled?: number
+	recalledAt?: string
+	recallDeadlineAt?: string
 }
 
 export interface DbMessageSearchResult extends DbMessage {
@@ -202,7 +205,7 @@ export const chatService = {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			db.all(
-				'SELECT id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent FROM user_messages WHERE userAccount = ? AND chatId = ? ORDER BY CASE WHEN sentAt IS NULL OR sentAt = \'\' THEN 1 ELSE 0 END ASC, sentAt ASC, id ASC',
+				'SELECT id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent, recalled, recalledAt, recallDeadlineAt FROM user_messages WHERE userAccount = ? AND chatId = ? ORDER BY CASE WHEN sentAt IS NULL OR sentAt = \'\' THEN 1 ELSE 0 END ASC, sentAt ASC, id ASC',
 				[userAccount, chatId],
 				(err, rows) => {
 					if (err) reject(err)
@@ -225,9 +228,9 @@ export const chatService = {
 		return new Promise((resolve, reject) => {
 			db.all(
 				`
-				SELECT id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent
+				SELECT id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent, recalled, recalledAt, recallDeadlineAt
 				FROM (
-					SELECT id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent
+					SELECT id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent, recalled, recalledAt, recallDeadlineAt
 					FROM user_messages
 					WHERE userAccount = ? AND chatId = ?
 					ORDER BY CASE WHEN sentAt IS NULL OR sentAt = '' THEN 1 ELSE 0 END ASC, sentAt DESC, id DESC
@@ -249,8 +252,8 @@ export const chatService = {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			const stmt = db.prepare(`
-				INSERT OR REPLACE INTO user_messages (userAccount, id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT OR REPLACE INTO user_messages (userAccount, id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent, recalled, recalledAt, recallDeadlineAt)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`)
 			stmt.run(
 				[
@@ -275,6 +278,9 @@ export const chatService = {
 					message.quotedFromAccount || null,
 					message.quotedFromName || null,
 					message.quotedContent || null,
+					message.recalled || 0,
+					message.recalledAt || null,
+					message.recallDeadlineAt || null,
 				],
 				(err: Error | null) => {
 					if (err) reject(err)
@@ -319,7 +325,11 @@ export const chatService = {
 					m.reactions,
 					m.quotedMessageId,
 					m.quotedFromAccount,
+					m.quotedFromName,
 					m.quotedContent,
+					m.recalled,
+					m.recalledAt,
+					m.recallDeadlineAt,
 					c.name AS chatName
 				FROM user_messages m
 				INNER JOIN user_chats c
