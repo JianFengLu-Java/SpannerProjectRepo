@@ -413,15 +413,16 @@ const promoBanners = [
 	},
 ] as const
 
-const hotTags = [
-	'猫咪大赏',
-	'程序员的日常',
-	'深圳探店',
-	'极简主义',
-	'今日份穿搭',
-	'读书分享',
-	'我的独处时光',
-]
+// hot tags 暂未使用；保留数据仅做示例，不参与渲染逻辑
+// const hotTags = [
+// 	'猫咪大赏',
+// 	'程序员的日常',
+// 	'深圳探店',
+// 	'极简主义',
+// 	'今日份穿搭',
+// 	'读书分享',
+// 	'我的独处时光',
+// ]
 
 const filteredMoments = computed(() => {
 	return momentStore.moments

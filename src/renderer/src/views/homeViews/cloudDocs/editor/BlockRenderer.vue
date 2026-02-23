@@ -394,15 +394,15 @@ onBeforeUnmount(() => {
 	gap: 8px;
 	max-width: 360px;
 	padding: 6px 10px;
-	border: 1px solid #d9d9d9;
+	border: 1px solid color-mix(in srgb, var(--color-border-default) 82%, transparent);
 	border-radius: 8px;
-	background: rgba(255, 255, 255, 0.78);
+	background: color-mix(in srgb, var(--color-card-bg) 82%, transparent);
 	backdrop-filter: blur(4px);
-	color: #2f3437;
+	color: var(--color-text-main);
 }
 
 .drag-preview-dot {
-	color: #8a8f98;
+	color: color-mix(in srgb, var(--color-text-main) 56%, transparent);
 	font-size: 12px;
 	line-height: 1;
 }

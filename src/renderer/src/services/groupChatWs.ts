@@ -7,6 +7,11 @@ export interface GroupChatMessageFrame {
 	groupNo: string
 	from: string
 	content: string
+	formName?: string
+	fromName?: string
+	fromRealName?: string
+	fromAvatarUrl?: string
+	fromAvatar?: string
 	quote?: MessageQuote
 	clientMessageId?: string
 	sentAt?: string
@@ -46,6 +51,15 @@ class GroupChatWsService {
 	private connecting = false
 
 	private subscriptionMap = new Map<string, StompSubscription>()
+
+	private shouldLogReactionDebug(): boolean {
+		if (!import.meta.env.DEV) return false
+		try {
+			return window.localStorage.getItem('chat-reaction-debug') === '1'
+		} catch {
+			return false
+		}
+	}
 
 	connect(token: string, handlers: GroupChatWsHandlers = {}): void {
 		const normalized = token.trim().replace(/^Bearer\s+/i, '')
@@ -105,8 +119,21 @@ class GroupChatWsService {
 
 		this.subscribeOnce('/user/queue/group.messages', (frame) => {
 			try {
-				const payload = JSON.parse(frame.body) as GroupChatMessageFrame
-				this.handlers.onMessage?.(payload)
+				const payload = JSON.parse(frame.body) as Record<
+					string,
+					unknown
+				>
+					if (this.isReactionLikeFrame(payload)) {
+						if (this.shouldLogReactionDebug()) {
+							console.info('[chat-reaction-debug][ws-group]', {
+								destination: '/user/queue/group.messages',
+								payload,
+							})
+						}
+						this.handlers.onReaction?.(payload)
+						return
+					}
+				this.handlers.onMessage?.(payload as unknown as GroupChatMessageFrame)
 			} catch (error) {
 				console.error('解析群聊消息失败:', error)
 			}
@@ -135,16 +162,28 @@ class GroupChatWsService {
 			'/user/queue/group.reactions',
 			'/user/queue/message.reactions',
 			'/user/queue/reactions',
+			'/user/queue/reaction',
+			'/user/queue/message.reaction',
+			'/user/queue/message.reply',
+			'/user/queue/message.reply_info',
+			'/user/queue/reply_info',
+			'/user/queue/reply-info',
 		]
 		for (const destination of reactionDestinations) {
 			this.subscribeOnce(destination, (frame) => {
 				try {
-					const payload = JSON.parse(frame.body) as Record<
-						string,
-						unknown
-					>
-					this.handlers.onReaction?.(payload)
-				} catch (error) {
+						const payload = JSON.parse(frame.body) as Record<
+							string,
+							unknown
+						>
+						if (this.shouldLogReactionDebug()) {
+							console.info('[chat-reaction-debug][ws-group]', {
+								destination,
+								payload,
+							})
+						}
+						this.handlers.onReaction?.(payload)
+					} catch (error) {
 					console.error('解析群聊表情回应事件失败:', error)
 				}
 			})
@@ -159,6 +198,31 @@ class GroupChatWsService {
 		if (this.subscriptionMap.has(destination)) return
 		const sub = this.client.subscribe(destination, callback)
 		this.subscriptionMap.set(destination, sub)
+	}
+
+	private isReactionLikeFrame(payload: Record<string, unknown>): boolean {
+		const eventType = String(payload.eventType || '')
+			.trim()
+			.toLowerCase()
+		if (
+			eventType.includes('reaction') ||
+			eventType.includes('react') ||
+			eventType.includes('reply')
+		) {
+			return true
+		}
+		if (Array.isArray(payload.reactions) && payload.reactions.length > 0) {
+			return true
+		}
+		const directFields = [
+			payload.reaction,
+			payload.reactionEmoji,
+			payload.reactionKey,
+			payload.emoji,
+		]
+		return directFields.some(
+			(value) => String(value || '').trim().length > 0,
+		)
 	}
 
 	sendGroup(

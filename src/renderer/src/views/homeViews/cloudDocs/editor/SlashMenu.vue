@@ -73,9 +73,9 @@ const emit = defineEmits<{
 	max-height: 360px;
 	overflow-y: auto;
 	padding: 8px;
-	border: 1px solid rgba(0, 0, 0, 0.08);
+	border: 1px solid color-mix(in srgb, var(--color-border-default) 84%, transparent);
 	border-radius: 12px;
-	background: #ffffff;
+	background: var(--color-card-bg);
 	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
 	font-family:
 		-apple-system,
@@ -93,8 +93,8 @@ const emit = defineEmits<{
 	height: 28px;
 	padding: 0 10px;
 	border-radius: 6px;
-	background: rgba(0, 0, 0, 0.04);
-	color: #888;
+	background: color-mix(in srgb, var(--color-border-default) 58%, transparent);
+	color: color-mix(in srgb, var(--color-text-main) 62%, transparent);
 	font-size: 12px;
 	margin-bottom: 8px;
 	font-weight: 500;
@@ -129,17 +129,17 @@ const emit = defineEmits<{
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	border: 1px solid rgba(0, 0, 0, 0.06);
+	border: 1px solid color-mix(in srgb, var(--color-border-default) 78%, transparent);
 	border-radius: 8px;
-	color: #555;
-	background: #ffffff;
+	color: color-mix(in srgb, var(--color-text-main) 72%, transparent);
+	background: color-mix(in srgb, var(--color-card-bg) 92%, transparent);
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .slash-item-fallback {
 	font-size: 14px;
 	line-height: 1;
-	color: #999;
+	color: color-mix(in srgb, var(--color-text-main) 52%, transparent);
 }
 
 .slash-item-main {
@@ -161,7 +161,7 @@ const emit = defineEmits<{
 .slash-item-label {
 	font-size: 14px;
 	font-weight: 600;
-	color: #333;
+	color: var(--color-text-main);
 }
 
 .slash-item-group {
@@ -169,14 +169,14 @@ const emit = defineEmits<{
 	line-height: 1;
 	padding: 3px 6px;
 	border-radius: 4px;
-	background: rgba(0, 0, 0, 0.06);
-	color: #666;
+	background: color-mix(in srgb, var(--color-border-default) 62%, transparent);
+	color: color-mix(in srgb, var(--color-text-main) 64%, transparent);
 	font-weight: 500;
 }
 
 .slash-item-desc {
 	font-size: 12px;
-	color: #888;
+	color: color-mix(in srgb, var(--color-text-main) 58%, transparent);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -189,7 +189,11 @@ const emit = defineEmits<{
 .slash-empty {
 	padding: 24px 16px;
 	text-align: center;
-	color: #999;
+	color: color-mix(in srgb, var(--color-text-main) 54%, transparent);
 	font-size: 13px;
+}
+
+:global(.dark) .slash-menu {
+	box-shadow: 0 12px 36px rgba(0, 0, 0, 0.42), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 </style>

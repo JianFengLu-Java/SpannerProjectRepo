@@ -8,6 +8,7 @@ import ChatMessage from './ChatMessage.vue'
 import EmojiPicker from '@renderer/components/EmojiPicker.vue'
 import { resolveAvatarUrl } from '@renderer/utils/avatar'
 import { useMessage } from 'naive-ui'
+import { requestMessageJumpByIdentifier } from './utils/messageJump'
 
 interface MenuContextExtra {
 	text?: string
@@ -26,8 +27,10 @@ const friendStore = useFriendStore()
 const message = useMessage()
 const { friends } = storeToRefs(friendStore)
 const groupMemberProfileMap = ref<
-	Record<string, { name?: string; avatar?: string }>
+	Record<string, { name?: string; avatar?: string; isVip?: boolean }>
 >({})
+const groupMemberNameAccountMap = ref<Record<string, string>>({})
+const groupMemberVipCacheMap = ref<Record<string, boolean>>({})
 
 const viewportRef = ref<HTMLElement | null>(null)
 const messageItemRefMap = new Map<string, HTMLElement>()
@@ -61,24 +64,93 @@ const isSystemNotificationChat = computed(
 
 const normalizeAccount = (value?: string): string => value?.trim() || ''
 
+const normalizeVipFlag = (...candidates: unknown[]): boolean | undefined => {
+	for (const value of candidates) {
+		if (typeof value === 'boolean') return value
+		if (typeof value === 'number') return value > 0
+		if (typeof value === 'string') {
+			const normalized = value.trim().toLowerCase()
+			if (
+				normalized === 'true' ||
+				normalized === '1' ||
+				normalized === 'yes' ||
+				normalized === 'vip'
+			) {
+				return true
+			}
+			if (
+				normalized === 'false' ||
+				normalized === '0' ||
+				normalized === 'no'
+			) {
+				return false
+			}
+		}
+	}
+	return undefined
+}
+
+const resolveMemberVip = (member: unknown): boolean | undefined => {
+	const row = member as Record<string, unknown>
+	const userInfo =
+		row?.userInfo && typeof row.userInfo === 'object'
+			? (row.userInfo as Record<string, unknown>)
+			: null
+	return normalizeVipFlag(row?.isVip, userInfo?.isVip)
+}
+
 const refreshActiveGroupMemberProfiles = async (): Promise<void> => {
 	const groupNo = activeChat.value?.groupNo?.trim()
 	if (!isGroupChatActive.value || !groupNo) {
 		groupMemberProfileMap.value = {}
+		groupMemberNameAccountMap.value = {}
+		groupMemberVipCacheMap.value = {}
 		return
 	}
 	try {
+		const prevMap = groupMemberProfileMap.value
+		const prevVipCache = groupMemberVipCacheMap.value
 		const members = await chatStore.getGroupMembers(groupNo)
-		const nextMap: Record<string, { name?: string; avatar?: string }> = {}
+		const nextMap: Record<
+			string,
+			{ name?: string; avatar?: string; isVip?: boolean }
+		> = {}
+		const nextVipCache: Record<string, boolean> = { ...prevVipCache }
+		const nameBuckets = new Map<string, Set<string>>()
 		for (const member of members) {
 			const account = normalizeAccount(member.account)
 			if (!account) continue
+			const memberName = member.name?.trim() || undefined
+			const resolvedVip = resolveMemberVip(member)
+			const cachedVip =
+				typeof resolvedVip === 'boolean'
+					? resolvedVip
+					: typeof prevMap[account]?.isVip === 'boolean'
+						? prevMap[account].isVip
+						: prevVipCache[account]
 			nextMap[account] = {
-				name: member.name?.trim() || undefined,
+				name: memberName,
 				avatar: member.avatarUrl?.trim() || undefined,
+				isVip: cachedVip,
+			}
+			if (typeof cachedVip === 'boolean') {
+				nextVipCache[account] = cachedVip
+			}
+			if (memberName) {
+				const set = nameBuckets.get(memberName) || new Set<string>()
+				set.add(account)
+				nameBuckets.set(memberName, set)
 			}
 		}
 		groupMemberProfileMap.value = nextMap
+		groupMemberVipCacheMap.value = nextVipCache
+		const nextNameMap: Record<string, string> = {}
+		for (const [name, set] of nameBuckets.entries()) {
+			if (set.size === 1) {
+				nextNameMap[name] = Array.from(set)[0]
+			}
+		}
+		groupMemberNameAccountMap.value = nextNameMap
 	} catch (error) {
 		console.warn('拉取群成员资料失败:', error)
 	}
@@ -87,6 +159,13 @@ const refreshActiveGroupMemberProfiles = async (): Promise<void> => {
 const resolveMessageSenderAccount = (item: Message): string => {
 	const account = normalizeAccount(item.senderAccount)
 	if (account) return account
+	if (isGroupChatActive.value) {
+		const senderName = item.senderName?.trim()
+		if (senderName) {
+			const mapped = normalizeAccount(groupMemberNameAccountMap.value[senderName])
+			if (mapped) return mapped
+		}
+	}
 	if (item.senderId === 'me') {
 		return normalizeAccount(userInfo.account)
 	}
@@ -105,14 +184,9 @@ const resolveMessageName = (item: Message): string => {
 		const groupProfile = senderAccount
 			? groupMemberProfileMap.value[senderAccount]
 			: undefined
-		const friendProfile = senderAccount
-			? friends.value.find((friend) => friend.id === senderAccount)
-			: undefined
 		return (
 			item.senderName?.trim() ||
 			groupProfile?.name?.trim() ||
-			friendProfile?.remark?.trim() ||
-			friendProfile?.name?.trim() ||
 			senderAccount ||
 			'群成员'
 		)
@@ -126,10 +200,15 @@ const resolveMessageSenderIsVip = (item: Message): boolean => {
 	}
 	const senderAccount = resolveMessageSenderAccount(item)
 	if (!senderAccount) return false
-	const friendProfile = friends.value.find(
-		(friend) => friend.id === senderAccount || friend.uid === senderAccount,
-	)
-	return Boolean(friendProfile?.isVip)
+	const groupProfile = groupMemberProfileMap.value[senderAccount]
+	if (typeof groupProfile?.isVip === 'boolean') {
+		return groupProfile.isVip
+	}
+	const cachedVip = groupMemberVipCacheMap.value[senderAccount]
+	if (typeof cachedVip === 'boolean') {
+		return cachedVip
+	}
+	return false
 }
 
 const resolveMessageAvatar = (item: Message): string => {
@@ -143,13 +222,9 @@ const resolveMessageAvatar = (item: Message): string => {
 		const groupProfile = senderAccount
 			? groupMemberProfileMap.value[senderAccount]
 			: undefined
-		const friendProfile = senderAccount
-			? friends.value.find((friend) => friend.id === senderAccount)
-			: undefined
 		const candidate =
 			item.senderAvatar?.trim() ||
 			groupProfile?.avatar?.trim() ||
-			friendProfile?.avatar?.trim() ||
 			''
 		return resolveAvatarUrl(candidate)
 	}
@@ -260,7 +335,9 @@ const getTransferStatus = (
 	return transferStatusMap.value[businessNo] || 'pending'
 }
 
-const getMessageIdentity = (item: Message): {
+const getMessageIdentity = (
+	item: Message,
+): {
 	id?: number
 	clientMessageId?: string
 	serverMessageId?: string
@@ -329,9 +406,7 @@ const resolveReactionUserName = (account: string): string => {
 	return normalized
 }
 
-const getReactionUserLabel = (
-	userIds: string[],
-): string => {
+const getReactionUserLabel = (userIds: string[]): string => {
 	const names: string[] = []
 	const seen = new Set<string>()
 	for (const userId of userIds) {
@@ -359,6 +434,19 @@ const getRenderableReactions = (
 					Array.isArray(reaction.userIds) ? reaction.userIds : [],
 				) || `x${Math.max(1, Number(reaction.count || 0))}`,
 		}))
+}
+
+const handleQuoteJump = (quoteMessageId: string, origin: Message): void => {
+	if (!quoteMessageId) return
+	const chatId = activeChat.value?.id
+	if (!chatId) return
+	requestMessageJumpByIdentifier({
+		chatStore,
+		chatId,
+		loadedMessages: props.messages,
+		targetIdentifier: quoteMessageId,
+		fallbackMessage: origin,
+	})
 }
 
 const handleGlobalPointerDown = (event: MouseEvent): void => {
@@ -472,13 +560,13 @@ const insertMentionFromAvatarMenu = (): void => {
 	)
 }
 
-	const handleMenuSelect = (key: string): void => {
-		showDropdown.value = false
-		closeReactionPicker()
-		if (key === 'mention-user') {
-			insertMentionFromAvatarMenu()
-			return
-		}
+const handleMenuSelect = (key: string): void => {
+	showDropdown.value = false
+	closeReactionPicker()
+	if (key === 'mention-user') {
+		insertMentionFromAvatarMenu()
+		return
+	}
 	if (key === 'add-friend') {
 		const payload = avatarMenuData.value
 		if (!payload?.account) return
@@ -492,10 +580,10 @@ const insertMentionFromAvatarMenu = (): void => {
 			})
 		return
 	}
-		avatarMenuData.value = null
-		const { extra, msg } = contextData.value || {}
+	avatarMenuData.value = null
+	const { extra, msg } = contextData.value || {}
 
-		switch (key) {
+	switch (key) {
 		case 'quote': {
 			const chatId = activeChat.value?.id
 			if (!chatId || !msg) return
@@ -713,16 +801,21 @@ const jumpToTargetMessage = (): void => {
 			if (!key) return
 			const targetEl = messageItemRefMap.get(key)
 			if (!targetEl) return
-			targetEl.scrollIntoView({ block: 'center', behavior: 'smooth' })
-			highlightedMessageKey.value = key
-			if (jumpHighlightTimer) {
-				clearTimeout(jumpHighlightTimer)
-			}
-			jumpHighlightTimer = setTimeout(() => {
-				highlightedMessageKey.value = ''
-				jumpHighlightTimer = null
-			}, 1800)
-			chatStore.clearMessageJump()
+
+			// 先同步滚动到视图，再独立触发闪烁，避免滚动期间卡顿
+			targetEl.scrollIntoView({ block: 'center', behavior: 'auto' })
+
+			requestAnimationFrame(() => {
+				highlightedMessageKey.value = key
+				if (jumpHighlightTimer) {
+					clearTimeout(jumpHighlightTimer)
+				}
+				jumpHighlightTimer = setTimeout(() => {
+					highlightedMessageKey.value = ''
+					jumpHighlightTimer = null
+				}, 1200)
+				chatStore.clearMessageJump()
+			})
 		})
 	})
 }
@@ -734,8 +827,7 @@ const handleImageLoaded = (): void => {
 		viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
 	if (
 		!userDetachedFromBottom.value &&
-		(shouldStickToBottom.value ||
-			distanceToBottom < BOTTOM_STICK_THRESHOLD)
+		(shouldStickToBottom.value || distanceToBottom < BOTTOM_STICK_THRESHOLD)
 	) {
 		scrollToLatestMessage('auto')
 	}
@@ -847,7 +939,10 @@ watch(
 		if (isAppend) {
 			const latestMessage = props.messages[newLen - 1]
 			const isOutgoing = latestMessage?.senderId === 'me'
-			if (!isOutgoing && (userDetachedFromBottom.value || !nearBottomBeforeAppend)) {
+			if (
+				!isOutgoing &&
+				(userDetachedFromBottom.value || !nearBottomBeforeAppend)
+			) {
 				return
 			}
 			scrollToLatestMessage('auto')
@@ -978,11 +1073,16 @@ onBeforeUnmount(() => {
 					:sender-account="resolveMessageSenderAccount(item)"
 					:sender-is-vip="resolveMessageSenderIsVip(item)"
 					:is-me="item.senderId === 'me'"
-					:enable-avatar-menu="isGroupChatActive && item.senderId !== 'me'"
+					:enable-avatar-menu="
+						isGroupChatActive && item.senderId !== 'me'
+					"
+					:sender-avatar="item.senderAvatar || ''"
 					:avatar="resolveMessageAvatar(item)"
 					:time="item.timestamp"
 					:reaction-items="getRenderableReactions(item)"
+					:quote="item.quote"
 					@image-loaded="handleImageLoaded"
+					@jump-to-quote="(id) => handleQuoteJump(id, item)"
 					@avatar-contextmenu="
 						(e, extra) => onShowAvatarMenu(e, extra || {})
 					"
@@ -1027,10 +1127,9 @@ onBeforeUnmount(() => {
 				@select-custom="
 					(item) =>
 						pickReaction({
-							key:
-								item?.token?.trim()
-									? `t:${item.token.trim()}`
-									: `i:${item?.url || ''}`,
+							key: item?.token?.trim()
+								? `t:${item.token.trim()}`
+								: `i:${item?.url || ''}`,
 							emoji: item?.token || item?.name || '',
 							imageUrl: item?.url || '',
 						})

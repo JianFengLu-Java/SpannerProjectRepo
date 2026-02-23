@@ -71,6 +71,13 @@ export interface MomentAboutMeItem {
 	createdAt?: string
 }
 
+export interface MomentSystemNotificationMessage {
+	from?: string
+	content?: string
+	messageId?: string
+	sentAt?: string
+}
+
 export interface Moment {
 	id: string
 	title: string
@@ -143,6 +150,13 @@ const MAX_CACHE_LIST_COUNT = 12
 const MAX_CACHE_ITEMS_PER_LIST = 80
 const MAX_COMMENT_CACHE_MOMENTS = 120
 const MAX_COMMENTS_PER_MOMENT = 40
+const MOMENT_SYSTEM_NOTICE_THROTTLE_MS = 1200
+const MOMENT_SYSTEM_NOTICE_PATTERNS = [
+	/赞了你的动态/,
+	/点赞了你的动态/,
+	/评论了你的动态/,
+	/回复了你的评论/,
+]
 
 const asString = (value: unknown): string => {
 	return typeof value === 'string' ? value : ''
@@ -283,6 +297,8 @@ export const useMomentStore = defineStore('moment', () => {
 	const aboutMeLoading = ref(false)
 	let listFetchSeq = 0
 	let aboutMeFetchSeq = 0
+	let aboutMeRefreshTimer: ReturnType<typeof setTimeout> | null = null
+	let aboutMeLastRefreshAt = 0
 
 	const selectedMoment = computed(() => {
 		return (
@@ -844,6 +860,48 @@ export const useMomentStore = defineStore('moment', () => {
 		}
 	}
 
+	const isMomentSystemNotification = (content: string): boolean => {
+		const normalized = content.trim()
+		if (!normalized) return false
+		return MOMENT_SYSTEM_NOTICE_PATTERNS.some((pattern) =>
+			pattern.test(normalized),
+		)
+	}
+
+	const triggerAboutMeRefresh = (): void => {
+		aboutMeLastRefreshAt = Date.now()
+		void fetchAboutMe({ reset: true }).catch((error) => {
+			console.warn('动态系统消息触发 about-me 刷新失败:', error)
+		})
+	}
+
+	const handleSystemNotificationMessage = (
+		message: MomentSystemNotificationMessage,
+	): boolean => {
+		const from = asString(message.from).trim().toUpperCase()
+		if (from && from !== 'SYSTEM' && from !== 'S') return false
+		const content = asString(message.content)
+		if (!isMomentSystemNotification(content)) return false
+
+		const now = Date.now()
+		const waitMs = Math.max(
+			0,
+			MOMENT_SYSTEM_NOTICE_THROTTLE_MS - (now - aboutMeLastRefreshAt),
+		)
+		if (waitMs === 0 && !aboutMeLoading.value) {
+			triggerAboutMeRefresh()
+			return true
+		}
+		if (aboutMeRefreshTimer) {
+			clearTimeout(aboutMeRefreshTimer)
+		}
+		aboutMeRefreshTimer = setTimeout(() => {
+			aboutMeRefreshTimer = null
+			triggerAboutMeRefresh()
+		}, waitMs || 200)
+		return true
+	}
+
 	hydrateFromCache()
 	hydrateCommentCache()
 	hydrateMomentCommentsFromCache()
@@ -872,5 +930,6 @@ export const useMomentStore = defineStore('moment', () => {
 		aboutMeHasMore,
 		aboutMeLoading,
 		fetchAboutMe,
+		handleSystemNotificationMessage,
 	}
 })

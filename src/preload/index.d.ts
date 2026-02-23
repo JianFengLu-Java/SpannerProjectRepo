@@ -15,6 +15,10 @@ declare global {
 				chatName: string
 				chatAvatar?: string
 				startConnected?: boolean
+				type?: 'video' | 'audio'
+				callId?: string
+				peerAccount?: string
+				role?: 'caller' | 'callee'
 			}) => void
 			openIncomingCallWindow: (payload: {
 				callId: string

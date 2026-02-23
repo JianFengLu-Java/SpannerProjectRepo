@@ -16,7 +16,11 @@
 					<div class="flex items-center gap-1">
 						<span
 							class="text-[16px] no-drag font-medium w-fit"
-							:class="currentChatIsVip ? 'text-red-500' : 'text-text-main'"
+							:class="
+								currentChatIsVip
+									? 'text-red-500'
+									: 'text-text-main'
+							"
 							>{{ currentChat?.name }}</span
 						>
 						<img
@@ -99,183 +103,24 @@
 		>
 			<n-drawer-content
 				:native-scrollbar="false"
-				:body-content-style="{ padding: '0', height: '100%', overflow: 'hidden' }"
+				:body-content-style="{
+					padding: '0',
+					height: '100%',
+					overflow: 'hidden',
+				}"
 			>
-				<ChatFriendSettingPanel @close="showFriendSettingDrawer = false" />
+				<ChatFriendSettingPanel
+					@close="showFriendSettingDrawer = false"
+				/>
 			</n-drawer-content>
 		</n-drawer>
 
-		<n-modal
+		<chat-history-search-modal
 			v-model:show="showHistorySearchModal"
-			:mask-closable="false"
-			transform-origin="center"
-		>
-			<div class="next-search-modal w-[640px] max-h-[90vh] flex flex-col">
-				<!-- Header -->
-				<div class="modal-header-section">
-					<div class="flex items-center justify-between w-full mb-6">
-						<div class="icon-orb bg-white/20 backdrop-blur-md">
-							<n-icon size="24" class="text-white">
-								<Search />
-							</n-icon>
-						</div>
-						<button
-							class="close-orb hover:bg-white/10 transition-colors"
-							@click="showHistorySearchModal = false"
-						>
-							<n-icon size="20" class="text-white/80">
-								<Dismiss24Regular />
-							</n-icon>
-						</button>
-					</div>
-					<div class="text-white">
-						<h3 class="text-xl font-bold mb-1">搜索聊天记录</h3>
-						<p class="text-white/60 text-xs">
-							查找 {{ currentChat?.name }} 的历史消息
-						</p>
-					</div>
-				</div>
-
-				<!-- Body -->
-				<div
-					class="p-6 bg-white dark:bg-zinc-900 flex-1 overflow-y-auto custom-scrollbar"
-				>
-					<!-- Search Inputs -->
-					<div class="space-y-4 mb-8">
-						<div class="grid grid-cols-12 gap-3">
-							<div
-								class="col-span-8 flex items-center bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-2xl p-1 focus-within:border-blue-500/50 transition-all"
-							>
-								<div class="px-3 text-gray-400">
-									<n-icon size="18"><Search /></n-icon>
-								</div>
-								<input
-									v-model="historySearchForm.keyword"
-									placeholder="输入关键词搜索..."
-									class="flex-1 bg-transparent border-none outline-none py-2 text-sm text-text-main placeholder:text-gray-400"
-									@keyup.enter="runHistorySearch"
-								/>
-							</div>
-							<div class="col-span-4">
-								<n-select
-									v-model:value="historySearchForm.type"
-									:options="historyTypeOptions"
-									class="next-custom-select"
-								/>
-							</div>
-						</div>
-						<div class="flex items-center gap-3">
-							<div class="flex-1">
-								<n-date-picker
-									v-model:value="historySearchForm.range"
-									type="daterange"
-									clearable
-									placeholder="选择日期范围"
-									class="next-custom-datepicker"
-								/>
-							</div>
-							<div class="flex gap-2">
-								<button
-									tertiary
-									@click="resetHistorySearchForm"
-								>
-									重置
-								</button>
-								<button
-									class="action-btn-primary px-6 py-2 text-xs font-bold rounded-xl text-white transition-all flex items-center gap-2"
-									:disabled="isSearchingHistory"
-									@click="runHistorySearch"
-								>
-									<n-spin
-										v-if="isSearchingHistory"
-										size="small"
-										stroke="#fff"
-									/>
-									<span>
-										{{
-											isSearchingHistory
-												? '检索中'
-												: '执行查询'
-										}}
-									</span>
-								</button>
-							</div>
-						</div>
-					</div>
-
-					<!-- Results Area -->
-					<div
-						class="results-container border border-gray-100 dark:border-white/5 rounded-2xl overflow-hidden bg-gray-50/30 dark:bg-white/[0.02]"
-					>
-						<n-spin :show="isSearchingHistory">
-							<div
-								v-if="!historySearchResults.length"
-								class="h-[300px] flex flex-col items-center justify-center text-gray-400"
-							>
-								<n-icon size="48" class="opacity-20 mb-2">
-									<Search />
-								</n-icon>
-								<span class="text-xs">
-									{{
-										isSearchingHistory
-											? '正在为您检索相关信息...'
-											: '暂无匹配的查询结果'
-									}}
-								</span>
-							</div>
-
-							<div v-else class="h-[400px]">
-								<n-scrollbar trigger="hover">
-									<div class="p-3 space-y-2">
-										<div
-											v-for="item in historySearchResults"
-											:key="`${item.serverMessageId || item.clientMessageId || item.id}`"
-											class="search-item group"
-										>
-											<div
-												class="flex items-start gap-3 p-3 rounded-xl hover:bg-white dark:hover:bg-white/5 transition-all"
-											>
-												<div
-													class="type-indicator bg-blue-500/10 text-blue-500 text-[10px] h-5 px-1.5 flex items-center rounded-md font-bold uppercase shrink-0"
-												>
-													{{ item.type }}
-												</div>
-												<div class="flex-1 min-w-0">
-													<div
-														class="flex items-center justify-between mb-1"
-													>
-														<span
-															class="text-[10px] text-gray-400"
-														>
-															{{
-																getDebugMessageTime(
-																	item,
-																)
-															}}
-														</span>
-													</div>
-													<div
-														class="text-sm text-text-main leading-relaxed"
-														v-html="
-															highlightKeyword(
-																getMessagePlainText(
-																	item,
-																),
-															)
-														"
-													></div>
-												</div>
-											</div>
-										</div>
-									</div>
-								</n-scrollbar>
-							</div>
-						</n-spin>
-					</div>
-				</div>
-			</div>
-		</n-modal>
-
+			:chat-id="activeChatId"
+			:chat-name="currentChat?.name || ''"
+			:loaded-messages="currentChatMessages"
+		/>
 	</div>
 	<div
 		v-if="!currentChat"
@@ -319,17 +164,12 @@
 
 <script setup lang="ts">
 import ChatEdit from './ChatEdit.vue'
-import { useChatStore, type Message } from '@renderer/stores/chat'
-import {
-	EllipsisHorizontal,
-	PersonAddSharp,
-	Search,
-} from '@vicons/ionicons5'
+import { useChatStore } from '@renderer/stores/chat'
+import { EllipsisHorizontal, PersonAddSharp, Search } from '@vicons/ionicons5'
 import {
 	Chat24Regular,
 	ArrowLeft24Regular,
 	ChatVideo24Regular,
-	Dismiss24Regular,
 } from '@vicons/fluent'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
@@ -338,8 +178,10 @@ import ChatContainer from './ChatContainer.vue'
 import { NIcon, NDrawer, NDrawerContent, useMessage } from 'naive-ui'
 import { useFriendStore } from '@renderer/stores/friend'
 import ChatFriendSettingPanel from './ChatFriendSettingPanel.vue'
+import ChatHistorySearchModal from './ChatHistorySearchModal.vue'
 import { useElementSize } from '@vueuse/core'
 import vipBadgeIcon from '@renderer/assets/VIP.svg'
+import { videoCallApi } from '@renderer/services/videoCallApi'
 
 const chatStore = useChatStore()
 const friendStore = useFriendStore()
@@ -377,7 +219,8 @@ const currentChatFriend = computed(() => {
 })
 
 const currentChatIsVip = computed(() => {
-	if (!currentChat.value || currentChat.value.chatType === 'GROUP') return false
+	if (!currentChat.value || currentChat.value.chatType === 'GROUP')
+		return false
 	if (isSystemNotificationChat.value) return false
 	return Boolean(currentChatFriend.value?.isVip)
 })
@@ -398,27 +241,8 @@ const isSystemNotificationChat = computed(() =>
 	chatStore.isSystemNotificationChatItem(currentChat.value),
 )
 
-type MessageTypeFilter = 'all' | 'text' | 'image' | 'file'
-
 const showHistorySearchModal = ref(false)
 const showFriendSettingDrawer = ref(false)
-const isSearchingHistory = ref(false)
-const historySearchForm = ref<{
-	keyword: string
-	type: MessageTypeFilter
-	range: [number, number] | null
-}>({
-	keyword: '',
-	type: 'all',
-	range: null,
-})
-const historySearchResults = ref<Message[]>([])
-const historyTypeOptions = [
-	{ label: '全部类型', value: 'all' },
-	{ label: '文本', value: 'text' },
-	{ label: '图片', value: 'image' },
-	{ label: '文件', value: 'file' },
-]
 
 const friendSettingDrawerWidth = computed(() => {
 	const width = Math.floor(chatContextWidth.value)
@@ -479,7 +303,7 @@ const menus = computed<menusItem[]>(() => {
 		},
 		{
 			key: 'videoCall',
-			label: '视频通话（Mock）',
+			label: '视频通话',
 			icon: 'videoCall',
 		},
 		{
@@ -490,54 +314,44 @@ const menus = computed<menusItem[]>(() => {
 	]
 })
 
-const getMessagePlainText = (item: Message): string => {
-	const plain = (item.text || '').replace(/<[^>]*>/g, '').trim()
-	return plain || '[富文本消息/媒体内容]'
-}
-
-const highlightKeyword = (text: string): string => {
-	const keyword = historySearchForm.value.keyword.trim()
-	if (!keyword) return text
-	const regex = new RegExp(`(${keyword})`, 'gi')
-	return text.replace(
-		regex,
-		'<span class="text-blue-500 font-bold">$1</span>',
-	)
-}
-
-const getDebugMessageTime = (item: Message): string => {
-	const source = item.sentAt?.trim() || item.timestamp?.trim() || ''
-	if (!source) return '-'
-	const date = new Date(source)
-	if (Number.isNaN(date.getTime())) return source
-	const y = date.getFullYear()
-	const m = String(date.getMonth() + 1).padStart(2, '0')
-	const d = String(date.getDate()).padStart(2, '0')
-	const hh = String(date.getHours()).padStart(2, '0')
-	const mm = String(date.getMinutes()).padStart(2, '0')
-	const ss = String(date.getSeconds()).padStart(2, '0')
-	return `${y}-${m}-${d} ${hh}:${mm}:${ss}`
-}
-
-const startMockVideoCall = (): void => {
+const startVideoCall = async (): Promise<void> => {
 	if (!currentChat.value || currentChat.value.chatType === 'GROUP') {
 		message.warning('仅支持在单聊中发起视频通话')
 		return
 	}
-	window.api.openMockVideoCallWindow({
-		chatId: currentChat.value.id,
-		chatName: currentChat.value.name,
-		chatAvatar: currentChat.value.avatar || '',
-	})
-}
-
-const resetHistorySearchForm = (): void => {
-	historySearchForm.value = {
-		keyword: '',
-		type: 'all',
-		range: null,
+	const peerAccount = (currentChat.value.peerAccount || '').trim()
+	if (!peerAccount) {
+		message.warning('缺少对方账号，无法发起通话')
+		return
 	}
-	historySearchResults.value = []
+	try {
+		const response = await videoCallApi.createCall({
+			calleeAccount: peerAccount,
+			type: 'VIDEO',
+		})
+		const callId = String(
+			response.data?.data?.callId ||
+				response.data?.data?.callid ||
+				response.data?.data?.id ||
+				'',
+		).trim()
+		if (!callId) {
+			message.error('发起通话失败：缺少 callId')
+			return
+		}
+		window.api.openMockVideoCallWindow({
+			chatId: currentChat.value.id,
+			chatName: currentChat.value.name,
+			chatAvatar: currentChat.value.avatar || '',
+			type: 'video',
+			callId,
+			peerAccount,
+			role: 'caller',
+		})
+	} catch (error) {
+		console.warn('发起视频通话失败:', error)
+		message.error('发起视频通话失败，请稍后重试')
+	}
 }
 
 const handleMenuAction = (key: string): void => {
@@ -547,7 +361,7 @@ const handleMenuAction = (key: string): void => {
 		return
 	}
 	if (key === 'videoCall') {
-		startMockVideoCall()
+		void startVideoCall()
 		return
 	}
 	if (key === 'userAdd') {
@@ -556,43 +370,6 @@ const handleMenuAction = (key: string): void => {
 	}
 	if (key === 'more') {
 		showFriendSettingDrawer.value = true
-	}
-}
-
-const runHistorySearch = async (): Promise<void> => {
-	if (!activeChatId.value) return
-
-	isSearchingHistory.value = true
-	try {
-		const range = historySearchForm.value.range
-		const startDate = range?.[0]
-			? new Date(range[0]).toISOString()
-			: undefined
-		const endDate = range?.[1]
-			? new Date(range[1]).toISOString()
-			: undefined
-		const result = await chatStore.queryChatHistory(activeChatId.value, {
-			keyword: historySearchForm.value.keyword || undefined,
-			type: historySearchForm.value.type,
-			startDate,
-			endDate,
-			maxPages: 12,
-			pageSize: 50,
-		})
-		historySearchResults.value = result.messages
-	} catch (error) {
-		console.warn('查询聊天记录失败:', error)
-		historySearchResults.value = []
-	} finally {
-		isSearchingHistory.value = false
-		if (!historySearchResults.value.length) {
-			console.warn('查询完成但结果为空:', {
-				chatId: activeChatId.value,
-				keyword: historySearchForm.value.keyword,
-				type: historySearchForm.value.type,
-				range: historySearchForm.value.range,
-			})
-		}
 	}
 }
 
@@ -656,92 +433,6 @@ watch(activeChatId, () => {
 
 :deep(.chat-friend-setting-drawer .n-drawer-content) {
 	height: 100%;
-}
-
-/* NextUI Modal Styles */
-.next-search-modal {
-	border-radius: 32px;
-	overflow: hidden;
-	border: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-.modal-header-section {
-	padding: 32px 24px;
-	display: flex;
-	flex-direction: column;
-	background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
-}
-
-.icon-orb {
-	width: 48px;
-	height: 48px;
-	border-radius: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.close-orb {
-	width: 32px;
-	height: 32px;
-	border-radius: 10px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.action-btn-primary {
-	background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
-}
-
-.action-btn-primary:hover {
-	filter: brightness(1.1);
-}
-
-.action-btn-primary:active {
-	transform: scale(0.96);
-}
-
-.action-btn-secondary {
-	background: #f4f4f5;
-	color: #71717a;
-}
-
-.dark .action-btn-secondary {
-	background: #27272a;
-	color: #a1a1aa;
-}
-
-.action-btn-secondary:hover {
-	background: #e4e4e7;
-}
-
-.next-custom-select :deep(.n-base-selection) {
-	border-radius: 16px;
-	background-color: transparent !important;
-	border-color: rgba(0, 0, 0, 0.04);
-}
-
-.dark .next-custom-select :deep(.n-base-selection) {
-	border-color: rgba(255, 255, 255, 0.05);
-}
-
-.next-custom-datepicker :deep(.n-input) {
-	border-radius: 16px;
-	background-color: #f9fafb !important;
-	border-color: transparent !important;
-}
-
-.dark .next-custom-datepicker :deep(.n-input) {
-	background-color: rgba(255, 255, 255, 0.03) !important;
-}
-
-.search-item {
-	cursor: default;
-}
-
-.search-item:last-child div {
-	border-bottom: none;
 }
 
 .vip-fill-red {

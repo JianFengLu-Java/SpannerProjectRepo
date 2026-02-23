@@ -4,14 +4,19 @@
 			v-if="!embedded"
 			class="sticky top-0 z-20 border-b border-border-default/50 bg-page-bg/95 backdrop-blur-xl"
 		>
-			<div class="mx-auto max-w-[960px] h-14 px-4 flex items-center justify-between">
+			<div
+				class="mx-auto max-w-[960px] h-14 px-4 flex items-center justify-between"
+			>
 				<n-button text @click="goBack">返回</n-button>
 				<div class="text-sm font-semibold text-text-main">好友资料</div>
 				<n-button text @click="showActionSheet = true">⋯</n-button>
 			</div>
 		</header>
 
-		<main class="mx-auto max-w-[960px] px-4 space-y-4" :class="embedded ? 'pt-3' : 'pt-4'">
+		<main
+			class="mx-auto max-w-[960px] px-4 space-y-4"
+			:class="embedded ? 'pt-3' : 'pt-4'"
+		>
 			<ProfileHeader
 				:friend="friend"
 				@copy-id="copyUserId"
@@ -21,7 +26,10 @@
 				@preview-avatar="showAvatarPreview = true"
 			/>
 
-			<div v-if="friend.privacyLevel === 'private'" class="rounded-2xl border border-border-default/60 bg-card-bg p-6 text-center text-sm text-gray-500">
+			<div
+				v-if="friend.privacyLevel === 'private'"
+				class="rounded-2xl border border-border-default/60 bg-card-bg p-6 text-center text-sm text-gray-500"
+			>
 				对方设置隐私，仅展示基础信息。
 			</div>
 
@@ -34,21 +42,41 @@
 				</InfoSectionCard>
 
 				<InfoSectionCard title="社区信息">
-					<KeyValueRow label="等级" :value="friend.badges.userLevel ? `Lv.${friend.badges.userLevel}` : undefined" />
+					<KeyValueRow
+						label="等级"
+						:value="
+							friend.badges.userLevel
+								? `Lv.${friend.badges.userLevel}`
+								: undefined
+						"
+					/>
 					<KeyValueRow label="成长值" :value="friend.stats.growth" />
 					<KeyValueRow label="发帖数" :value="friend.stats.posts" />
 					<KeyValueRow label="获赞数" :value="friend.stats.likes" />
 				</InfoSectionCard>
 
 				<InfoSectionCard title="社交关系">
-					<LinkRow label="共同好友" :value="friend.mutual.friendsCount" @click="onOpenMutualFriends" />
-					<LinkRow label="共同群聊" :value="friend.mutual.groupsCount" @click="onOpenMutualGroups" />
+					<LinkRow
+						label="共同好友"
+						:value="friend.mutual.friendsCount"
+						@click="onOpenMutualFriends"
+					/>
+					<LinkRow
+						label="共同群聊"
+						:value="friend.mutual.groupsCount"
+						@click="onOpenMutualGroups"
+					/>
 				</InfoSectionCard>
 
 				<InfoSectionCard title="备注与标签">
-					<div class="px-4 py-3 border-t border-border-default/30 first:border-t-0">
+					<div
+						class="px-4 py-3 border-t border-border-default/30 first:border-t-0"
+					>
 						<div class="text-sm text-text-main mb-2">备注名</div>
-						<n-input v-model:value="remarkName" placeholder="设置备注名" />
+						<n-input
+							v-model:value="remarkName"
+							placeholder="设置备注名"
+						/>
 					</div>
 					<div class="px-4 py-3 border-t border-border-default/30">
 						<div class="text-sm text-text-main mb-2">标签</div>
@@ -80,19 +108,42 @@
 			</template>
 
 			<InfoSectionCard title="隐私与安全设置">
-				<SwitchRow label="消息免打扰" v-model:model-value="doNotDisturb" />
+				<SwitchRow
+					label="消息免打扰"
+					v-model:model-value="doNotDisturb"
+				/>
 				<SwitchRow label="置顶聊天" v-model:model-value="pinChat" />
-				<SwitchRow label="不看对方动态" v-model:model-value="muteTheirMoments" />
-				<SwitchRow label="不让对方看我动态" v-model:model-value="hideMyMoments" />
+				<SwitchRow
+					label="不看对方动态"
+					v-model:model-value="muteTheirMoments"
+				/>
+				<SwitchRow
+					label="不让对方看我动态"
+					v-model:model-value="hideMyMoments"
+				/>
 				<SwitchRow
 					label="拉黑"
 					:model-value="isBlockedByMe"
 					@update:model-value="onToggleBlock"
 				/>
-				<div v-if="isFriend" class="px-4 py-3 border-t border-border-default/30 first:border-t-0">
-					<n-button type="error" ghost block @click="openDeleteConfirm">删除好友</n-button>
+				<div
+					v-if="isFriend"
+					class="px-4 py-3 border-t border-border-default/30 first:border-t-0"
+				>
+					<n-button
+						type="error"
+						ghost
+						block
+						@click="openDeleteConfirm"
+						>删除好友</n-button
+					>
 				</div>
-				<LinkRow label="举报" description="向平台提交投诉" value="进入" @click="onReport" />
+				<LinkRow
+					label="举报"
+					description="向平台提交投诉"
+					value="进入"
+					@click="onReport"
+				/>
 			</InfoSectionCard>
 		</main>
 
@@ -113,9 +164,48 @@
 			@confirm="onConfirmAction"
 		/>
 
-		<n-modal :show="showAvatarPreview" @mask-click="showAvatarPreview = false">
-			<div class="mx-auto mt-[90px] w-[420px] rounded-2xl overflow-hidden border border-border-default/60 bg-card-bg">
-				<img :src="friend.avatar" alt="avatar" class="w-full h-[420px] object-cover" />
+		<n-modal
+			:show="showCallTypeModal"
+			@mask-click="showCallTypeModal = false"
+		>
+			<div
+				class="mx-auto mt-[180px] w-[360px] rounded-2xl border border-border-default/60 bg-card-bg p-5"
+			>
+				<div class="text-base font-semibold text-text-main">
+					发起通话
+				</div>
+				<div class="mt-1 text-sm text-gray-500">请选择通话方式</div>
+				<div class="mt-4 grid grid-cols-2 gap-3">
+					<n-button secondary block @click="startCall('audio')"
+						>语音通话</n-button
+					>
+					<n-button type="primary" block @click="startCall('video')"
+						>视频通话</n-button
+					>
+				</div>
+				<n-button
+					class="mt-3"
+					quaternary
+					block
+					@click="showCallTypeModal = false"
+				>
+					取消
+				</n-button>
+			</div>
+		</n-modal>
+
+		<n-modal
+			:show="showAvatarPreview"
+			@mask-click="showAvatarPreview = false"
+		>
+			<div
+				class="mx-auto mt-[90px] w-[420px] rounded-2xl overflow-hidden border border-border-default/60 bg-card-bg"
+			>
+				<img
+					:src="friend.avatar"
+					alt="avatar"
+					class="w-full h-[420px] object-cover"
+				/>
 			</div>
 		</n-modal>
 	</div>
@@ -136,6 +226,8 @@ import ProfileHeader from '@renderer/components/friendDetail/ProfileHeader.vue'
 import SwitchRow from '@renderer/components/friendDetail/SwitchRow.vue'
 import type { FriendModel, RelationshipStatus } from './friendDetail.types'
 
+type CallType = 'audio' | 'video'
+
 const props = withDefaults(
 	defineProps<{
 		friendData?: FriendModel | null
@@ -150,7 +242,7 @@ const props = withDefaults(
 const emit = defineEmits<{
 	(e: 'back'): void
 	(e: 'message', friend: FriendModel): void
-	(e: 'voice-video', friend: FriendModel): void
+	(e: 'voice-video', friend: FriendModel, callType: CallType): void
 	(e: 'add-friend', friend: FriendModel): void
 	(e: 'report', friend: FriendModel): void
 	(e: 'delete-friend', friend: FriendModel): void
@@ -163,8 +255,7 @@ const message = useMessage()
 const defaultFriend: FriendModel = {
 	id: 'U1008673',
 	nickname: 'Lina Hart',
-	avatar:
-		'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=520&q=80',
+	avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=520&q=80',
 	bio: '生活在海边，热爱胶片和慢跑。',
 	region: '上海',
 	gender: '女',
@@ -217,7 +308,9 @@ const defaultFriend: FriendModel = {
 const cloneFriendModel = (payload: FriendModel): FriendModel =>
 	JSON.parse(JSON.stringify(payload)) as FriendModel
 
-const friend = ref<FriendModel>(cloneFriendModel(props.friendData || defaultFriend))
+const friend = ref<FriendModel>(
+	cloneFriendModel(props.friendData || defaultFriend),
+)
 
 const doNotDisturb = ref(false)
 const pinChat = ref(true)
@@ -225,6 +318,7 @@ const muteTheirMoments = ref(false)
 const hideMyMoments = ref(false)
 const showActionSheet = ref(false)
 const showAvatarPreview = ref(false)
+const showCallTypeModal = ref(false)
 
 const remarkName = ref(friend.value.remarkName || '')
 const selectedTags = ref([...(friend.value.tags || [])])
@@ -237,8 +331,12 @@ const tagOptions = [
 ]
 
 const isFriend = computed(() => friend.value.relationshipStatus === 'friend')
-const isBlockedByMe = computed(() => friend.value.relationshipStatus === 'blocked_by_me')
-const isBlockedMe = computed(() => friend.value.relationshipStatus === 'blocked_me')
+const isBlockedByMe = computed(
+	() => friend.value.relationshipStatus === 'blocked_by_me',
+)
+const isBlockedMe = computed(
+	() => friend.value.relationshipStatus === 'blocked_me',
+)
 const isInteractionDisabled = computed(
 	() => isBlockedByMe.value || isBlockedMe.value,
 )
@@ -280,7 +378,8 @@ const actionItems = computed<ActionSheetItem[]>(() => {
 		},
 		{ key: 'share', label: '分享名片/二维码（占位）' },
 	]
-	if (isFriend.value) items.splice(2, 0, { key: 'delete', label: '删除好友', danger: true })
+	if (isFriend.value)
+		items.splice(2, 0, { key: 'delete', label: '删除好友', danger: true })
 	return items
 })
 
@@ -307,7 +406,6 @@ const onMessage = (): void => {
 		return
 	}
 	emit('message', friend.value)
-	message.info('发消息占位：后续接路由/会话')
 }
 
 const onVoiceVideo = (): void => {
@@ -315,8 +413,12 @@ const onVoiceVideo = (): void => {
 		message.warning('当前关系状态下无法发起语音/视频')
 		return
 	}
-	emit('voice-video', friend.value)
-	message.info('语音/视频占位')
+	showCallTypeModal.value = true
+}
+
+const startCall = (callType: CallType): void => {
+	showCallTypeModal.value = false
+	emit('voice-video', friend.value, callType)
 }
 
 const onAddFriend = (): void => {
@@ -349,7 +451,9 @@ const onReport = (): void => {
 	message.info('举报入口占位')
 }
 
-const openConfirm = (config: Partial<ConfirmState> & { actionKey: ConfirmState['actionKey'] }): void => {
+const openConfirm = (
+	config: Partial<ConfirmState> & { actionKey: ConfirmState['actionKey'] },
+): void => {
 	confirmModal.show = true
 	confirmModal.actionKey = config.actionKey
 	confirmModal.title = config.title || '请确认'
@@ -418,7 +522,10 @@ const onActionSelect = (key: string): void => {
 
 const onConfirmAction = (): void => {
 	if (confirmModal.actionKey === 'block') {
-		if (friend.value.relationshipStatus === 'friend' || friend.value.relationshipStatus === 'not_friend') {
+		if (
+			friend.value.relationshipStatus === 'friend' ||
+			friend.value.relationshipStatus === 'not_friend'
+		) {
 			relationshipBeforeBlock.value = friend.value.relationshipStatus
 		}
 		friend.value.relationshipStatus = 'blocked_by_me'
@@ -446,7 +553,9 @@ watch(
 		remarkName.value = friend.value.remarkName || ''
 		selectedTags.value = [...(friend.value.tags || [])]
 		relationshipBeforeBlock.value =
-			friend.value.relationshipStatus === 'friend' ? 'friend' : 'not_friend'
+			friend.value.relationshipStatus === 'friend'
+				? 'friend'
+				: 'not_friend'
 	},
 	{ immediate: true, deep: true },
 )

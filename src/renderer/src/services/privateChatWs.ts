@@ -7,6 +7,11 @@ export interface PrivateChatMessageFrame {
 	from: string
 	to: string
 	content: string
+	formName?: string
+	fromName?: string
+	fromRealName?: string
+	fromAvatarUrl?: string
+	fromAvatar?: string
 	quote?: MessageQuote
 	clientMessageId?: string
 	sentAt?: string
@@ -37,12 +42,45 @@ export interface PrivateIncomingCallFrame {
 	createdAt?: string
 }
 
+export interface PrivateCallAnsweredFrame {
+	callId?: string
+	answeredBy?: string
+	answeredAt?: string
+}
+
+export interface PrivateCallEndedFrame {
+	callId?: string
+	status?: string
+	endReason?: string
+	endedAt?: string
+	durationSeconds?: number
+}
+
+export interface PrivateCallSignalFrame {
+	callId?: string
+	signalType?: 'OFFER' | 'ANSWER' | 'ICE_CANDIDATE' | 'RENEGOTIATE' | string
+	type?: 'OFFER' | 'ANSWER' | 'ICE_CANDIDATE' | 'RENEGOTIATE' | string
+	from?: string
+	to?: string
+	sdp?: string | { type?: string; sdp?: string } | null
+	candidate?:
+		| string
+		| { candidate?: string; sdpMid?: string; sdpMLineIndex?: number }
+		| null
+	sdpMid?: string | null
+	sdpMLineIndex?: number | null
+	createdAt?: string
+}
+
 interface PrivateChatWsHandlers {
 	onMessage?: (payload: PrivateChatMessageFrame) => void
 	onReaction?: (payload: Record<string, unknown>) => void
 	onAck?: (payload: PrivateChatAckFrame) => void
 	onError?: (payload: PrivateChatErrorFrame) => void
 	onIncomingCall?: (payload: PrivateIncomingCallFrame) => void
+	onCallAnswered?: (payload: PrivateCallAnsweredFrame) => void
+	onCallEnded?: (payload: PrivateCallEndedFrame) => void
+	onCallSignal?: (payload: PrivateCallSignalFrame) => void
 	onConnected?: () => void
 	onDisconnected?: () => void
 }
@@ -57,6 +95,15 @@ class PrivateChatWsService {
 	private connecting = false
 
 	private subscriptionMap = new Map<string, StompSubscription>()
+
+	private shouldLogReactionDebug(): boolean {
+		if (!import.meta.env.DEV) return false
+		try {
+			return window.localStorage.getItem('chat-reaction-debug') === '1'
+		} catch {
+			return false
+		}
+	}
 
 	connect(token: string, handlers: PrivateChatWsHandlers = {}): void {
 		const normalized = token.trim().replace(/^Bearer\s+/i, '')
@@ -118,8 +165,21 @@ class PrivateChatWsService {
 
 		this.subscribeOnce('/user/queue/messages', (frame) => {
 			try {
-				const payload = JSON.parse(frame.body) as PrivateChatMessageFrame
-				this.handlers.onMessage?.(payload)
+				const payload = JSON.parse(frame.body) as Record<
+					string,
+					unknown
+				>
+					if (this.isReactionLikeFrame(payload)) {
+						if (this.shouldLogReactionDebug()) {
+							console.info('[chat-reaction-debug][ws-private]', {
+								destination: '/user/queue/messages',
+								payload,
+							})
+						}
+						this.handlers.onReaction?.(payload)
+						return
+					}
+				this.handlers.onMessage?.(payload as unknown as PrivateChatMessageFrame)
 			} catch (error) {
 				console.error('解析私聊消息失败:', error)
 			}
@@ -145,10 +205,68 @@ class PrivateChatWsService {
 
 		this.subscribeOnce('/user/queue/calls', (frame) => {
 			try {
-				const payload = JSON.parse(frame.body) as PrivateIncomingCallFrame
-				this.handlers.onIncomingCall?.(payload)
+				const payload = JSON.parse(frame.body) as
+					| PrivateIncomingCallFrame
+					| {
+							event?: string
+							payload?: Record<string, unknown>
+					  }
+				const eventName = String(
+					(payload as { event?: string }).event || '',
+				).trim()
+				const eventPayload = (
+					(payload as { payload?: Record<string, unknown> }).payload ||
+					payload
+				) as Record<string, unknown>
+				if (eventName === 'incoming.call' || !eventName) {
+					this.handlers.onIncomingCall?.(
+						eventPayload as unknown as PrivateIncomingCallFrame,
+					)
+					return
+				}
+				if (eventName === 'call.answered') {
+					this.handlers.onCallAnswered?.(
+						eventPayload as unknown as PrivateCallAnsweredFrame,
+					)
+					return
+				}
+				if (eventName === 'call.ended') {
+					this.handlers.onCallEnded?.(
+						eventPayload as unknown as PrivateCallEndedFrame,
+					)
+					return
+				}
+				if (eventName === 'call.signal') {
+					this.handlers.onCallSignal?.(
+						eventPayload as unknown as PrivateCallSignalFrame,
+					)
+				}
 			} catch (error) {
 				console.error('解析来电信令失败:', error)
+			}
+		})
+
+		this.subscribeOnce('/user/queue/call-signals', (frame) => {
+			try {
+				const payload = JSON.parse(frame.body) as
+					| PrivateCallSignalFrame
+					| {
+							event?: string
+							payload?: Record<string, unknown>
+					  }
+				const eventName = String(
+					(payload as { event?: string }).event || '',
+				).trim()
+				const eventPayload = (
+					(payload as { payload?: Record<string, unknown> }).payload ||
+					payload
+				) as Record<string, unknown>
+				if (eventName && eventName !== 'call.signal') return
+				this.handlers.onCallSignal?.(
+					eventPayload as unknown as PrivateCallSignalFrame,
+				)
+			} catch (error) {
+				console.error('解析通话信令失败:', error)
 			}
 		})
 
@@ -156,16 +274,28 @@ class PrivateChatWsService {
 			'/user/queue/message.reactions.updated',
 			'/user/queue/message.reactions',
 			'/user/queue/reactions',
+			'/user/queue/reaction',
+			'/user/queue/message.reaction',
+			'/user/queue/message.reply',
+			'/user/queue/message.reply_info',
+			'/user/queue/reply_info',
+			'/user/queue/reply-info',
 		]
 		for (const destination of reactionDestinations) {
 			this.subscribeOnce(destination, (frame) => {
 				try {
-					const payload = JSON.parse(frame.body) as Record<
-						string,
-						unknown
-					>
-					this.handlers.onReaction?.(payload)
-				} catch (error) {
+						const payload = JSON.parse(frame.body) as Record<
+							string,
+							unknown
+						>
+						if (this.shouldLogReactionDebug()) {
+							console.info('[chat-reaction-debug][ws-private]', {
+								destination,
+								payload,
+							})
+						}
+						this.handlers.onReaction?.(payload)
+					} catch (error) {
 					console.error('解析私聊表情回应事件失败:', error)
 				}
 			})
@@ -180,6 +310,31 @@ class PrivateChatWsService {
 		if (this.subscriptionMap.has(destination)) return
 		const sub = this.client.subscribe(destination, callback)
 		this.subscriptionMap.set(destination, sub)
+	}
+
+	private isReactionLikeFrame(payload: Record<string, unknown>): boolean {
+		const eventType = String(payload.eventType || '')
+			.trim()
+			.toLowerCase()
+		if (
+			eventType.includes('reaction') ||
+			eventType.includes('react') ||
+			eventType.includes('reply')
+		) {
+			return true
+		}
+		if (Array.isArray(payload.reactions) && payload.reactions.length > 0) {
+			return true
+		}
+		const directFields = [
+			payload.reaction,
+			payload.reactionEmoji,
+			payload.reactionKey,
+			payload.emoji,
+		]
+		return directFields.some(
+			(value) => String(value || '').trim().length > 0,
+		)
 	}
 
 	sendPrivate(

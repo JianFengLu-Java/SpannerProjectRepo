@@ -24,6 +24,10 @@ const api = {
 		chatName: string
 		chatAvatar?: string
 		startConnected?: boolean
+		type?: 'video' | 'audio'
+		callId?: string
+		peerAccount?: string
+		role?: 'caller' | 'callee'
 	}) => {
 		ipcRenderer.send('open-mock-video-call-window', payload)
 	},

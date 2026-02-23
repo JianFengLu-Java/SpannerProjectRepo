@@ -23,6 +23,9 @@ export interface DbMessage {
 	id: number
 	chatId: number
 	senderId: 'me' | 'other'
+	senderAccount?: string
+	senderName?: string
+	senderAvatar?: string
 	text: string
 	timestamp: string
 	type: string
@@ -35,6 +38,7 @@ export interface DbMessage {
 	reactions?: string
 	quotedMessageId?: string
 	quotedFromAccount?: string
+	quotedFromName?: string
 	quotedContent?: string
 }
 
@@ -198,7 +202,7 @@ export const chatService = {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			db.all(
-				'SELECT id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent FROM user_messages WHERE userAccount = ? AND chatId = ? ORDER BY CASE WHEN sentAt IS NULL OR sentAt = \'\' THEN 1 ELSE 0 END ASC, sentAt ASC, id ASC',
+				'SELECT id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent FROM user_messages WHERE userAccount = ? AND chatId = ? ORDER BY CASE WHEN sentAt IS NULL OR sentAt = \'\' THEN 1 ELSE 0 END ASC, sentAt ASC, id ASC',
 				[userAccount, chatId],
 				(err, rows) => {
 					if (err) reject(err)
@@ -221,9 +225,9 @@ export const chatService = {
 		return new Promise((resolve, reject) => {
 			db.all(
 				`
-				SELECT id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent
+				SELECT id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent
 				FROM (
-					SELECT id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent
+					SELECT id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent
 					FROM user_messages
 					WHERE userAccount = ? AND chatId = ?
 					ORDER BY CASE WHEN sentAt IS NULL OR sentAt = '' THEN 1 ELSE 0 END ASC, sentAt DESC, id DESC
@@ -245,8 +249,8 @@ export const chatService = {
 		const db = getDb()
 		return new Promise((resolve, reject) => {
 			const stmt = db.prepare(`
-				INSERT OR REPLACE INTO user_messages (userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				INSERT OR REPLACE INTO user_messages (userAccount, id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`)
 			stmt.run(
 				[
@@ -254,6 +258,9 @@ export const chatService = {
 					message.id,
 					message.chatId,
 					message.senderId,
+					message.senderAccount || null,
+					message.senderName || null,
+					message.senderAvatar || null,
 					message.text,
 					message.timestamp,
 					message.type,
@@ -266,6 +273,7 @@ export const chatService = {
 					message.reactions || null,
 					message.quotedMessageId || null,
 					message.quotedFromAccount || null,
+					message.quotedFromName || null,
 					message.quotedContent || null,
 				],
 				(err: Error | null) => {
@@ -296,6 +304,9 @@ export const chatService = {
 					m.id,
 					m.chatId,
 					m.senderId,
+					m.senderAccount,
+					m.senderName,
+					m.senderAvatar,
 					m.text,
 					m.timestamp,
 					m.type,

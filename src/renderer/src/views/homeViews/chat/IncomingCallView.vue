@@ -20,18 +20,54 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { NAvatar } from 'naive-ui'
+import { NAvatar, useMessage } from 'naive-ui'
+import { videoCallApi } from '@renderer/services/videoCallApi'
 
 const route = useRoute()
+const message = useMessage()
 
-const fromName = computed(() => String(route.query.fromName || '').trim() || '未知联系人')
-const fromAvatar = computed(() => String(route.query.fromAvatar || '').trim())
+const callId = computed(
+	() =>
+		String(
+			route.query.callId ||
+				route.query.call_id ||
+				route.query.id ||
+				route.query.sessionId ||
+				route.query.session_id ||
+				'',
+		).trim(),
+)
+const fromAccount = computed(
+	() =>
+		String(
+			route.query.fromAccount ||
+				route.query.from ||
+				route.query.callerAccount ||
+				'',
+		).trim(),
+)
+const fromName = computed(
+	() =>
+		String(route.query.fromName || route.query.callerName || '').trim() ||
+		'未知联系人',
+)
+const fromAvatar = computed(
+	() =>
+		String(
+			route.query.fromAvatar ||
+				route.query.callerAvatar ||
+				route.query.fromAvatarUrl ||
+				'',
+		).trim(),
+)
 const chatId = computed(() => {
 	const raw = Number(route.query.chatId)
 	return Number.isFinite(raw) ? Math.floor(raw) : undefined
 })
 const callType = computed(() =>
-	String(route.query.type || 'video').trim().toLowerCase() === 'audio'
+	String(route.query.type || route.query.callType || 'video')
+		.trim()
+		.toLowerCase() === 'audio'
 		? 'audio'
 		: 'video',
 )
@@ -39,16 +75,41 @@ const callTypeLabel = computed(() =>
 	callType.value === 'audio' ? '语音来电' : '视频来电',
 )
 
-const rejectCall = (): void => {
+const rejectCall = async (): Promise<void> => {
+	if (callId.value) {
+		try {
+			await videoCallApi.rejectCall(callId.value)
+		} catch (error) {
+			console.warn('拒接通话失败:', error)
+			message.error('挂断失败，请重试')
+			return
+		}
+	}
 	window.api.closeWindow()
 }
 
-const acceptCall = (): void => {
+const acceptCall = async (): Promise<void> => {
+	if (!callId.value) {
+		message.error('来电数据缺少 callId，无法接听')
+		return
+	}
+	if (callId.value) {
+		try {
+			await videoCallApi.acceptCall(callId.value)
+		} catch (error) {
+			console.warn('接听通话失败:', error)
+			message.error('接听失败，请稍后重试')
+			return
+		}
+	}
 	window.api.openMockVideoCallWindow({
 		chatId: chatId.value || Date.now(),
 		chatName: fromName.value,
 		chatAvatar: fromAvatar.value,
-		startConnected: true,
+		type: callType.value,
+		callId: callId.value,
+		peerAccount: fromAccount.value,
+		role: 'callee',
 	})
 	window.api.closeWindow()
 }

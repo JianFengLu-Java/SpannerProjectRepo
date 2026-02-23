@@ -12,3 +12,11 @@ export const sidebarSlotComponentMap: Record<string, Component> = {
 	'cloud-doc-editor': markRaw(CloudDocEditorSlot),
 	'cloud-doc-shared-editor': markRaw(CloudDocSharedSlot),
 }
+
+export {
+	getSidebarSlotIcon,
+	getSidebarSlotIconMap,
+	registerSidebarSlotIcon,
+	registerSidebarSlotIcons,
+	type SidebarSlotIconMap,
+} from './slotIconRegistry'

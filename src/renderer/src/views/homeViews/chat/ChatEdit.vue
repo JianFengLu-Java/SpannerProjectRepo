@@ -12,7 +12,7 @@ import {
 	SwapHorizontalOutline,
 } from '@vicons/ionicons5'
 import { useMessage, NPopover, NIcon, NModal } from 'naive-ui'
-import { useChatStore } from '@renderer/stores/chat'
+import { useChatStore, type Message } from '@renderer/stores/chat'
 import { useWalletStore } from '@renderer/stores/wallet'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { storeToRefs } from 'pinia'
@@ -82,6 +82,9 @@ const mentionQuery = ref('')
 const mentionActiveIndex = ref(0)
 const mentionRange = ref<{ from: number; to: number } | null>(null)
 const mentionMembers = ref<Array<{ account: string; name: string }>>([])
+const quoteSnapshot = computed(() =>
+	chatStore.getComposerQuote(normalizedId.value || 0),
+)
 const chatFontSizeOptions = [14, 16, 18, 20] as const
 const chatFontSizeStorageKey = 'spanner.chat.composerFontSize'
 const chatFontSize = ref<number>(16)
@@ -511,6 +514,25 @@ const handleInsertMentionEvent = (event: Event): void => {
 	editor.value.chain().focus().insertContent(`@${name} `).run()
 }
 
+const handleSetQuoteEvent = (
+	event: CustomEvent<{ chatId: number; message: Message }>,
+): void => {
+	const targetChatId = normalizedId.value
+	if (!targetChatId) return
+	if (!event.detail || event.detail.chatId !== Number(targetChatId)) return
+	chatStore.setComposerQuoteFromMessage(targetChatId, event.detail.message)
+}
+
+const handleClearQuoteEvent = (
+	event: CustomEvent<{ chatId?: number }>,
+): void => {
+	const targetChatId = normalizedId.value
+	if (!targetChatId) return
+	if (event.detail?.chatId && event.detail.chatId !== Number(targetChatId))
+		return
+	chatStore.clearComposerQuote(targetChatId)
+}
+
 // BubbleMenu 显示条件
 const shouldShowBubbleMenu = ({ editor }: { editor: Editor }): boolean => {
 	if (!editor) return false
@@ -633,7 +655,14 @@ const handleSendMessage = (): void => {
 	}
 
 	const htmlContent = serializeComposerContentForSend(editor.value.getHTML())
-	chatStore.sendMessage(htmlContent)
+	chatStore.sendMessage(
+		htmlContent,
+		'text',
+		quoteSnapshot.value || undefined,
+	)
+	if (normalizedId.value) {
+		chatStore.clearComposerQuote(normalizedId.value)
+	}
 	closeMentionPicker()
 
 	// 发送成功后清空编辑器
@@ -745,7 +774,14 @@ const submitTransfer = async (): Promise<void> => {
 	<div>金额：${escapeHtml(amountText)}</div>
 	${remark ? `<div>备注：${escapeHtml(remark)}</div>` : ''}
 </div>`.trim()
-			chatStore.sendMessage(messageHtml, 'transfer')
+			chatStore.sendMessage(
+				messageHtml,
+				'transfer',
+				quoteSnapshot.value || undefined,
+			)
+			if (normalizedId.value) {
+				chatStore.clearComposerQuote(normalizedId.value)
+			}
 		} else {
 			message.warning(
 				'转账已创建，但未返回业务号，暂无法在聊天中展示收款卡片',
@@ -796,6 +832,12 @@ const scrollToBottom = (): void => {
 		const element = containerRef.value?.querySelector('.tiptap-editor')
 		if (element) element.scrollTop = element.scrollHeight
 	})
+}
+
+const stripHtml = (html: string): string => {
+	const holder = document.createElement('div')
+	holder.innerHTML = html || ''
+	return holder.textContent?.trim() || ''
 }
 
 const checkLayoutWithImages = (): void => {
@@ -877,6 +919,8 @@ onMounted(() => {
 
 	checkLayout()
 	window.addEventListener('chat-insert-mention', handleInsertMentionEvent)
+	window.addEventListener('chat-set-quote', handleSetQuoteEvent as EventListener)
+	window.addEventListener('chat-clear-quote', handleClearQuoteEvent as EventListener)
 })
 
 onUnmounted(() => {
@@ -884,6 +928,8 @@ onUnmounted(() => {
 	resizeObserver?.disconnect()
 	editor.value?.destroy()
 	window.removeEventListener('chat-insert-mention', handleInsertMentionEvent)
+	window.removeEventListener('chat-set-quote', handleSetQuoteEvent as EventListener)
+	window.removeEventListener('chat-clear-quote', handleClearQuoteEvent as EventListener)
 })
 </script>
 
@@ -962,6 +1008,36 @@ onUnmounted(() => {
 							}}</span>
 						</button>
 					</div>
+				</div>
+
+				<!-- 引用预览 -->
+				<div
+					v-if="quoteSnapshot"
+					class="w-full mb-2 flex items-start gap-2 px-3 py-2 rounded-xl border border-border-main bg-white/60 dark:bg-white/5"
+				>
+					<div class="text-xs text-gray-500 shrink-0 mt-0.5">引用</div>
+					<div class="flex-1 min-w-0">
+						<div class="text-xs text-gray-500 truncate">
+							{{ quoteSnapshot.fromName || quoteSnapshot.from || '未知发送者' }}
+						</div>
+						<div
+							class="text-sm text-text-main truncate"
+							:title="stripHtml(quoteSnapshot.content || '')"
+							v-html="quoteSnapshot.content || ''"
+						></div>
+					</div>
+					<button
+						type="button"
+						class="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-100"
+						@click="
+							() =>
+								chatStore.clearComposerQuote(
+									Number(normalizedId) || 0,
+								)
+						"
+					>
+						取消
+					</button>
 				</div>
 
 				<div

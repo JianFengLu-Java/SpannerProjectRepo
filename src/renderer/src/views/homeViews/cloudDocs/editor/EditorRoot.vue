@@ -17,6 +17,7 @@ import {
 } from 'naive-ui'
 import EmojiPicker from '@renderer/components/EmojiPicker.vue'
 import {
+	Emoji24Regular,
 	Image24Regular,
 	PanelLeft24Regular,
 	PanelLeftContract24Regular,
@@ -33,6 +34,7 @@ import {
 import '@isle-editor/vue3/dist/style.css'
 import { useChatStore } from '@renderer/stores/chat'
 import { useFriendStore } from '@renderer/stores/friend'
+import { useThemeStore } from '@renderer/stores/theme'
 import { useUserInfoStore } from '@renderer/stores/userInfo'
 import { cloudDocApi } from '@renderer/services/cloudDocApi'
 import { cloudDocWs } from '@renderer/services/cloudDocWs'
@@ -44,7 +46,6 @@ import type {
 } from '@renderer/types/cloudDoc'
 import { resolveAvatarUrl } from '@renderer/utils/avatar'
 import request from '@renderer/utils/request'
-import { log } from 'console'
 
 const props = defineProps<{
 	doc: CloudDoc
@@ -147,6 +148,7 @@ const localContent = ref(
 )
 const chatStore = useChatStore()
 const friendStore = useFriendStore()
+const themeStore = useThemeStore()
 const userInfoStore = useUserInfoStore()
 const showToc = ref(false)
 const scrollViewRef = ref<HTMLElement | null>(null)
@@ -209,6 +211,9 @@ const bubbleTippyOptions = computed(() => ({
 		],
 	},
 }))
+const editorTheme = computed<'light' | 'dark'>(() =>
+	themeStore.isDark ? 'dark' : 'light',
+)
 
 const friendShareOptions = computed(() =>
 	friendStore.friends.map((friend) => {
@@ -713,18 +718,7 @@ const onlineLabel = computed(() => {
 	return count > 0 ? `在线 ${count}` : '在线 0'
 })
 
-const ownerAvatarText = computed(() => {
-	const source = String(
-		userInfoStore.userName ||
-			userInfoStore.account ||
-			props.doc.title ||
-			'U',
-	).trim()
-	return source.slice(0, 1).toUpperCase()
-})
-
 const resolveUserAvatarUrl = (avatarUrl?: string | null): string => {
-	console.log('Resolving avatar URL:', { avatarUrl })
 	const raw = String(avatarUrl || '').trim()
 	if (!raw) return resolveAvatarUrl('')
 	if (/^(data:|blob:|file:)/i.test(raw)) return raw
@@ -1565,7 +1559,9 @@ onBeforeUnmount(() => {
 								class="toolbar-image-btn"
 								title="插入表情"
 							>
-								表情
+								<n-icon>
+									<Emoji24Regular />
+								</n-icon>
 							</n-button>
 						</template>
 						<EmojiPicker
@@ -1649,7 +1645,7 @@ onBeforeUnmount(() => {
 						:extensions="extensions"
 						:editable="!isReadonly"
 						locale="zh"
-						theme="light"
+						:theme="editorTheme"
 						output="html"
 						@update="onEditorUpdate"
 						@selection-update="onEditorSelectionUpdate"
@@ -1714,13 +1710,14 @@ onBeforeUnmount(() => {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	background: #ffffff;
+	background: var(--color-page-bg);
+	color: var(--color-text-main);
 }
 
 .editor-toolbar-wrap {
 	z-index: 10;
-	background: #ffffff;
-	border-bottom: 1px solid #f2f2f2;
+	background: var(--color-card-bg);
+	border-bottom: 1px solid var(--color-border-default);
 	-webkit-app-region: no-drag;
 }
 
@@ -1780,7 +1777,7 @@ onBeforeUnmount(() => {
 .editor-outline {
 	width: 260px;
 	flex-shrink: 0;
-	border-right: 1px solid #f2f2f2;
+	border-right: 1px solid var(--color-border-default);
 	padding: 12px 10px;
 	overflow: auto;
 	transition:
@@ -1888,19 +1885,19 @@ onBeforeUnmount(() => {
 	align-items: center;
 	gap: 10px;
 	padding: 8px 14px 10px;
-	border-top: 1px solid #f5f5f5;
+	border-top: 1px solid var(--color-border-default);
 }
 
 .image-resize-label {
 	flex-shrink: 0;
-	color: #5a5a5a;
+	color: color-mix(in srgb, var(--color-text-main) 72%, transparent);
 	font-size: 12px;
 }
 
 .image-resize-value {
 	width: 42px;
 	text-align: right;
-	color: #404040;
+	color: color-mix(in srgb, var(--color-text-main) 88%, transparent);
 	font-size: 12px;
 }
 
@@ -1929,6 +1926,11 @@ onBeforeUnmount(() => {
 
 .doc-emoji-item:hover {
 	background: rgba(54, 149, 255, 0.12);
+}
+
+:global(.dark) .editor-inner :deep(.isle-editor-toolbar-menu) {
+	background: #232a33;
+	border-color: rgba(84, 98, 117, 0.52);
 }
 
 :global(#editor-handle),

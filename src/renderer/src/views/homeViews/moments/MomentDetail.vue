@@ -305,7 +305,6 @@
 import { computed, ref } from 'vue'
 import { useWindowSize } from '@vueuse/core'
 import {
-	ArrowLeft24Regular,
 	Share24Regular,
 	MoreHorizontal24Regular,
 	Heart24Regular,
@@ -314,8 +313,6 @@ import {
 	Star24Regular,
 	Edit24Regular,
 	Heart16Regular,
-	ClosedCaption24Regular,
-	ClosedCaption24Filled,
 } from '@vicons/fluent'
 import {
 	NButton,

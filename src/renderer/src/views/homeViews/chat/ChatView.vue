@@ -1,5 +1,9 @@
 <template>
-	<div ref="containerRef" class="h-full w-full flex overflow-hidden">
+	<div
+		ref="containerRef"
+		class="h-full w-full flex overflow-hidden relative"
+		:class="{ 'is-list-dragging': isListDragging }"
+	>
 		<!-- 左侧聊天列表 (上下文菜单) -->
 		<n-dropdown
 			placement="bottom-start"
@@ -338,6 +342,11 @@
 			</div>
 			<ChatContext />
 		</div>
+
+		<div
+			v-if="containerWidth >= 600 && isListDragging"
+			class="chat-list-drag-mask"
+		/>
 	</div>
 
 	<n-modal
@@ -504,11 +513,21 @@ const hasMentionFeedback = (chat: ChatItem): boolean => {
 	return (chat.mentionUnreadCount || 0) > 0
 }
 
+const toPlainSummaryText = (value: string): string => {
+	return (value || '')
+		.replace(/<br\s*\/?>/gi, ' ')
+		.replace(/<\/p>/gi, ' ')
+		.replace(/<[^>]*>/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+}
+
 const getLastMessagePreview = (chat: ChatItem): string => {
+	const normalized = toPlainSummaryText(chat.lastMessage || '')
 	if (hasMentionFeedback(chat)) {
-		return `[有人@你] ${chat.lastMessage || ''}`.trim()
+		return `[有人@你] ${normalized}`.trim()
 	}
-	return chat.lastMessage || ''
+	return normalized
 }
 
 const escapeHtml = (value: string): string =>
@@ -672,47 +691,57 @@ const selectChat = async (chat: ChatItem): Promise<void> => {
 }
 
 // 拖拽逻辑
-let isDragging = false
+const isListDragging = ref(false)
+let dragStartX = 0
+let dragStartWidth = 280
+let dragAnimationFrameId: number | null = null
+
+const stopListDrag = (): void => {
+	if (!isListDragging.value) return
+	isListDragging.value = false
+	if (dragAnimationFrameId) {
+		cancelAnimationFrame(dragAnimationFrameId)
+		dragAnimationFrameId = null
+	}
+	localStorage.setItem(STORAGE_KEY, listWidth.value.toString())
+	document.body.style.cursor = ''
+	document.body.style.userSelect = ''
+	document.removeEventListener('mousemove', onListDragMove)
+	document.removeEventListener('mouseup', stopListDrag)
+	window.removeEventListener('blur', stopListDrag)
+}
+
+const onListDragMove = (moveEvent: MouseEvent): void => {
+	if (!isListDragging.value) return
+	if (dragAnimationFrameId) cancelAnimationFrame(dragAnimationFrameId)
+
+	dragAnimationFrameId = requestAnimationFrame(() => {
+		const delta = moveEvent.clientX - dragStartX
+		const newWidth = dragStartWidth + delta
+		const maxAllowedWidth =
+			containerWidth.value - currentRightPanelMinWidth.value - 1
+
+		listWidth.value = Math.min(
+			Math.max(SESSION_LIST_MIN_WIDTH, newWidth),
+			Math.max(SESSION_LIST_MIN_WIDTH, maxAllowedWidth),
+		)
+	})
+}
+
 const startDrag = (e: MouseEvent): void => {
-	isDragging = true
-	const startX = e.clientX
-	const startWidth = listWidth.value
-	let animationFrameId: number | null = null
+	if (e.button !== 0) return
+	e.preventDefault()
+	e.stopPropagation()
+	isListDragging.value = true
+	dragStartX = e.clientX
+	dragStartWidth = listWidth.value
 
 	document.body.style.cursor = 'col-resize'
 	document.body.style.userSelect = 'none'
 
-	const onMove = (moveEvent: MouseEvent): void => {
-		if (!isDragging) return
-		if (animationFrameId) cancelAnimationFrame(animationFrameId)
-
-		animationFrameId = requestAnimationFrame(() => {
-			const delta = moveEvent.clientX - startX
-			const newWidth = startWidth + delta
-			const maxAllowedWidth =
-				containerWidth.value - currentRightPanelMinWidth.value - 1
-
-			listWidth.value = Math.min(
-				Math.max(SESSION_LIST_MIN_WIDTH, newWidth),
-				Math.max(SESSION_LIST_MIN_WIDTH, maxAllowedWidth),
-			)
-		})
-	}
-
-	const stopDrag = (): void => {
-		isDragging = false
-		if (animationFrameId) cancelAnimationFrame(animationFrameId)
-		// 保存宽度到 localStorage
-		localStorage.setItem(STORAGE_KEY, listWidth.value.toString())
-		document.body.style.cursor = ''
-		document.body.style.userSelect = ''
-		document.removeEventListener('mousemove', onMove)
-		document.removeEventListener('mouseup', stopDrag)
-	}
-
-	document.addEventListener('mousemove', onMove)
-	document.addEventListener('mouseup', stopDrag)
-	e.preventDefault()
+	document.addEventListener('mousemove', onListDragMove)
+	document.addEventListener('mouseup', stopListDrag)
+	window.addEventListener('blur', stopListDrag)
 }
 
 // 右键菜单
@@ -799,7 +828,9 @@ onMounted(() => {
 	titleStore.setTitle('欢迎你！' + userName)
 })
 
-onUnmounted(() => {})
+onUnmounted(() => {
+	stopListDrag()
+})
 </script>
 
 <style scoped>
@@ -817,6 +848,14 @@ onUnmounted(() => {})
 }
 .chat-list-scrollbar::-webkit-scrollbar {
 	width: 4px;
+}
+
+.chat-list-drag-mask {
+	position: absolute;
+	inset: 0;
+	z-index: 40;
+	cursor: col-resize;
+	background: transparent;
 }
 .chat-list-scrollbar::-webkit-scrollbar-thumb {
 	border-radius: 2px;

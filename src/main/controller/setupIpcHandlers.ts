@@ -288,6 +288,10 @@ export function setupIpcHandlers(): void {
 				chatName: string
 				chatAvatar?: string
 				startConnected?: boolean
+				type?: 'video' | 'audio'
+				callId?: string
+				peerAccount?: string
+				role?: 'caller' | 'callee'
 			},
 		) => {
 			const chatId = Number(payload?.chatId)
@@ -299,6 +303,11 @@ export function setupIpcHandlers(): void {
 				String(payload?.chatAvatar || ''),
 				{
 					startConnected: Boolean(payload?.startConnected),
+					type: payload?.type === 'audio' ? 'audio' : 'video',
+					callId: String(payload?.callId || '').trim() || undefined,
+					peerAccount:
+						String(payload?.peerAccount || '').trim() || undefined,
+					role: payload?.role === 'callee' ? 'callee' : 'caller',
 				},
 			)
 		},

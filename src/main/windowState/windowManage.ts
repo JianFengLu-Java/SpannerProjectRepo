@@ -251,9 +251,13 @@ export function openMockVideoCallWindow(
 	chatAvatar?: string,
 	options?: {
 		startConnected?: boolean
+		type?: 'video' | 'audio'
+		callId?: string
+		peerAccount?: string
+		role?: 'caller' | 'callee'
 	},
 ): void {
-	const winKey = `mock-video-call-${chatId}`
+	const winKey = `mock-video-call-${options?.callId || chatId}`
 	const existingWin = windowRegistry.get(winKey)
 	if (existingWin && !existingWin.isDestroyed()) {
 		existingWin.show()
@@ -268,7 +272,7 @@ export function openMockVideoCallWindow(
 		minHeight: 520,
 		show: false,
 		resizable: true,
-		title: `与 ${chatName} 视频通话`,
+		title: `与 ${chatName} ${options?.type === 'audio' ? '语音通话' : '视频通话'}`,
 		backgroundColor: '#0f172a',
 		autoHideMenuBar: true,
 		frame: process.platform === 'darwin',
@@ -287,7 +291,15 @@ export function openMockVideoCallWindow(
 		},
 	})
 
-	const page = `mock-video-call?chatId=${chatId}&name=${encodeURIComponent(chatName)}&avatar=${encodeURIComponent(chatAvatar || '')}&startConnected=${options?.startConnected ? '1' : '0'}`
+	const page =
+		`mock-video-call?chatId=${chatId}` +
+		`&name=${encodeURIComponent(chatName)}` +
+		`&avatar=${encodeURIComponent(chatAvatar || '')}` +
+		`&startConnected=${options?.startConnected ? '1' : '0'}` +
+		`&type=${encodeURIComponent(options?.type || 'video')}` +
+		`&callId=${encodeURIComponent(options?.callId || '')}` +
+		`&peerAccount=${encodeURIComponent(options?.peerAccount || '')}` +
+		`&role=${encodeURIComponent(options?.role || 'caller')}`
 	loadPage(win, page)
 	windowRegistry.set(winKey, win)
 

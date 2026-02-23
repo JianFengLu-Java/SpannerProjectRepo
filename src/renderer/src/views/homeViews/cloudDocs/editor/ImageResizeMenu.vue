@@ -83,8 +83,9 @@ const copyImageUrl = async (): Promise<void> => {
 	padding: 8px;
 	max-width: min(90vw, 620px);
 	border-radius: 10px;
-	background: #ffffff;
-	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+	background: var(--color-card-bg);
+	border: 1px solid color-mix(in srgb, var(--color-border-default) 84%, transparent);
+	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
 }
 
 .image-resize-actions {
@@ -98,7 +99,7 @@ const copyImageUrl = async (): Promise<void> => {
 	padding: 0 4px;
 	border: none;
 	background: transparent;
-	color: #64748b;
+	color: color-mix(in srgb, var(--color-text-main) 66%, transparent);
 	font-size: 12px;
 	cursor: pointer;
 	white-space: nowrap;
@@ -107,6 +108,10 @@ const copyImageUrl = async (): Promise<void> => {
 }
 
 .image-url:hover {
-	color: #2563eb;
+	color: var(--color-primary);
+}
+
+:global(.dark) .image-resize-menu {
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
 }
 </style>

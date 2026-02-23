@@ -86,7 +86,7 @@
 						<span class="notice-card-time">{{ time }}</span>
 					</div>
 					<div
-						v-if="systemNoticeTitle"
+						v-if="shouldShowSystemNoticeTitle"
 						class="notice-card-main-title"
 					>
 						{{ systemNoticeTitle }}
@@ -96,6 +96,26 @@
 						class="notice-card-body notice-card-body-html"
 						v-html="systemNoticeBodyHtml"
 					></div>
+				</div>
+
+				<div
+					v-else-if="isCallSummaryCard"
+					class="call-summary-card avatar-no-select"
+				>
+					<div class="call-summary-header">
+						<span class="call-summary-type">{{
+							callSummaryTypeText
+						}}</span>
+						<span class="call-summary-time">{{
+							callSummaryEndedAtText || time
+						}}</span>
+					</div>
+					<div class="call-summary-body">
+						{{ callSummaryDisplayText }}
+					</div>
+					<div v-if="callSummaryEndReasonText" class="call-summary-reason">
+						{{ callSummaryEndReasonText }}
+					</div>
 				</div>
 
 				<div
@@ -172,17 +192,62 @@
 					<div class="cloud-doc-card-desc">点击打开云文档</div>
 				</div>
 
-				<div
-					v-else-if="isOnlyImage"
-					class="chat-image-bubble msg-content-selectable"
-					:class="
-						isMe
-							? 'chat-image-bubble-me'
-							: 'chat-image-bubble-other'
-					"
-					@click="handleClickEvent"
-					v-html="renderedContent"
-				/>
+				<div v-else-if="isOnlyImage" class="chat-image-wrapper">
+					<div
+						v-if="quote"
+						class="quote-card avatar-no-select"
+						:class="isMe ? 'quote-card-me' : 'quote-card-other'"
+					>
+						<div
+							class="quote-title"
+							@click.stop="
+								$emit('jump-to-quote', quote?.messageId || '')
+							"
+						>
+							{{ quoteSender }}
+						</div>
+						<div
+							class="quote-body msg-content-selectable"
+							v-html="quoteContentHtml || '[引用内容为空]'"
+							@click.stop="
+								$emit('jump-to-quote', quote?.messageId || '')
+							"
+						></div>
+					</div>
+					<div
+						class="chat-image-bubble msg-content-selectable"
+						:class="
+							isMe
+								? 'chat-image-bubble-me'
+								: 'chat-image-bubble-other'
+						"
+						@click="handleClickEvent"
+						v-html="renderedContent"
+					/>
+					<div
+						v-if="reactionItems && reactionItems.length"
+						class="bubble-inline-reaction avatar-no-select"
+					>
+						<div
+							v-for="reaction in reactionItems"
+							:key="reaction.key"
+							class="message-reaction-chip"
+						>
+							<img
+								v-if="reaction.imageUrl"
+								:src="reaction.imageUrl"
+								alt="reaction"
+								class="message-reaction-image"
+							/>
+							<span v-else class="message-reaction-emoji">{{
+								reaction.emoji
+							}}</span>
+							<span class="message-reaction-user">{{
+								reaction.label
+							}}</span>
+						</div>
+					</div>
+				</div>
 
 				<div
 					v-else
@@ -194,6 +259,27 @@
 					"
 					@click="handleClickEvent"
 				>
+					<div
+						v-if="quote"
+						class="quote-card"
+						:class="isMe ? 'quote-card-me' : 'quote-card-other'"
+					>
+						<div
+							class="quote-title"
+							@click.stop="
+								$emit('jump-to-quote', quote?.messageId || '')
+							"
+						>
+							{{ quoteSender }}
+						</div>
+						<div
+							class="quote-body msg-content-selectable"
+							v-html="quoteContentHtml || '[引用内容为空]'"
+							@click.stop="
+								$emit('jump-to-quote', quote?.messageId || '')
+							"
+						></div>
+					</div>
 					<div
 						class="msg-content-selectable"
 						v-html="renderedContent"
@@ -406,6 +492,7 @@ const props = defineProps<{
 	transferTargetName?: string
 	senderName?: string
 	senderAccount?: string
+	senderAvatar?: string
 	senderIsVip?: boolean
 	isMe: boolean
 	enableAvatarMenu?: boolean
@@ -422,12 +509,27 @@ const props = defineProps<{
 		imageUrl?: string
 		label: string
 	}>
+	quote?: {
+		messageId: string
+		from?: string
+		fromName?: string
+		content?: string
+	}
 }>()
 const messageRootRef = ref<HTMLElement | null>(null)
 
 const showConfirmModal = ref(false)
 const showDetailModal = ref(false)
 const isAccepting = ref(false)
+
+const shouldLogSystemNoticeDebug = (): boolean => {
+	if (!import.meta.env.DEV) return false
+	try {
+		return window.localStorage.getItem('system-notice-debug') === '1'
+	} catch {
+		return false
+	}
+}
 
 const normalizeNoticeText = (content: string): string => {
 	return content
@@ -903,6 +1005,151 @@ const systemNoticePayloadBodyHtml = computed(() => {
 	return `<div class="notice-card-rich">${lines.join('')}</div>`
 })
 
+const MOMENT_NOTICE_PATTERNS = [
+	/赞了你的动态/,
+	/点赞了你的动态/,
+	/评论了你的动态/,
+	/回复了你的评论/,
+]
+
+const isMomentNoticeText = (value: string): boolean => {
+	const text = value.trim()
+	if (!text) return false
+	return MOMENT_NOTICE_PATTERNS.some((pattern) => pattern.test(text))
+}
+
+const systemNoticeContentText = computed(() => {
+	const payload = noticeStructuredPayload.value || {}
+	return (
+		pickNoticePayloadText(payload, [
+			'message',
+			'content',
+			'body',
+			'text',
+			'messageText',
+			'summary',
+			'description',
+			'detail',
+		]) || noticeText.value
+	)
+})
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return null
+	}
+	return value as Record<string, unknown>
+}
+
+const parseMomentNoticeMeta = (raw: string): {
+	actor: string
+	actionText: string
+	snippet?: string
+} | null => {
+	const text = raw.trim()
+	if (!text) return null
+	let matched = text.match(/^(.+?)\s*(?:赞了|点赞了)你的动态(?:《.+?》)?$/)
+	if (matched?.[1]) {
+		return {
+			actor: matched[1].trim(),
+			actionText: '点赞了你的动态',
+		}
+	}
+	matched = text.match(
+		/^(.+?)\s*评论了你的动态(?:《.+?》)?(?:[:：]\s*(.+))?$/,
+	)
+	if (matched?.[1]) {
+		return {
+			actor: matched[1].trim(),
+			actionText: '评论了你的动态',
+			snippet: matched[2]?.trim() || undefined,
+		}
+	}
+	matched = text.match(/^(.+?)\s*回复了你的评论(?:[:：]\s*(.+))?$/)
+	if (matched?.[1]) {
+		return {
+			actor: matched[1].trim(),
+			actionText: '回复了你的评论',
+			snippet: matched[2]?.trim() || undefined,
+		}
+	}
+	return null
+}
+
+const momentNoticeMeta = computed(() => {
+	const content = systemNoticeContentText.value.trim()
+	if (!isMomentNoticeText(content)) return null
+	const payload = noticeStructuredPayload.value || {}
+	const fromUser = asRecord(payload.fromUser)
+	const fallbackFrom = asRecord(payload.from)
+	const parsedFromContent = parseMomentNoticeMeta(content)
+	const actor =
+		pickNoticePayloadText(payload, [
+			'operatorName',
+			'senderName',
+			'fromName',
+			'actorName',
+		]) ||
+		normalizeNoticePayloadText(fromUser?.name) ||
+		normalizeNoticePayloadText(fallbackFrom?.name) ||
+		parsedFromContent?.actor ||
+		'有人'
+	const avatar =
+		normalizeNoticePayloadText(fromUser?.avatar) ||
+		normalizeNoticePayloadText(fromUser?.avatarUrl) ||
+		normalizeNoticePayloadText(fallbackFrom?.avatar) ||
+		normalizeNoticePayloadText(fallbackFrom?.avatarUrl) ||
+		findFieldFromObject(payload, [
+			'fromUserAvatar',
+			'fromUserAvatarUrl',
+			'userAvatar',
+			'userAvatarUrl',
+			'headImg',
+			'headImgUrl',
+			'avatarUrl',
+			'avatar',
+		]) ||
+		pickNoticePayloadText(payload, [
+			'operatorAvatarUrl',
+			'senderAvatarUrl',
+			'fromAvatarUrl',
+			'actorAvatarUrl',
+			'operatorAvatar',
+			'senderAvatar',
+			'fromAvatar',
+			'actorAvatar',
+			'avatarUrl',
+			'avatar',
+		]) ||
+		props.senderAvatar?.trim() ||
+		''
+	let actionText = parsedFromContent?.actionText || '动态提醒'
+	if (!parsedFromContent) {
+		if (/(?:赞了|点赞了)你的动态/.test(content)) actionText = '点赞了你的动态'
+		else if (/评论了你的动态/.test(content)) actionText = '评论了你的动态'
+		else if (/回复了你的评论/.test(content)) actionText = '回复了你的评论'
+	}
+	return {
+		actor,
+		avatar,
+		actionText,
+		snippet: parsedFromContent?.snippet,
+	}
+})
+
+const momentNoticeBodyHtml = computed(() => {
+	const meta = momentNoticeMeta.value
+	if (!meta) return ''
+	const snippetHtml = meta.snippet
+		? `<div class="notice-card-quote">${toNoticeContentHtml(meta.snippet)}</div>`
+		: ''
+	return `<div class="notice-card-rich">${snippetHtml}${buildNoticeActionHtml({
+		actor: meta.actor,
+		actionText: meta.actionText,
+		avatarUrl: meta.avatar,
+	})}</div>`
+})
+
 const systemNoticeTitle = computed(() => {
 	const payload = noticeStructuredPayload.value
 	if (payload) {
@@ -912,10 +1159,24 @@ const systemNoticeTitle = computed(() => {
 			normalizeNoticePayloadText(payload.eventName)
 		if (payloadTitle) return payloadTitle
 	}
+	if (isMomentNoticeText(systemNoticeContentText.value)) {
+		return '动态提醒'
+	}
 	return systemNoticeTemplate.value?.title || noticeTitle.value || ''
 })
 
+const shouldShowSystemNoticeTitle = computed(() => {
+	const title = systemNoticeTitle.value.trim()
+	if (!title) return false
+	const content = systemNoticeContentText.value.trim()
+	if (!content) return true
+	return title !== content
+})
+
 const systemNoticeBodyHtml = computed(() => {
+	if (momentNoticeBodyHtml.value) {
+		return momentNoticeBodyHtml.value
+	}
 	if (systemNoticeTemplate.value?.bodyHtml) {
 		return `<div class="notice-card-rich">${renderEmojiTokensInHtml(systemNoticeTemplate.value.bodyHtml)}</div>`
 	}
@@ -1014,12 +1275,28 @@ const noticeStructuredPayload = computed(() =>
 watch(
 	() => props.content,
 	(nextContent) => {
+		if (!shouldLogSystemNoticeDebug()) return
 		const parsed = extractFirstJsonObject(nextContent || '')
 		if (!parsed) return
 		console.info('[system-notice-debug] raw-content', nextContent)
 		console.info('[system-notice-debug] parsed-json', parsed)
 	},
 	{ immediate: true },
+)
+
+watch(
+	() => momentNoticeMeta.value,
+	(next) => {
+		if (!shouldLogSystemNoticeDebug()) return
+		if (!next) return
+		console.info('[system-notice-debug][render][moment-meta]', {
+			actor: next.actor,
+			actionText: next.actionText,
+			avatar: next.avatar || '',
+			senderAvatarProp: props.senderAvatar || '',
+		})
+	},
+	{ immediate: true, deep: true },
 )
 
 const extractNoticeFieldValue = (keywords: string[]): string | undefined => {
@@ -1410,6 +1687,7 @@ const emit = defineEmits<{
 		ev: MouseEvent,
 		extra: { senderAccount?: string; senderName?: string },
 	): void
+	(e: 'jump-to-quote', messageId: string): void
 }>()
 
 const handleAvatarContextMenu = (e: MouseEvent): void => {
@@ -1459,6 +1737,99 @@ const parseTransferBusinessNo = (content: string): string => {
 	if (dataMatched?.[1]?.trim()) return dataMatched[1].trim()
 	return parseTransferField(content, '交易号')
 }
+
+interface CallSummaryCardPayload {
+	callTypeText: string
+	displayText: string
+	minutes: number
+	seconds: number
+	durationSeconds: number
+	endedAt?: string
+	endReason?: string
+}
+
+const callSummaryPayload = computed<CallSummaryCardPayload | null>(() => {
+	const parsed = extractFirstJsonObject(props.content || '')
+	if (!parsed) return null
+	const bizType = String(
+		findFieldFromObject(parsed, ['bizType', 'biz_type']) || '',
+	)
+		.trim()
+		.toUpperCase()
+	if (bizType !== 'CALL_SUMMARY') return null
+	const callTypeText =
+		String(
+			findFieldFromObject(parsed, ['callTypeText', 'call_type_text']) || '',
+		).trim() || '通话'
+	const durationSecondsRaw = Number(
+		findFieldFromObject(parsed, ['durationSeconds', 'duration_seconds']) || 0,
+	)
+	const durationSeconds = Number.isFinite(durationSecondsRaw)
+		? Math.max(0, Math.floor(durationSecondsRaw))
+		: 0
+	const minutesRaw = Number(findFieldFromObject(parsed, ['minutes']) || 0)
+	const secondsRaw = Number(findFieldFromObject(parsed, ['seconds']) || 0)
+	const minutes = Number.isFinite(minutesRaw)
+		? Math.max(0, Math.floor(minutesRaw))
+		: Math.floor(durationSeconds / 60)
+	const seconds = Number.isFinite(secondsRaw)
+		? Math.max(0, Math.floor(secondsRaw))
+		: durationSeconds % 60
+	const displayText =
+		String(
+			findFieldFromObject(parsed, ['displayText', 'display_text']) || '',
+		).trim() || `[${callTypeText}]：${minutes}分：${seconds}秒`
+	const endedAt = String(findFieldFromObject(parsed, ['endedAt', 'ended_at']) || '').trim()
+	const endReason = String(
+		findFieldFromObject(parsed, ['endReason', 'end_reason']) || '',
+	).trim()
+	return {
+		callTypeText,
+		displayText,
+		minutes,
+		seconds,
+		durationSeconds,
+		endedAt: endedAt || undefined,
+		endReason: endReason || undefined,
+	}
+})
+
+const isCallSummaryCard = computed(
+	() => !!callSummaryPayload.value && !props.isSystemChat,
+)
+
+const callSummaryTypeText = computed(
+	() => callSummaryPayload.value?.callTypeText || '通话',
+)
+
+const callSummaryDisplayText = computed(
+	() => callSummaryPayload.value?.displayText || '[通话]：0分：0秒',
+)
+
+const callSummaryEndedAtText = computed(() => {
+	const endedAt = callSummaryPayload.value?.endedAt
+	if (!endedAt) return ''
+	const date = new Date(endedAt)
+	if (Number.isNaN(date.getTime())) return ''
+	return date.toLocaleString('zh-CN', {
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+	})
+})
+
+const callSummaryEndReasonText = computed(() => {
+	const raw = (callSummaryPayload.value?.endReason || '').toUpperCase()
+	if (!raw) return ''
+	if (raw === 'HANGUP') return '已挂断'
+	if (raw === 'REJECTED') return '已拒绝'
+	if (raw === 'CANCELED') return '已取消'
+	if (raw === 'NO_ANSWER') return '无人接听'
+	if (raw === 'BUSY') return '对方忙线'
+	if (raw === 'FAILED') return '通话失败'
+	return raw
+})
 
 const hasTransferMarker = computed(() =>
 	/\bchat-transfer-card\b/i.test(props.content),
@@ -1696,6 +2067,30 @@ const renderedContent = computed(() => {
 	return renderEmojiTokensInHtml(imageOnlyUrl || decoded)
 })
 
+const quoteSender = computed(() => {
+	if (!props.quote) return ''
+	return (
+		(props.quote as Record<string, unknown>).formName?.toString().trim() ||
+		props.quote.fromName?.trim() ||
+		(props.quote as Record<string, unknown>).fromRealName
+			?.toString()
+			.trim() ||
+		props.quote.from?.trim() ||
+		props.senderName?.trim() ||
+		props.senderAccount?.trim() ||
+		'未知发送者'
+	)
+})
+
+const quoteContentHtml = computed(() => {
+	if (!props.quote) return ''
+	const raw = props.quote.content || ''
+	if (raw === '[图片]') return raw
+	const decoded = decodeHtmlEntitiesDeep(raw, 2).trim()
+	if (decoded) return decoded
+	return '[图片]'
+})
+
 const handleClickEvent = (e: MouseEvent): void => {
 	const target = e.target as HTMLElement
 	const card = target.closest('.chat-cloud-doc-share-card')
@@ -1816,6 +2211,91 @@ onUpdated(attachLoadEvents)
 
 .chat-image-bubble.msg-content-selectable {
 	display: block;
+}
+
+.chat-image-wrapper {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.quote-inline {
+	max-width: 100%;
+	width: 100%;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 18px;
+	border-radius: 10px;
+	backdrop-filter: blur(6px);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 1.1;
+}
+
+.quote-inline-me {
+	background: rgba(255, 255, 255, 0.14);
+	border: 1px solid rgba(219, 238, 255, 0.6);
+	color: #eef4ff;
+	align-self: flex-end;
+}
+
+.quote-inline-other {
+	background: rgba(0, 0, 0, 0.04);
+	border: 1px solid rgba(0, 0, 0, 0.06);
+	color: #1f2937;
+	align-self: flex-start;
+}
+
+.quote-inline-title {
+	font-size: 14px;
+	font-weight: 600;
+	opacity: 0.8;
+}
+
+.quote-inline-body {
+	font-size: 14px;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: inline-block;
+}
+
+.quote-card {
+	background: #f7f9fc;
+	border-radius: 10px;
+	padding: 7px 14px;
+	margin-bottom: 6px;
+	max-width: 100%;
+}
+
+.quote-card-me {
+	border-color: rgba(219, 238, 255, 0.8);
+	background: rgba(255, 255, 255, 0.15);
+	color: #f8fafc;
+}
+
+.quote-card-other {
+	background: #dde8f7;
+	color: #1f2937;
+}
+
+.quote-title {
+	font-size: 12px;
+	color: #718096;
+	margin-bottom: 4px;
+	cursor: pointer;
+}
+
+.quote-card-me .quote-title {
+	color: rgba(187, 203, 216, 0.931);
+}
+
+.quote-body {
+	font-size: 11px;
+	line-height: 1.2;
+	color: inherit;
 }
 
 .chat-bubble-me :deep(a) {
@@ -2123,6 +2603,48 @@ onUpdated(attachLoadEvents)
 .notice-card-system .notice-card-badge {
 	background: #e9f1fb;
 	color: #2f7fe7;
+}
+
+.call-summary-card {
+	min-width: 240px;
+	max-width: 360px;
+	border-radius: 14px;
+	padding: 10px 12px;
+	background: linear-gradient(180deg, #f7f8fa 0%, #eef2f7 100%);
+	border: 1px solid #d5dde8;
+	color: #1f2937;
+}
+
+.call-summary-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.call-summary-type {
+	font-size: 12px;
+	font-weight: 700;
+	color: #334155;
+}
+
+.call-summary-time {
+	font-size: 11px;
+	color: #64748b;
+}
+
+.call-summary-body {
+	margin-top: 8px;
+	font-size: 14px;
+	font-weight: 600;
+	line-height: 1.4;
+	word-break: break-word;
+}
+
+.call-summary-reason {
+	margin-top: 6px;
+	font-size: 12px;
+	color: #6b7280;
 }
 
 .vip-notice-card {

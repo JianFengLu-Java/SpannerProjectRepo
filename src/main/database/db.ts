@@ -118,6 +118,9 @@ function createTables(): Promise<void> {
 									id INTEGER NOT NULL,
 									chatId INTEGER NOT NULL,
 									senderId TEXT,
+									senderAccount TEXT,
+									senderName TEXT,
+									senderAvatar TEXT,
 									text TEXT,
 									timestamp TEXT,
 									type TEXT,
@@ -130,6 +133,7 @@ function createTables(): Promise<void> {
 									reactions TEXT,
 									quotedMessageId TEXT,
 									quotedFromAccount TEXT,
+									quotedFromName TEXT,
 									quotedContent TEXT,
 									PRIMARY KEY (userAccount, chatId, id)
 								)
@@ -209,6 +213,9 @@ async function ensureUserScopedTableColumns(): Promise<void> {
 	await addColumnIfMissing('user_chats', 'lastMessageAt', 'TEXT')
 
 	await addColumnIfMissing('user_messages', 'userAccount', 'TEXT')
+	await addColumnIfMissing('user_messages', 'senderAccount', 'TEXT')
+	await addColumnIfMissing('user_messages', 'senderName', 'TEXT')
+	await addColumnIfMissing('user_messages', 'senderAvatar', 'TEXT')
 	await addColumnIfMissing('user_messages', 'hasResult', 'INTEGER DEFAULT 0')
 	await addColumnIfMissing('user_messages', 'result', 'TEXT')
 	await addColumnIfMissing('user_messages', 'clientMessageId', 'TEXT')
@@ -218,6 +225,7 @@ async function ensureUserScopedTableColumns(): Promise<void> {
 	await addColumnIfMissing('user_messages', 'reactions', 'TEXT')
 	await addColumnIfMissing('user_messages', 'quotedMessageId', 'TEXT')
 	await addColumnIfMissing('user_messages', 'quotedFromAccount', 'TEXT')
+	await addColumnIfMissing('user_messages', 'quotedFromName', 'TEXT')
 	await addColumnIfMissing('user_messages', 'quotedContent', 'TEXT')
 
 	// 查询性能索引：会话排序、历史分页、全局检索定位
@@ -293,6 +301,9 @@ async function ensureUserMessagesPrimaryKey(): Promise<void> {
 				id INTEGER NOT NULL,
 				chatId INTEGER NOT NULL,
 				senderId TEXT,
+				senderAccount TEXT,
+				senderName TEXT,
+				senderAvatar TEXT,
 				text TEXT,
 				timestamp TEXT,
 				type TEXT,
@@ -305,13 +316,14 @@ async function ensureUserMessagesPrimaryKey(): Promise<void> {
 				reactions TEXT,
 				quotedMessageId TEXT,
 				quotedFromAccount TEXT,
+				quotedFromName TEXT,
 				quotedContent TEXT,
 				PRIMARY KEY (userAccount, chatId, id)
 			)
 		`)
 		await runSql(`
-			INSERT OR IGNORE INTO user_messages_v2 (userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedContent)
-			SELECT userAccount, id, chatId, senderId, text, timestamp, type, hasResult, result, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+			INSERT OR IGNORE INTO user_messages_v2 (userAccount, id, chatId, senderId, senderAccount, senderName, senderAvatar, text, timestamp, type, hasResult, result, clientMessageId, serverMessageId, deliveryStatus, sentAt, reactions, quotedMessageId, quotedFromAccount, quotedFromName, quotedContent)
+			SELECT userAccount, id, chatId, senderId, NULL, NULL, NULL, text, timestamp, type, hasResult, result, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 			FROM user_messages
 		`)
 		await runSql('DROP TABLE user_messages')

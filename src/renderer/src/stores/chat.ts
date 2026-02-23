@@ -17,11 +17,20 @@ import systemAvatarUrl from '@renderer/assets/system.svg'
 import {
 	privateChatWs,
 	type PrivateChatAckFrame,
+	type PrivateCallAnsweredFrame,
+	type PrivateCallEndedFrame,
+	type PrivateCallSignalFrame,
 	type PrivateChatErrorFrame,
 	type PrivateIncomingCallFrame,
 	type PrivateChatMessageFrame,
 } from '@renderer/services/privateChatWs'
-import { emitIncomingCall } from '@renderer/services/callSignal'
+import { publishCallSignal } from '@renderer/services/callWindowBridge'
+import {
+	emitCallAnswered,
+	emitCallEnded,
+	emitCallSignal,
+	emitIncomingCall,
+} from '@renderer/services/callSignal'
 import {
 	groupChatApi,
 	type GroupDetail,
@@ -41,6 +50,7 @@ import {
 	messageReactionApi,
 	type ReactionItemDto,
 } from '@renderer/services/messageReactionApi'
+import { useMomentStore } from '@renderer/stores/moment'
 
 interface DbChatItem {
 	id: number
@@ -65,6 +75,9 @@ interface DbMessage {
 	id: number
 	chatId: number
 	senderId: 'me' | 'other'
+	senderAccount?: string
+	senderName?: string
+	senderAvatar?: string
 	text: string
 	timestamp: string
 	type: string
@@ -77,6 +90,7 @@ interface DbMessage {
 	reactions?: string
 	quotedMessageId?: string
 	quotedFromAccount?: string
+	quotedFromName?: string
 	quotedContent?: string
 }
 
@@ -98,6 +112,11 @@ interface HistoryMessageDto {
 	from: string
 	to: string
 	content: string
+	formName?: string
+	fromName?: string
+	fromRealName?: string
+	fromAvatarUrl?: string
+	fromAvatar?: string
 	quote?: MessageQuote
 	clientMessageId?: string | number
 	sentAt?: string
@@ -251,15 +270,37 @@ export const useChatStore = defineStore('chat', () => {
 	const hydratedHistoryChatIds = ref(new Set<number>())
 	const LOCAL_HISTORY_INITIAL_CHUNK_SIZE = 40
 	const REACTION_EVENT_DEDUP_TTL_MS = 15 * 1000
+	const REACTION_OPEN_SYNC_LIMIT = 80
+	const REACTION_OPEN_SYNC_CONCURRENCY = 5
+	const REACTION_OPEN_SYNC_COOLDOWN_MS = 8 * 1000
 	let loadingFriendsPromise: Promise<boolean> | null = null
 	let messageJumpToken = 0
 	const groupSessionSyncAtMap = new Map<string, number>()
 	const recentReactionEventMap = new Map<string, number>()
+	const recentReactionOpenSyncAtMap = new Map<number, number>()
 	const GROUP_SESSION_SYNC_INTERVAL_MS = 60 * 1000
 	const shouldLogChatMergeDebug = (): boolean => {
 		if (!import.meta.env.DEV) return false
 		try {
 			return window.localStorage.getItem('chat-merge-debug') === '1'
+		} catch {
+			return false
+		}
+	}
+
+	const shouldLogReactionDebug = (): boolean => {
+		if (!import.meta.env.DEV) return false
+		try {
+			return window.localStorage.getItem('chat-reaction-debug') === '1'
+		} catch {
+			return false
+		}
+	}
+
+	const shouldLogSystemNoticeDebug = (): boolean => {
+		if (!import.meta.env.DEV) return false
+		try {
+			return window.localStorage.getItem('system-notice-debug') === '1'
 		} catch {
 			return false
 		}
@@ -539,10 +580,92 @@ export const useChatStore = defineStore('chat', () => {
 	}
 
 	const getTextPreview = (content: string): string => {
+		const parseJsonPreview = (raw: string): string => {
+			const text = String(raw || '').trim()
+			if (!text) return ''
+			const tryParse = (input: string): Record<string, unknown> | null => {
+				try {
+					const parsed = JSON.parse(input)
+					if (
+						parsed &&
+						typeof parsed === 'object' &&
+						!Array.isArray(parsed)
+					) {
+						return parsed as Record<string, unknown>
+					}
+				} catch {
+					// ignore
+				}
+				return null
+			}
+			const normalizeText = (value: unknown): string => {
+				if (typeof value === 'string') return value.trim()
+				if (typeof value === 'number' || typeof value === 'boolean') {
+					return String(value)
+				}
+				return ''
+			}
+			const readField = (
+				source: Record<string, unknown>,
+				keys: string[],
+			): string => {
+				for (const key of keys) {
+					const value = normalizeText(source[key])
+					if (value) return value
+				}
+				return ''
+			}
+			const parsed =
+				tryParse(text) ||
+				(() => {
+					const firstBrace = text.indexOf('{')
+					const lastBrace = text.lastIndexOf('}')
+					if (firstBrace >= 0 && lastBrace > firstBrace) {
+						return tryParse(text.slice(firstBrace, lastBrace + 1))
+					}
+					return null
+				})()
+			if (!parsed) return ''
+			const eventType = readField(parsed, ['eventType', 'type']).toLowerCase()
+			const actor = readField(parsed, [
+				'operatorName',
+				'actorName',
+				'senderName',
+				'fromName',
+				'operatorId',
+			])
+			const emoji = readField(parsed, [
+				'reactionEmoji',
+				'reaction',
+				'emoji',
+			])
+			const messagePreview = readField(parsed, [
+				'messagePreview',
+				'messageSnippet',
+				'summary',
+				'messageText',
+				'title',
+				'message',
+				'content',
+			])
+			if (
+				eventType.includes('reaction') ||
+				eventType.includes('reply') ||
+				emoji
+			) {
+				const who = actor || '有人'
+				return `${who} 回复了消息${emoji ? ` ${emoji}` : ''}`
+			}
+			return messagePreview
+		}
+
+		const jsonPreview = parseJsonPreview(content)
+		if (jsonPreview) return jsonPreview
+
 		const plainText = content
 			.replace(/<[^>]*>?/gm, '')
 			.trim()
-			.slice(0, 30)
+
 		return plainText || '[图片]'
 	}
 
@@ -583,6 +706,48 @@ export const useChatStore = defineStore('chat', () => {
 		type: Message['type']
 		senderId: Message['senderId']
 	}): string => {
+		const parseCallSummaryPreview = (content: string): string | null => {
+			const text = (content || '').trim()
+			if (!text) return null
+			const tryParse = (raw: string): Record<string, unknown> | null => {
+				try {
+					const parsed = JSON.parse(raw)
+					if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+						return parsed as Record<string, unknown>
+					}
+				} catch {
+					// ignore
+				}
+				return null
+			}
+			const direct = tryParse(text)
+			const firstBrace = text.indexOf('{')
+			const lastBrace = text.lastIndexOf('}')
+			const sliced =
+				!direct && firstBrace >= 0 && lastBrace > firstBrace
+					? tryParse(text.slice(firstBrace, lastBrace + 1))
+					: null
+			const obj = direct || sliced
+			if (!obj) return null
+			const bizType = String(obj.bizType || obj.biz_type || '')
+				.trim()
+				.toUpperCase()
+			if (bizType !== 'CALL_SUMMARY') return null
+			const displayText = String(obj.displayText || obj.display_text || '').trim()
+			if (displayText) return displayText
+			const callTypeText = String(obj.callTypeText || '').trim() || '通话'
+			const minutes = Number(obj.minutes || 0)
+			const seconds = Number(obj.seconds || 0)
+			if (Number.isFinite(minutes) || Number.isFinite(seconds)) {
+				return `[${callTypeText}]：${Math.max(0, Math.floor(minutes || 0))}分：${Math.max(
+					0,
+					Math.floor(seconds || 0),
+				)}秒`
+			}
+			return `[${callTypeText}]`
+		}
+		const callSummaryPreview = parseCallSummaryPreview(message.text || '')
+		if (callSummaryPreview) return callSummaryPreview
 		if (/\bchat-cloud-doc-share-card\b/i.test(message.text || '')) {
 			const titleMatched = (message.text || '').match(
 				/data-doc-title\s*=\s*["']([^"']+)["']/i,
@@ -751,23 +916,68 @@ export const useChatStore = defineStore('chat', () => {
 		const messageId = String(source.messageId || '').trim()
 		if (!messageId) return undefined
 		const from = String(source.from || '').trim() || undefined
+		const fromName =
+			String(
+				source.formName ||
+					source.fromName ||
+					source.fromRealName ||
+					source.fromNickname ||
+					source.fromUserName ||
+					source.senderName ||
+					source.nickName ||
+					source.nickname ||
+					source.realName ||
+					source.userName ||
+					source.name ||
+					'',
+			).trim() || undefined
 		const content =
 			typeof source.content === 'string' ? source.content : undefined
 		return {
 			messageId,
 			from,
+			fromName,
 			content,
 		}
 	}
 
-	const parseMessageQuoteFromDb = (
-		row: Pick<DbMessage, 'quotedMessageId' | 'quotedFromAccount' | 'quotedContent'>,
-	): MessageQuote | undefined => {
+	const parseMessageQuoteFromDb = (row: DbMessage): MessageQuote | undefined => {
 		return normalizeMessageQuote({
 			messageId: row.quotedMessageId,
 			from: row.quotedFromAccount,
+			fromName: row.quotedFromName,
 			content: row.quotedContent,
-		})
+	})
+}
+
+	const extractMessageIdFromPayload = (value: unknown): string | undefined => {
+		if (!value || typeof value !== 'object') return undefined
+		const source = value as Record<string, unknown>
+		const candidates: unknown[] = [
+			source.messageId,
+			source.serverMessageId,
+			source.id,
+			source.msgId,
+		]
+		const dataNode =
+			source.data && typeof source.data === 'object' && !Array.isArray(source.data)
+				? (source.data as Record<string, unknown>)
+				: null
+		if (dataNode) {
+			candidates.push(
+				dataNode.messageId,
+				dataNode.serverMessageId,
+				dataNode.id,
+				dataNode.msgId,
+			)
+		}
+		for (const candidate of candidates) {
+			if (candidate === null || candidate === undefined) continue
+			if (typeof candidate === 'object') continue
+			const normalized = String(candidate).trim()
+			if (normalized) return normalized
+		}
+		return undefined
 	}
 
 	const serializeMessageReactions = (value?: MessageReaction[]): string => {
@@ -778,14 +988,39 @@ export const useChatStore = defineStore('chat', () => {
 
 	const fromServerReactionItems = (value: unknown): MessageReaction[] => {
 		if (!Array.isArray(value)) return []
-		const mapped = (value as ReactionItemDto[]).map((row) => ({
-			key: String(row?.key || '').trim(),
-			emoji: String(row?.emoji || '').trim() || undefined,
-			imageUrl: String(row?.imageUrl || '').trim() || undefined,
-			userIds: Array.isArray(row?.userIds) ? row.userIds : [],
-			count: Number(row?.count || 0),
-			updatedAt: String(row?.updatedAt || '').trim() || '',
-		}))
+		const mapped = (value as ReactionItemDto[]).map((row) => {
+			const raw = row as unknown as Record<string, unknown>
+			const users = Array.isArray(row?.userIds)
+				? row.userIds
+				: Array.isArray(raw?.users)
+					? (raw.users as string[])
+					: Array.isArray(raw?.userAccounts)
+						? (raw.userAccounts as string[])
+						: []
+			const count = Number(
+				row?.count || raw?.total || raw?.num || raw?.size || 0,
+			)
+			const fallbackCount =
+				count > 0 ? count : users.length > 0 ? users.length : 1
+			return {
+				key: String(row?.key || raw?.reactionKey || '').trim(),
+				emoji:
+					String(row?.emoji || raw?.reactionEmoji || raw?.emoji || '')
+						.trim() || undefined,
+				imageUrl:
+					String(
+						row?.imageUrl ||
+							raw?.url ||
+							raw?.imgUrl ||
+							raw?.image ||
+							'',
+					).trim() || undefined,
+				userIds: users,
+				count: fallbackCount,
+				updatedAt: String(row?.updatedAt || raw?.updateTime || '')
+					.trim() || '',
+			}
+		})
 		return sanitizeMessageReactions(mapped)
 	}
 
@@ -841,23 +1076,167 @@ export const useChatStore = defineStore('chat', () => {
 		currentAccount: string,
 	): Message => {
 		const source = payload as unknown as Record<string, unknown>
+		const extractScalarFromJsonText = (
+			raw: unknown,
+			keys: string[],
+		): string | undefined => {
+			if (typeof raw !== 'string') return undefined
+			const text = raw.trim()
+			if (!text) return undefined
+			const tryParse = (input: string): Record<string, unknown> | null => {
+				try {
+					const parsed = JSON.parse(input)
+					if (
+						parsed &&
+						typeof parsed === 'object' &&
+						!Array.isArray(parsed)
+					) {
+						return parsed as Record<string, unknown>
+					}
+				} catch {
+					// ignore
+				}
+				return null
+			}
+			const parsed =
+				tryParse(text) ||
+				(() => {
+					const firstBrace = text.indexOf('{')
+					const lastBrace = text.lastIndexOf('}')
+					if (firstBrace >= 0 && lastBrace > firstBrace) {
+						return tryParse(text.slice(firstBrace, lastBrace + 1))
+					}
+					return null
+				})()
+			if (!parsed) return undefined
+			const normalizeFieldKey = (value: string): string =>
+				value.replace(/[\s_\-:]/g, '').toLowerCase()
+			const wanted = new Set(keys.map((key) => normalizeFieldKey(key)))
+			const queue: unknown[] = [parsed]
+			while (queue.length) {
+				const node = queue.shift()
+				if (!node || typeof node !== 'object') continue
+				for (const [rawKey, rawValue] of Object.entries(
+					node as Record<string, unknown>,
+				)) {
+					if (!wanted.has(normalizeFieldKey(rawKey))) {
+						if (rawValue && typeof rawValue === 'object') {
+							queue.push(rawValue)
+						}
+						continue
+					}
+					if (
+						typeof rawValue === 'string' ||
+						typeof rawValue === 'number' ||
+						typeof rawValue === 'boolean'
+					) {
+						const value = String(rawValue).trim()
+						if (value) return value
+					}
+				}
+			}
+			return undefined
+		}
+		const normalizeFieldKey = (value: string): string =>
+			value.replace(/[\s_\-:]/g, '').toLowerCase()
+		const findDeepScalarByKeys = (
+			root: unknown,
+			keys: string[],
+			maxDepth = 4,
+		): string | undefined => {
+			if (!root || typeof root !== 'object') return undefined
+			const normalizedKeys = new Set(keys.map((key) => normalizeFieldKey(key)))
+			const queue: Array<{ node: unknown; depth: number }> = [
+				{ node: root, depth: 0 },
+			]
+			while (queue.length) {
+				const current = queue.shift()
+				if (!current) continue
+				if (
+					!current.node ||
+					typeof current.node !== 'object' ||
+					current.depth > maxDepth
+				) {
+					continue
+				}
+				const row = current.node as Record<string, unknown>
+				for (const [rawKey, rawValue] of Object.entries(row)) {
+					const normalizedKey = normalizeFieldKey(rawKey)
+					if (normalizedKeys.has(normalizedKey)) {
+						if (
+							typeof rawValue === 'string' ||
+							typeof rawValue === 'number' ||
+							typeof rawValue === 'boolean'
+						) {
+							const value = String(rawValue).trim()
+							if (value) return value
+						}
+					}
+				}
+				for (const value of Object.values(row)) {
+					if (!value || typeof value !== 'object') continue
+					queue.push({ node: value, depth: current.depth + 1 })
+				}
+			}
+			return undefined
+		}
+		const dataNode =
+			source.data && typeof source.data === 'object' && !Array.isArray(source.data)
+				? (source.data as Record<string, unknown>)
+				: undefined
 		const normalizeId = (value: unknown): string | undefined => {
 			if (value === null || value === undefined) return undefined
+			if (typeof value === 'object') return undefined
 			const normalized = String(value).trim()
 			return normalized || undefined
 		}
+		const fromPayload =
+			typeof payload.from === 'object' && payload.from !== null
+				? (payload.from as Record<string, unknown>)
+				: undefined
+		const fromSource =
+			typeof source.from === 'object' && source.from !== null
+				? (source.from as Record<string, unknown>)
+				: undefined
+		const fromNode = fromPayload || fromSource
+		const senderAccount =
+			normalizeId(payload.from) ||
+			normalizeId(source.from) ||
+			normalizeId(dataNode?.from) ||
+			normalizeId(fromNode?.account) ||
+			normalizeId(fromNode?.userAccount) ||
+			normalizeId(fromNode?.memberAccount) ||
+			normalizeId(fromNode?.uid) ||
+			normalizeId(fromNode?.userId) ||
+			normalizeId(fromNode?.id) ||
+			normalizeId(source.fromAccount) ||
+			normalizeId(source.senderAccount) ||
+			normalizeId(source.account) ||
+			normalizeId(source.userAccount) ||
+			normalizeId(source.sender) ||
+			normalizeId(dataNode?.fromAccount) ||
+			normalizeId(dataNode?.senderAccount) ||
+			normalizeId(dataNode?.account) ||
+			normalizeId(dataNode?.userAccount) ||
+			normalizeId(dataNode?.sender)
 		const timeIdentity =
 			normalizeId(payload.sentAt) ||
 			normalizeId(source.timestamp) ||
 			normalizeId(source.time) ||
-			normalizeId(source.createTime)
+			normalizeId(source.createTime) ||
+			normalizeId(dataNode?.sentAt) ||
+			normalizeId(dataNode?.timestamp) ||
+			normalizeId(dataNode?.time) ||
+			normalizeId(dataNode?.createTime)
 		const sentAt = timeIdentity
 		const quote = normalizeMessageQuote(source.quote)
+		const normalizedServerMessageId =
+			extractMessageIdFromPayload(source) || normalizeId(payload.messageId)
 		return {
 			id: createLocalMessageId(),
 			chatId,
-			senderId: payload.from === currentAccount ? 'me' : 'other',
-			senderAccount: normalizeId(payload.from),
+			senderId: senderAccount === currentAccount ? 'me' : 'other',
+			senderAccount,
 			text: payload.content || '',
 			timestamp: timeIdentity ? formatTimeFromIso(timeIdentity) : '',
 			type: inferMessageType(
@@ -865,16 +1244,98 @@ export const useChatStore = defineStore('chat', () => {
 				'type' in payload ? payload.type : undefined,
 			),
 			senderName:
+				normalizeId(source.formName) ||
 				normalizeId(source.fromName) ||
+				normalizeId(source.fromRealName) ||
+				normalizeId(source.fromNickname) ||
+				normalizeId(source.fromUserName) ||
+				normalizeId(fromNode?.formName) ||
+				normalizeId(fromNode?.fromName) ||
+				normalizeId(fromNode?.realName) ||
+				normalizeId(fromNode?.nickName) ||
+				normalizeId(fromNode?.nickname) ||
+				normalizeId(fromNode?.userName) ||
+				normalizeId(fromNode?.name) ||
 				normalizeId(source.senderName) ||
-				normalizeId(source.name),
+				normalizeId(source.nickName) ||
+				normalizeId(source.nickname) ||
+				normalizeId(source.realName) ||
+				normalizeId(source.userName) ||
+				normalizeId(source.name) ||
+				normalizeId(dataNode?.formName) ||
+				normalizeId(dataNode?.fromName) ||
+				normalizeId(dataNode?.fromRealName) ||
+				normalizeId(dataNode?.fromNickname) ||
+				normalizeId(dataNode?.fromUserName) ||
+				normalizeId(dataNode?.senderName) ||
+				normalizeId(dataNode?.nickName) ||
+				normalizeId(dataNode?.nickname) ||
+				normalizeId(dataNode?.realName) ||
+				normalizeId(dataNode?.userName) ||
+				normalizeId(dataNode?.name) ||
+				extractScalarFromJsonText(payload.content, [
+					'fromName',
+					'senderName',
+					'operatorName',
+					'actorName',
+					'name',
+				]),
 			senderAvatar:
 				normalizeId(source.fromAvatarUrl) ||
+				normalizeId(source.fromAvatar) ||
+				normalizeId(fromNode?.fromAvatarUrl) ||
+				normalizeId(fromNode?.fromAvatar) ||
+				normalizeId(fromNode?.avatarUrl) ||
+				normalizeId(fromNode?.avatar) ||
+				normalizeId(fromNode?.userAvatarUrl) ||
+				normalizeId(fromNode?.userAvatar) ||
+				normalizeId(fromNode?.headImgUrl) ||
+				normalizeId(fromNode?.headImg) ||
 				normalizeId(source.senderAvatar) ||
+				normalizeId(source.senderAvatarUrl) ||
 				normalizeId(source.avatarUrl) ||
-				normalizeId(source.avatar),
+				normalizeId(source.avatar) ||
+				normalizeId(source.userAvatarUrl) ||
+				normalizeId(source.userAvatar) ||
+				normalizeId(source.headImgUrl) ||
+				normalizeId(source.headImg) ||
+				normalizeId(dataNode?.fromAvatarUrl) ||
+				normalizeId(dataNode?.fromAvatar) ||
+				normalizeId(dataNode?.senderAvatar) ||
+				normalizeId(dataNode?.senderAvatarUrl) ||
+				normalizeId(dataNode?.avatarUrl) ||
+				normalizeId(dataNode?.avatar) ||
+				normalizeId(dataNode?.userAvatarUrl) ||
+				normalizeId(dataNode?.userAvatar) ||
+				normalizeId(dataNode?.headImgUrl) ||
+				normalizeId(dataNode?.headImg) ||
+				extractScalarFromJsonText(payload.content, [
+					'fromAvatarUrl',
+					'fromAvatar',
+					'senderAvatarUrl',
+					'senderAvatar',
+					'avatarUrl',
+					'avatar',
+					'userAvatarUrl',
+					'userAvatar',
+					'headImgUrl',
+					'headImg',
+				]) ||
+				findDeepScalarByKeys(source, [
+					'fromAvatarUrl',
+					'fromAvatarURL',
+					'from_avatar_url',
+					'senderAvatarUrl',
+					'senderAvatar',
+					'avatarUrl',
+					'avatar',
+					'userAvatarUrl',
+					'userAvatar',
+					'headImgUrl',
+					'headImg',
+				]),
 			clientMessageId: normalizeId(payload.clientMessageId),
-			serverMessageId: normalizeId(payload.messageId),
+			serverMessageId: normalizedServerMessageId,
 			deliveryStatus: 'sent',
 			sentAt,
 			reactions: fromServerReactionItems(source.reactions),
@@ -1181,13 +1642,30 @@ export const useChatStore = defineStore('chat', () => {
 		saveMessage(message: Message): void {
 			const account = getCurrentAccount()
 			const quote = normalizeMessageQuote(message.quote)
-			window.electron.ipcRenderer.invoke('db-save-message', account, {
-				...message,
+			const payload = {
+				id: message.id,
+				chatId: message.chatId,
+				senderId: message.senderId,
+				senderAccount: message.senderAccount,
+				senderName: message.senderName,
+				senderAvatar: message.senderAvatar,
+				text: message.text,
+				timestamp: message.timestamp,
+				type: message.type,
 				hasResult: message.hasResult ? 1 : 0,
+				result: message.result,
+				clientMessageId: message.clientMessageId,
+				serverMessageId: message.serverMessageId,
+				deliveryStatus: message.deliveryStatus,
+				sentAt: message.sentAt,
 				reactions: serializeMessageReactions(message.reactions),
 				quotedMessageId: quote?.messageId || null,
 				quotedFromAccount: quote?.from || null,
+				quotedFromName: quote?.fromName || null,
 				quotedContent: quote?.content || null,
+			}
+			window.electron.ipcRenderer.invoke('db-save-message', account, {
+				...payload,
 			})
 		},
 		updateLastMessage(
@@ -1561,6 +2039,14 @@ export const useChatStore = defineStore('chat', () => {
 	const handleIncomingWsMessage = async (
 		payload: PrivateChatMessageFrame,
 	): Promise<void> => {
+		const debugSystemNotice = shouldLogSystemNoticeDebug()
+		if (import.meta.env.DEV) {
+			try {
+				console.info('[debug][ws-private-in]', payload)
+			} catch {
+				// ignore
+			}
+		}
 		const normalizeId = (value: unknown): string => {
 			if (value === null || value === undefined) return ''
 			return String(value).trim()
@@ -1571,6 +2057,27 @@ export const useChatStore = defineStore('chat', () => {
 		} catch {
 			return
 		}
+		const senderAccount = normalizeAccount(payload.from)
+		if (isSystemAccount(senderAccount)) {
+			const momentStore = useMomentStore()
+			momentStore.handleSystemNotificationMessage({
+				from: senderAccount,
+				content: payload.content,
+				messageId: payload.messageId,
+				sentAt: payload.sentAt,
+			})
+			if (debugSystemNotice) {
+				console.info('[system-notice-debug][ws-private][incoming]', {
+					messageId: payload.messageId,
+					from: payload.from,
+					fromAvatarUrl: (payload as unknown as Record<string, unknown>)
+						.fromAvatarUrl,
+					senderAvatarUrl: (payload as unknown as Record<string, unknown>)
+						.senderAvatarUrl,
+					content: payload.content,
+				})
+			}
+		}
 
 		const peerAccount =
 			payload.from === currentAccount ? payload.to : payload.from
@@ -1578,7 +2085,8 @@ export const useChatStore = defineStore('chat', () => {
 		if (!chatId) return
 
 		const incomingClientMessageId = normalizeId(payload.clientMessageId)
-		const incomingServerMessageId = normalizeId(payload.messageId)
+		const incomingServerMessageId =
+			extractMessageIdFromPayload(payload) || normalizeId(payload.messageId)
 		const existingList = messages.value[chatId] || []
 		const duplicatedByIdentity = existingList.find(
 			(item) =>
@@ -1590,15 +2098,41 @@ export const useChatStore = defineStore('chat', () => {
 		if (duplicatedByIdentity) {
 			// 发送方回显或重复消息，合并服务器返回字段并标记 sent，避免消息被“覆盖感知”
 			if (duplicatedByIdentity) {
+				const hydratedFromPayload = createLocalMessageFromServer(
+					payload,
+					chatId,
+					currentAccount,
+				)
 				duplicatedByIdentity.serverMessageId =
 					duplicatedByIdentity.serverMessageId ||
 					incomingServerMessageId ||
 					undefined
 				duplicatedByIdentity.sentAt =
 					duplicatedByIdentity.sentAt || payload.sentAt || undefined
+				duplicatedByIdentity.senderAccount =
+					duplicatedByIdentity.senderAccount ||
+					hydratedFromPayload.senderAccount
+				duplicatedByIdentity.senderName =
+					duplicatedByIdentity.senderName ||
+					hydratedFromPayload.senderName
+				duplicatedByIdentity.senderAvatar =
+					duplicatedByIdentity.senderAvatar ||
+					hydratedFromPayload.senderAvatar
+				duplicatedByIdentity.quote =
+					duplicatedByIdentity.quote || hydratedFromPayload.quote
 				duplicatedByIdentity.deliveryStatus = 'sent'
 				duplicatedByIdentity.hasResult = false
 				duplicatedByIdentity.result = undefined
+				if (debugSystemNotice && isSystemAccount(senderAccount)) {
+					console.info('[system-notice-debug][ws-private][dedup-merge]', {
+						messageId: payload.messageId,
+						serverMessageId: incomingServerMessageId,
+						mergedSenderAvatar:
+							duplicatedByIdentity.senderAvatar || '',
+						hydratedSenderAvatar:
+							hydratedFromPayload.senderAvatar || '',
+					})
+				}
 				db.saveMessage(duplicatedByIdentity)
 			}
 			if (incomingClientMessageId)
@@ -1611,6 +2145,14 @@ export const useChatStore = defineStore('chat', () => {
 			chatId,
 			currentAccount,
 		)
+		if (debugSystemNotice && isSystemAccount(senderAccount)) {
+			console.info('[system-notice-debug][ws-private][new-message]', {
+				messageId: payload.messageId,
+				serverMessageId: newMessage.serverMessageId,
+				senderAvatar: newMessage.senderAvatar || '',
+				senderName: newMessage.senderName || '',
+			})
+		}
 
 		if (!messages.value[chatId]) {
 			messages.value[chatId] = []
@@ -1829,6 +2371,13 @@ export const useChatStore = defineStore('chat', () => {
 	const handleIncomingGroupWsMessage = async (
 		payload: GroupChatMessageFrame,
 	): Promise<void> => {
+		if (import.meta.env.DEV) {
+			try {
+				console.info('[debug][ws-group-in]', payload)
+			} catch {
+				// ignore
+			}
+		}
 		let currentAccount = ''
 		try {
 			currentAccount = getCurrentAccount()
@@ -1839,7 +2388,8 @@ export const useChatStore = defineStore('chat', () => {
 		if (!chatId) return
 		scheduleGroupSessionSyncByNo(payload.groupNo)
 		const incomingClientMessageId = payload.clientMessageId?.trim() || ''
-		const incomingServerMessageId = payload.messageId?.trim() || ''
+		const incomingServerMessageId =
+			extractMessageIdFromPayload(payload) || payload.messageId?.trim() || ''
 		const existingList = messages.value[chatId] || []
 		const duplicatedByIdentity = existingList.find(
 			(item) =>
@@ -1849,15 +2399,35 @@ export const useChatStore = defineStore('chat', () => {
 					item.serverMessageId === incomingServerMessageId),
 		)
 		if (duplicatedByIdentity) {
+			const hydratedFromPayload = createLocalMessageFromServer(
+				payload,
+				chatId,
+				currentAccount,
+			)
 			duplicatedByIdentity.serverMessageId =
 				duplicatedByIdentity.serverMessageId ||
 				incomingServerMessageId ||
 				undefined
 			duplicatedByIdentity.sentAt =
 				duplicatedByIdentity.sentAt || payload.sentAt || undefined
+			duplicatedByIdentity.senderAccount =
+				duplicatedByIdentity.senderAccount ||
+				hydratedFromPayload.senderAccount
+			duplicatedByIdentity.senderName =
+				duplicatedByIdentity.senderName || hydratedFromPayload.senderName
+			duplicatedByIdentity.senderAvatar =
+				duplicatedByIdentity.senderAvatar ||
+				hydratedFromPayload.senderAvatar
+			duplicatedByIdentity.quote =
+				duplicatedByIdentity.quote || hydratedFromPayload.quote
 			duplicatedByIdentity.deliveryStatus = 'sent'
 			duplicatedByIdentity.hasResult = false
 			duplicatedByIdentity.result = undefined
+			if (Array.isArray(hydratedFromPayload.reactions)) {
+				duplicatedByIdentity.reactions = sanitizeMessageReactions(
+					hydratedFromPayload.reactions,
+				)
+			}
 			db.saveMessage(duplicatedByIdentity)
 			if (incomingClientMessageId) {
 				pendingMessageMap.value.delete(incomingClientMessageId)
@@ -2220,7 +2790,7 @@ export const useChatStore = defineStore('chat', () => {
 		return rows.map((row) => ({
 			chatId: row.chatId,
 			chatName: row.chatName || '未知会话',
-				message: {
+			message: {
 				id: row.id,
 				chatId: row.chatId,
 				senderId: row.senderId,
@@ -2233,11 +2803,11 @@ export const useChatStore = defineStore('chat', () => {
 				result: row.result,
 				clientMessageId: row.clientMessageId,
 				serverMessageId: row.serverMessageId,
-					deliveryStatus: row.deliveryStatus,
-					sentAt: row.sentAt,
-					quote: parseMessageQuoteFromDb(row),
-				} as Message,
-			}))
+				deliveryStatus: row.deliveryStatus,
+				sentAt: row.sentAt,
+				quote: parseMessageQuoteFromDb(row),
+			} as Message,
+		}))
 	}
 
 	const getComposerQuote = (chatId: number): ComposerMessageQuote | null => {
@@ -2259,11 +2829,22 @@ export const useChatStore = defineStore('chat', () => {
 			source.clientMessageId?.trim() ||
 			String(source.id || '').trim()
 		if (!chatId || !messageId) return false
+		const isImageContent =
+			source.type === 'image' || /<img\b[^>]*>/i.test(source.text || '')
+		const contentSnapshot = isImageContent
+			? '[图片]'
+			: source.text || ''
+		const fromName =
+			source.senderName?.trim() ||
+			source.senderAccount?.trim() ||
+			(source.senderId === 'me'
+				? userInfoStore.userName?.trim() || userInfoStore.account || ''
+				: '')
 		composingQuoteMap.value[chatId] = {
 			messageId,
 			from: source.senderAccount?.trim() || undefined,
-			fromName: source.senderName?.trim() || undefined,
-			content: source.text || '',
+			fromName: fromName || undefined,
+			content: contentSnapshot,
 		}
 		return true
 	}
@@ -2273,12 +2854,21 @@ export const useChatStore = defineStore('chat', () => {
 		if (!clientMessageId) return
 		const pending = pendingMessageMap.value.get(clientMessageId)
 		if (!pending) return
-		updateMessageStatusLocal(pending.chatId, clientMessageId, 'sent')
+		updateMessageStatusLocal(
+			pending.chatId,
+			clientMessageId,
+			'sent',
+			undefined,
+			payload.messageId,
+			payload.ackAt,
+		)
 		pendingMessageMap.value.delete(clientMessageId)
 		syncAction('updateMessageStatus', {
 			chatId: pending.chatId,
 			clientMessageId,
 			status: 'sent',
+			serverMessageId: payload.messageId,
+			ackAt: payload.ackAt,
 		})
 	}
 
@@ -2287,12 +2877,21 @@ export const useChatStore = defineStore('chat', () => {
 		if (!clientMessageId) return
 		const pending = pendingMessageMap.value.get(clientMessageId)
 		if (!pending) return
-		updateMessageStatusLocal(pending.chatId, clientMessageId, 'sent')
+		updateMessageStatusLocal(
+			pending.chatId,
+			clientMessageId,
+			'sent',
+			undefined,
+			payload.messageId,
+			payload.ackAt,
+		)
 		pendingMessageMap.value.delete(clientMessageId)
 		syncAction('updateMessageStatus', {
 			chatId: pending.chatId,
 			clientMessageId,
 			status: 'sent',
+			serverMessageId: payload.messageId,
+			ackAt: payload.ackAt,
 		})
 	}
 
@@ -2316,11 +2915,43 @@ export const useChatStore = defineStore('chat', () => {
 		})
 	}
 
-	const handleIncomingCallSignal = (
-		payload: PrivateIncomingCallFrame,
-	): void => {
-		emitIncomingCall(payload)
-	}
+const handleIncomingCallSignal = (
+	payload: PrivateIncomingCallFrame,
+): void => {
+	emitIncomingCall(payload)
+}
+
+const handleCallAnsweredSignal = (
+	payload: PrivateCallAnsweredFrame,
+): void => {
+	emitCallAnswered(payload)
+}
+
+const handleCallEndedSignal = (
+	payload: PrivateCallEndedFrame,
+): void => {
+	emitCallEnded(payload)
+}
+
+const handleCallSignal = (
+	payload: PrivateCallSignalFrame,
+): void => {
+	const normalizedType = String(
+		payload.signalType || payload.type || '',
+	)
+		.toUpperCase()
+		.trim() as 'OFFER' | 'ANSWER' | 'ICE_CANDIDATE' | 'RENEGOTIATE'
+	emitCallSignal({
+		...payload,
+		signalType: normalizedType,
+		type: normalizedType,
+	})
+	publishCallSignal({
+		...payload,
+		signalType: normalizedType,
+		type: normalizedType,
+	})
+}
 
 	const handleGroupWsError = (payload: GroupChatErrorFrame): void => {
 		const clientMessageId = payload.clientMessageId || ''
@@ -2348,17 +2979,49 @@ export const useChatStore = defineStore('chat', () => {
 	): Promise<number | null> => {
 		const groupNo = String(payload.groupNo || '').trim()
 		if (groupNo) {
-			return ensureGroupSession(groupNo)
+			const existing = findGroupChatByNo(groupNo)
+			if (existing) return existing.id
+			const derived = deriveGroupChatId(groupNo)
+			if (!derived) return null
+			if (messages.value[derived]) return derived
+			return chatlist.value.some((item) => item.id === derived)
+				? derived
+				: null
 		}
 		const from = String(payload.from || '').trim()
 		const to = String(payload.to || '').trim()
 		if (from || to) {
 			const peer = from === currentAccount ? to : from
-			if (peer) return ensureChatSession(peer)
+			if (peer && peer !== currentAccount) {
+				const existing = findPrivateChatByAccount(peer)
+				if (existing) return existing.id
+				const derived = derivePrivateChatId(peer)
+				if (!derived) return null
+				if (messages.value[derived]) return derived
+				return chatlist.value.some((item) => item.id === derived)
+					? derived
+					: null
+			}
 		}
-		const directChatId = Number(payload.chatId || 0)
+		// 私聊 reaction 事件里 chatId 可能是“当前接收端的对端账号”，优先按账号解析。
+		const rawChatId = String(payload.chatId || '').trim()
+		if (rawChatId && rawChatId !== currentAccount) {
+			const existing = findPrivateChatByAccount(rawChatId)
+			if (existing) return existing.id
+			const derived = derivePrivateChatId(rawChatId)
+			if (derived) {
+				if (messages.value[derived]) return derived
+				if (chatlist.value.some((item) => item.id === derived)) {
+					return derived
+				}
+			}
+		}
+		const directChatId = Number(rawChatId || 0)
 		if (Number.isFinite(directChatId) && directChatId !== 0) {
-			return directChatId
+			return chatlist.value.some((item) => item.id === directChatId) ||
+				messages.value[directChatId]
+				? directChatId
+				: null
 		}
 		return null
 	}
@@ -2397,10 +3060,14 @@ export const useChatStore = defineStore('chat', () => {
 		clientMessageId?: string
 	} => {
 		const serverMessageId =
-			String(payload.serverMessageId || '').trim() || undefined
+			extractMessageIdFromPayload(payload) ||
+			String(payload.serverMessageId || '').trim() ||
+			undefined
 		const clientMessageId =
 			String(payload.clientMessageId || '').trim() || undefined
-		const rawMessageId = String(payload.messageId || '').trim()
+		const rawMessageId =
+			extractMessageIdFromPayload(payload) ||
+			String(payload.messageId || '').trim()
 		if (!rawMessageId) {
 			return {
 				id: undefined,
@@ -2423,8 +3090,19 @@ export const useChatStore = defineStore('chat', () => {
 	): string => {
 		const operatorName = String(payload.operatorName || '').trim()
 		if (operatorName) return operatorName
+		const frame = payload as Record<string, unknown>
+		const operatorIdCandidates = [
+			payload.operatorId,
+			frame.operatorAccount,
+			frame.operatorUserId,
+			frame.operatorUid,
+			frame.reactorId,
+			frame.actorId,
+		]
 		const operatorId =
-			String(payload.operatorId || payload.from || '').trim() || ''
+			operatorIdCandidates
+				.map((value) => String(value || '').trim())
+				.find((value) => !!value) || ''
 		if (!operatorId) return '有人'
 		if (operatorId === currentAccount) return '你'
 		const friend = friendStore.friends.find(
@@ -2446,14 +3124,85 @@ export const useChatStore = defineStore('chat', () => {
 		return String(list[0]?.emoji || '').trim()
 	}
 
-	const handleIncomingReactionEvent = async (
-		raw: Record<string, unknown>,
-	): Promise<void> => {
-		const payload = unwrapReactionEventPayload(raw)
+	const shouldHandleReactionEvent = (
+		payload: MessageReactionEventFrame,
+	): boolean => {
+		const frame = payload as Record<string, unknown>
 		const eventType = String(payload.eventType || '')
 			.trim()
 			.toLowerCase()
-		if (eventType && !eventType.includes('reaction')) {
+		if (
+			eventType.includes('reaction') ||
+			eventType.includes('react') ||
+			eventType.includes('reply')
+		) {
+			return true
+		}
+		if (Array.isArray(payload.reactions) && payload.reactions.length > 0) {
+			return true
+		}
+		const singleReactionFields = [
+			frame.reaction,
+			frame.reactionEmoji,
+			frame.reactionKey,
+			frame.emoji,
+		]
+		return singleReactionFields.some(
+			(value) => String(value || '').trim().length > 0,
+		)
+	}
+
+	const fetchReactionSnapshotFromServer = async (
+		chatId: number,
+		identity: {
+			id?: number
+			clientMessageId?: string
+			serverMessageId?: string
+		},
+	): Promise<MessageReaction[] | null> => {
+		const pathIdCandidates: Array<string | number> = []
+		if (identity.serverMessageId?.trim()) {
+			pathIdCandidates.push(identity.serverMessageId.trim())
+		}
+		if (typeof identity.id === 'number') {
+			pathIdCandidates.push(identity.id)
+		}
+		if (identity.clientMessageId?.trim()) {
+			pathIdCandidates.push(identity.clientMessageId.trim())
+		}
+		for (const pathId of pathIdCandidates) {
+			try {
+				const response = await messageReactionApi.getByMessageId(pathId, {
+					chatId,
+					serverMessageId: identity.serverMessageId,
+					clientMessageId: identity.clientMessageId,
+				})
+				const rows = response.data?.data?.reactions
+				if (Array.isArray(rows)) {
+					return fromServerReactionItems(rows)
+				}
+			} catch {
+				// ignore and try next candidate
+			}
+		}
+		return null
+	}
+
+	const handleIncomingReactionEvent = async (
+		raw: Record<string, unknown>,
+	): Promise<void> => {
+		const debugReaction = shouldLogReactionDebug()
+		if (debugReaction) {
+			console.info('[chat-reaction-debug] incoming-raw', raw)
+		}
+		const payload = unwrapReactionEventPayload(raw)
+		if (!shouldHandleReactionEvent(payload)) {
+			if (debugReaction) {
+				console.info('[chat-reaction-debug] filtered-by-type', {
+					eventType: payload.eventType,
+					keys: Object.keys(payload as Record<string, unknown>),
+				})
+			}
 			return
 		}
 		const dedupKey = [
@@ -2471,6 +3220,12 @@ export const useChatStore = defineStore('chat', () => {
 		}
 		const lastTs = recentReactionEventMap.get(dedupKey) || 0
 		if (dedupKey !== '||||' && now - lastTs < REACTION_EVENT_DEDUP_TTL_MS) {
+			if (debugReaction) {
+				console.info('[chat-reaction-debug] filtered-by-dedup', {
+					dedupKey,
+					deltaMs: now - lastTs,
+				})
+			}
 			return
 		}
 		recentReactionEventMap.set(dedupKey, now)
@@ -2481,8 +3236,40 @@ export const useChatStore = defineStore('chat', () => {
 			return
 		}
 		const chatId = await resolveReactionChatId(payload, currentAccount)
-		const reactions = fromServerReactionItems(payload.reactions)
 		const identity = resolveReactionMessageIdentity(payload)
+		let reactions = fromServerReactionItems(payload.reactions)
+		if (debugReaction) {
+			console.info('[chat-reaction-debug] resolved-basic', {
+				currentAccount,
+				chatId,
+				identity,
+				reactionCount: reactions.length,
+				payloadChatId: payload.chatId,
+				payloadFrom: payload.from,
+				payloadTo: payload.to,
+			})
+		}
+		if ((!reactions || reactions.length === 0) && chatId) {
+			const snapshot = await fetchReactionSnapshotFromServer(
+				chatId,
+				identity,
+			)
+			if (snapshot) {
+				reactions = snapshot
+				if (debugReaction) {
+					console.info('[chat-reaction-debug] snapshot-fetched', {
+						chatId,
+						identity,
+						reactionCount: reactions.length,
+					})
+				}
+			} else if (debugReaction) {
+				console.info('[chat-reaction-debug] snapshot-empty', {
+					chatId,
+					identity,
+				})
+			}
+		}
 		let applied = false
 		let appliedChatId = chatId || 0
 		if (chatId) {
@@ -2510,30 +3297,144 @@ export const useChatStore = defineStore('chat', () => {
 				}
 			}
 		}
-		if (!applied) return
-		syncAction('setMessageReactions', {
-			chatId: appliedChatId,
-			messageIdentity: identity,
-			reactions,
-		})
+		// 当前会话消息可能尚未载入内存，先补载本地最近消息再重试命中。
+		if (!applied && chatId) {
+			try {
+				const recentSegment = await db.getMessagesSegment(chatId, 120, 0)
+				if (recentSegment.length) {
+					mergeMessagesToStore(chatId, recentSegment, 'append')
+					applied = setMessageReactionsLocal(
+						chatId,
+						identity,
+						reactions,
+						true,
+					)
+					if (applied) {
+						appliedChatId = chatId
+					}
+				}
+			} catch {
+				// ignore and keep fallback below
+			}
+		}
 
+		// 再尝试拉取最近一页远端历史补偿（跨端登录后仅内存为空的场景）。
+		if (!applied && chatId) {
+			try {
+				const targetChat = chatlist.value.find(
+					(item) => item.id === chatId,
+				)
+				await pullChatHistory(chatId, {
+					groupNo: targetChat?.groupNo,
+					page: 1,
+					size: 50,
+					appendToStore: true,
+				})
+				applied = setMessageReactionsLocal(
+					chatId,
+					identity,
+					reactions,
+					true,
+				)
+				if (applied) {
+					appliedChatId = chatId
+				}
+			} catch {
+				// ignore and continue notify fallback
+			}
+		}
+
+		// 最后兜底：目标会话可能尚未活跃导致未入内存，遍历本地会话最近消息做一次匹配。
+		if (!applied) {
+			const chatIds = chatlist.value.map((item) => item.id)
+			for (const candidateChatId of chatIds) {
+				if (candidateChatId === chatId) continue
+				try {
+					const recentSegment = await db.getMessagesSegment(
+						candidateChatId,
+						80,
+						0,
+					)
+					if (recentSegment.length) {
+						mergeMessagesToStore(
+							candidateChatId,
+							recentSegment,
+							'append',
+						)
+					}
+				} catch {
+					// ignore and continue
+				}
+				const hit = setMessageReactionsLocal(
+					candidateChatId,
+					identity,
+					reactions,
+					true,
+				)
+				if (hit) {
+					applied = true
+					appliedChatId = candidateChatId
+					break
+				}
+			}
+		}
+
+		if (applied) {
+			syncAction('setMessageReactions', {
+				chatId: appliedChatId,
+				messageIdentity: identity,
+				reactions,
+			})
+		}
+		if (debugReaction) {
+			console.info('[chat-reaction-debug] apply-result', {
+				applied,
+				appliedChatId,
+				fallbackChatId: chatId,
+				identity,
+				reactionCount: reactions.length,
+			})
+		}
+
+		const frame = payload as Record<string, unknown>
+		const operatorIdCandidates = [
+			payload.operatorId,
+			frame.operatorAccount,
+			frame.operatorUserId,
+			frame.operatorUid,
+			frame.reactorId,
+			frame.actorId,
+		]
 		const operatorId =
-			String(payload.operatorId || payload.from || '').trim() || ''
+			operatorIdCandidates
+				.map((value) => String(value || '').trim())
+				.find((value) => !!value) || ''
 		const actorLabel = getReactionActorLabel(payload, currentAccount)
-		const isSelfReaction =
-			operatorId === currentAccount || actorLabel === '你'
-		const isReadingCurrentChat =
-			isChatViewActive() && activeChatId.value === appliedChatId
-		if (!isSelfReaction && !isReadingCurrentChat) {
+		const isSelfReaction = !!operatorId && operatorId === currentAccount
+		if (!isSelfReaction) {
 			const chat = chatlist.value.find(
-				(item) => item.id === appliedChatId,
+				(item) => item.id === (applied ? appliedChatId : chatId || 0),
 			)
 			const emojiLabel = getReactionEmojiLabel(payload)
+			if (debugReaction) {
+				console.info('[chat-reaction-debug] notify-trigger', {
+					operatorId,
+					actorLabel,
+					isSelfReaction,
+					chatName: chat?.name || '聊天',
+					emojiLabel,
+				})
+			}
 			triggerSystemMessageReminder({
 				chatName: chat?.name || '聊天',
 				messageText: `${actorLabel || '有人'} 回复了信息${
 					emojiLabel ? ` ${emojiLabel}` : ''
 				}`,
+			})
+		} else if (debugReaction) {
+			console.info('[chat-reaction-debug] notify-skipped-self', {
+				operatorId,
+				currentAccount,
 			})
 		}
 	}
@@ -2566,6 +3467,9 @@ export const useChatStore = defineStore('chat', () => {
 			onAck: handleWsAck,
 			onError: handleWsError,
 			onIncomingCall: handleIncomingCallSignal,
+			onCallAnswered: handleCallAnsweredSignal,
+			onCallEnded: handleCallEndedSignal,
+			onCallSignal: handleCallSignal,
 		})
 		isPrivateWsBound.value = true
 		privateWsBoundAccount.value = account
@@ -2705,6 +3609,8 @@ export const useChatStore = defineStore('chat', () => {
 							data.clientMessageId,
 							data.status,
 							data.result,
+							data.serverMessageId,
+							data.ackAt,
 						)
 						break
 					case 'setMessageReactions':
@@ -2848,6 +3754,8 @@ export const useChatStore = defineStore('chat', () => {
 		clientMessageId: string,
 		status: 'sent' | 'failed',
 		result?: string,
+		serverMessageId?: string,
+		ackAt?: string,
 	): void => {
 		const list = messages.value[chatId]
 		if (!list?.length) return
@@ -2858,6 +3766,15 @@ export const useChatStore = defineStore('chat', () => {
 		target.deliveryStatus = status
 		target.hasResult = status === 'failed'
 		target.result = result
+		const normalizedServerId = String(serverMessageId || '').trim()
+		if (normalizedServerId) {
+			target.serverMessageId = normalizedServerId
+		}
+		const normalizedAckAt = String(ackAt || '').trim()
+		if (normalizedAckAt && !target.sentAt) {
+			target.sentAt = normalizedAckAt
+			target.timestamp = formatTimeFromIso(normalizedAckAt)
+		}
 		db.saveMessage(target)
 	}
 
@@ -2900,6 +3817,102 @@ export const useChatStore = defineStore('chat', () => {
 		target.reactions = sanitizeMessageReactions(reactions)
 		if (persist) db.saveMessage(target)
 		return true
+	}
+
+	const buildReactionDigest = (reactions: MessageReaction[]): string => {
+		const safe = sanitizeMessageReactions(reactions)
+		return safe
+			.map((item) => {
+				const users = Array.isArray(item.userIds)
+					? [...item.userIds].sort().join(',')
+					: ''
+				return `${item.key}|${item.emoji || ''}|${item.imageUrl || ''}|${item.count}|${users}`
+			})
+			.join('||')
+	}
+
+	const syncChatReactionsOnOpen = async (chatId: number): Promise<void> => {
+		const now = Date.now()
+		const lastAt = recentReactionOpenSyncAtMap.get(chatId) || 0
+		if (now - lastAt < REACTION_OPEN_SYNC_COOLDOWN_MS) return
+		recentReactionOpenSyncAtMap.set(chatId, now)
+
+		const list = Array.isArray(messages.value[chatId])
+			? [...messages.value[chatId]]
+			: []
+		if (!list.length) return
+
+		const candidates = list
+			.filter((item) => {
+				return Boolean(
+					item.serverMessageId?.trim() ||
+						item.clientMessageId?.trim() ||
+						Number.isFinite(item.id),
+				)
+			})
+			.sort((a, b) => {
+				const aMs = a.sentAt ? new Date(a.sentAt).getTime() : 0
+				const bMs = b.sentAt ? new Date(b.sentAt).getTime() : 0
+				if (aMs !== bMs) return bMs - aMs
+				return b.id - a.id
+			})
+			.slice(0, REACTION_OPEN_SYNC_LIMIT)
+
+		if (!candidates.length) return
+
+		let changed = 0
+		let cursor = 0
+		const worker = async (): Promise<void> => {
+			for (;;) {
+				const index = cursor
+				cursor += 1
+				if (index >= candidates.length) return
+				const row = candidates[index]
+				const identity = {
+					id: row.id,
+					serverMessageId: row.serverMessageId,
+					clientMessageId: row.clientMessageId,
+				}
+				const snapshot = await fetchReactionSnapshotFromServer(
+					chatId,
+					identity,
+				)
+				if (!snapshot) continue
+				const prev = sanitizeMessageReactions(row.reactions || [])
+				if (buildReactionDigest(prev) === buildReactionDigest(snapshot)) {
+					continue
+				}
+				const applied = setMessageReactionsLocal(
+					chatId,
+					identity,
+					snapshot,
+					true,
+				)
+				if (!applied) continue
+				changed += 1
+				syncAction('setMessageReactions', {
+					chatId,
+					messageIdentity: identity,
+					reactions: snapshot,
+				})
+			}
+		}
+
+		const workers = Array.from({
+			length: Math.min(
+				REACTION_OPEN_SYNC_CONCURRENCY,
+				candidates.length,
+			),
+		}).map(() => worker())
+		await Promise.all(workers)
+
+		if (changed > 0 && shouldLogReactionDebug()) {
+			console.info('[chat-reaction-debug] open-chat-reactions-synced', {
+				chatId,
+				changed,
+				candidates: candidates.length,
+			})
+		}
 	}
 
 	const buildToggledReactions = (
@@ -3110,11 +4123,11 @@ export const useChatStore = defineStore('chat', () => {
 	}
 
 	// --- 暴露给 UI 的方法 ---
-	const setActiveChat = async (id: number): Promise<void> => {
-		if (!isDbInitialized.value) {
-			await init()
-		}
-		activeChatId.value = id
+		const setActiveChat = async (id: number): Promise<void> => {
+			if (!isDbInitialized.value) {
+				await init()
+			}
+			activeChatId.value = id
 
 		if (!localHistoryCursorMap.value.has(id) || !messages.value[id]) {
 			if (!messages.value[id]) {
@@ -3147,19 +4160,20 @@ export const useChatStore = defineStore('chat', () => {
 			}
 		}
 		if (hydratedHistoryChatIds.value.has(id)) return
-		try {
-			const targetChat = chatlist.value.find((item) => item.id === id)
-			await pullChatHistory(id, {
-				groupNo: targetChat?.groupNo,
+			try {
+				const targetChat = chatlist.value.find((item) => item.id === id)
+				await pullChatHistory(id, {
+					groupNo: targetChat?.groupNo,
 				page: 1,
 				size: 20,
 				appendToStore: true,
 			})
 			hydratedHistoryChatIds.value.add(id)
-		} catch (error) {
-			console.warn('拉取聊天记录失败:', error)
+			} catch (error) {
+				console.warn('拉取聊天记录失败:', error)
+			}
+			void syncChatReactionsOnOpen(id)
 		}
-	}
 
 	const saveDraft = (
 		id: number,
@@ -3457,7 +4471,10 @@ export const useChatStore = defineStore('chat', () => {
 	const getGroupMembers = async (groupNo: string): Promise<GroupMember[]> => {
 		const normalized = groupNo.trim()
 		if (!normalized) return []
-		const response = await groupChatApi.getGroupMembers(normalized)
+		const response = await groupChatApi.getGroupMembers(normalized, {
+			page: 1,
+			size: 500,
+		})
 		const payload = response.data?.data
 		const pagedRecords =
 			payload && 'records' in payload && Array.isArray(payload.records)
@@ -3467,7 +4484,301 @@ export const useChatStore = defineStore('chat', () => {
 			payload && 'members' in payload && Array.isArray(payload.members)
 				? payload.members
 				: []
-		const members = pagedRecords.length ? pagedRecords : legacyMembers
+		const listMembers =
+			payload && 'list' in payload && Array.isArray(payload.list)
+				? payload.list
+				: []
+		const itemsMembers =
+			payload && 'items' in payload && Array.isArray(payload.items)
+				? payload.items
+				: []
+		const rowsMembers =
+			payload && 'rows' in payload && Array.isArray(payload.rows)
+				? payload.rows
+				: []
+		const contentMembers =
+			payload && 'content' in payload && Array.isArray(payload.content)
+				? payload.content
+				: []
+		const sourceMembers = pagedRecords.length
+			? pagedRecords
+			: legacyMembers.length
+				? legacyMembers
+				: listMembers.length
+					? listMembers
+					: itemsMembers.length
+						? itemsMembers
+						: rowsMembers.length
+							? rowsMembers
+							: contentMembers
+		const normalizeText = (value: unknown): string => {
+			if (value === null || value === undefined) return ''
+			return String(value).trim()
+		}
+		const pickRecord = (value: unknown): Record<string, unknown> | null => {
+			if (!value || typeof value !== 'object' || Array.isArray(value)) {
+				return null
+			}
+			return value as Record<string, unknown>
+		}
+		const normalizeBoolean = (value: unknown): boolean | undefined => {
+			if (typeof value === 'boolean') return value
+			if (typeof value === 'number') return value > 0
+			if (typeof value === 'string') {
+				const normalizedValue = value.trim().toLowerCase()
+				if (
+					normalizedValue === 'true' ||
+					normalizedValue === '1' ||
+					normalizedValue === 'yes' ||
+					normalizedValue === 'y' ||
+					normalizedValue === 'vip'
+				) {
+					return true
+				}
+				if (
+					normalizedValue === 'false' ||
+					normalizedValue === '0' ||
+					normalizedValue === 'no' ||
+					normalizedValue === 'n'
+				) {
+					return false
+				}
+			}
+			return undefined
+		}
+		const normalizePositiveNumber = (value: unknown): number | undefined => {
+			if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+				return Math.floor(value)
+			}
+			if (typeof value === 'string') {
+				const parsed = Number(value.trim())
+				if (Number.isFinite(parsed) && parsed > 0) {
+					return Math.floor(parsed)
+				}
+			}
+			return undefined
+		}
+		const findDeepScalarByKeys = (
+			root: unknown,
+			keys: string[],
+			maxDepth = 4,
+		): string | undefined => {
+			if (!root || typeof root !== 'object') return undefined
+			const normalizeKey = (value: string): string =>
+				value.replace(/[\s_\-:]/g, '').toLowerCase()
+			const wanted = new Set(keys.map((key) => normalizeKey(key)))
+			const queue: Array<{ node: unknown; depth: number }> = [
+				{ node: root, depth: 0 },
+			]
+			while (queue.length) {
+				const current = queue.shift()
+				if (!current) continue
+				if (
+					!current.node ||
+					typeof current.node !== 'object' ||
+					Array.isArray(current.node) ||
+					current.depth > maxDepth
+				) {
+					continue
+				}
+				const row = current.node as Record<string, unknown>
+				for (const [rawKey, rawValue] of Object.entries(row)) {
+					if (wanted.has(normalizeKey(rawKey))) {
+						if (
+							typeof rawValue === 'string' ||
+							typeof rawValue === 'number' ||
+							typeof rawValue === 'boolean'
+						) {
+							const value = String(rawValue).trim()
+							if (value) return value
+						}
+					}
+					if (rawValue && typeof rawValue === 'object') {
+						queue.push({ node: rawValue, depth: current.depth + 1 })
+					}
+				}
+			}
+			return undefined
+		}
+		const normalizeRole = (value: unknown): GroupRole => {
+			const role = normalizeText(value).toUpperCase()
+			if (role === 'OWNER' || role === 'ADMIN' || role === 'MEMBER') {
+				return role as GroupRole
+			}
+			return 'MEMBER'
+		}
+		const members = sourceMembers
+			.map((raw) => {
+				const row = raw as unknown as Record<string, unknown>
+				const userInfo = pickRecord(row.userInfo)
+				const memberInfo = pickRecord(row.memberInfo)
+				const profile = pickRecord(row.profile)
+				const account =
+					normalizeText(row.account) ||
+					normalizeText(row.userAccount) ||
+					normalizeText(row.memberAccount) ||
+					normalizeText(row.fromAccount) ||
+					normalizeText(row.uid) ||
+					normalizeText(row.userId) ||
+					normalizeText(memberInfo?.account) ||
+					normalizeText(memberInfo?.userAccount) ||
+					normalizeText(memberInfo?.uid) ||
+					normalizeText(memberInfo?.userId) ||
+					normalizeText(userInfo?.account) ||
+					normalizeText(userInfo?.userAccount) ||
+					normalizeText(userInfo?.uid) ||
+					normalizeText(userInfo?.userId) ||
+					normalizeText(
+						findDeepScalarByKeys(row, [
+							'account',
+							'userAccount',
+							'memberAccount',
+							'fromAccount',
+							'uid',
+							'userId',
+							'id',
+						]),
+					)
+				if (!account) return null
+				const isVip =
+					normalizeBoolean(row.isVip) ??
+					normalizeBoolean(memberInfo?.isVip) ??
+					normalizeBoolean(userInfo?.isVip) ??
+					normalizeBoolean(profile?.isVip) ??
+					normalizeBoolean(
+						findDeepScalarByKeys(row, [
+							'isVip',
+							'memberIsVip',
+							'userIsVip',
+							'vipFlag',
+						]),
+					)
+				const vipLevel =
+					normalizePositiveNumber(row.vipLevel) ||
+					normalizePositiveNumber(memberInfo?.vipLevel) ||
+					normalizePositiveNumber(userInfo?.vipLevel) ||
+					normalizePositiveNumber(profile?.vipLevel) ||
+					normalizePositiveNumber(
+						findDeepScalarByKeys(row, [
+							'vipLevel',
+							'memberLevel',
+							'vipGrade',
+							'level',
+						]),
+					)
+				return {
+					account,
+					name:
+						normalizeText(row.name) ||
+						normalizeText(row.displayName) ||
+						normalizeText(row.nickName) ||
+						normalizeText(row.nickname) ||
+						normalizeText(row.memberName) ||
+						normalizeText(row.memberNickName) ||
+						normalizeText(row.groupNickName) ||
+						normalizeText(row.realName) ||
+						normalizeText(row.userName) ||
+						normalizeText(memberInfo?.name) ||
+						normalizeText(memberInfo?.displayName) ||
+						normalizeText(memberInfo?.nickName) ||
+						normalizeText(memberInfo?.nickname) ||
+						normalizeText(memberInfo?.realName) ||
+						normalizeText(memberInfo?.userName) ||
+						normalizeText(userInfo?.name) ||
+						normalizeText(userInfo?.displayName) ||
+						normalizeText(userInfo?.nickName) ||
+						normalizeText(userInfo?.nickname) ||
+						normalizeText(userInfo?.realName) ||
+						normalizeText(userInfo?.userName) ||
+						normalizeText(profile?.name) ||
+						normalizeText(profile?.displayName) ||
+						normalizeText(profile?.nickName) ||
+						normalizeText(profile?.nickname) ||
+						normalizeText(profile?.realName) ||
+						normalizeText(profile?.userName) ||
+						normalizeText(profile?.remarkName) ||
+						normalizeText(
+							findDeepScalarByKeys(row, [
+								'displayName',
+								'name',
+								'nickName',
+								'nickname',
+								'realName',
+								'userName',
+								'groupNickName',
+								'groupNick',
+								'remarkName',
+								'alias',
+							]),
+						) ||
+						undefined,
+					avatarUrl:
+						normalizeText(row.avatarUrl) ||
+						normalizeText(row.avatar) ||
+						normalizeText(row.avatarPath) ||
+						normalizeText(row.portrait) ||
+						normalizeText(row.userAvatarUrl) ||
+						normalizeText(row.userAvatar) ||
+						normalizeText(row.headImgUrl) ||
+						normalizeText(row.headImg) ||
+						normalizeText(memberInfo?.avatarUrl) ||
+						normalizeText(memberInfo?.avatar) ||
+						normalizeText(memberInfo?.avatarPath) ||
+						normalizeText(memberInfo?.portrait) ||
+						normalizeText(memberInfo?.userAvatarUrl) ||
+						normalizeText(memberInfo?.userAvatar) ||
+						normalizeText(memberInfo?.headImgUrl) ||
+						normalizeText(memberInfo?.headImg) ||
+						normalizeText(userInfo?.avatarUrl) ||
+						normalizeText(userInfo?.avatar) ||
+						normalizeText(userInfo?.avatarPath) ||
+						normalizeText(userInfo?.portrait) ||
+						normalizeText(userInfo?.userAvatarUrl) ||
+						normalizeText(userInfo?.userAvatar) ||
+						normalizeText(userInfo?.headImgUrl) ||
+						normalizeText(userInfo?.headImg) ||
+						normalizeText(profile?.avatarUrl) ||
+						normalizeText(profile?.avatar) ||
+						normalizeText(profile?.avatarPath) ||
+						normalizeText(profile?.portrait) ||
+						normalizeText(
+							findDeepScalarByKeys(row, [
+								'avatarUrl',
+								'avatar',
+								'avatarPath',
+								'portrait',
+								'userAvatarUrl',
+								'userAvatar',
+								'headImgUrl',
+								'headImg',
+								'headUrl',
+								'icon',
+							]),
+						) ||
+						undefined,
+					role: normalizeRole(
+						row.role ||
+							row.memberRole ||
+							memberInfo?.role ||
+							memberInfo?.memberRole,
+					),
+					isVip,
+					vipActive: isVip,
+					vipLevel,
+					userInfo: userInfo || undefined,
+					joinedAt: normalizeText(row.joinedAt) || undefined,
+					status: normalizeText(row.status) || undefined,
+					muted:
+						typeof row.muted === 'boolean'
+							? row.muted
+							: undefined,
+					blacklisted:
+						typeof row.blacklisted === 'boolean'
+							? row.blacklisted
+							: undefined,
+				} as GroupMember
+			})
+			.filter((item): item is GroupMember => !!item)
 		const countFromApi =
 			payload && 'count' in payload
 				? payload.count
@@ -3712,11 +5023,11 @@ export interface Message {
 export interface MessageQuote {
 	messageId: string
 	from?: string
+	fromName?: string
 	content?: string
 }
 
 export interface ComposerMessageQuote extends MessageQuote {
-	fromName?: string
 }
 
 export interface MessageReaction {

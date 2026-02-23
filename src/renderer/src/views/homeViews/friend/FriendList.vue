@@ -298,6 +298,7 @@
 						embedded
 						:friend-data="selectedFriendDetailModel"
 						@message="handleFriendDetailMessage"
+						@voice-video="handleFriendDetailVoiceVideo"
 						@delete-friend="handleFriendDetailDelete"
 					/>
 				</div>
@@ -798,6 +799,7 @@ import {
 	groupChatApi,
 	type GroupRole,
 } from '@renderer/services/groupChatApi'
+import { videoCallApi } from '@renderer/services/videoCallApi'
 
 const friendStore = useFriendStore()
 const chatStore = useChatStore()
@@ -854,6 +856,8 @@ interface RequestHistoryRecord {
 	createdTime: string
 	updateTime: string
 }
+
+type CallType = 'audio' | 'video'
 
 const requestHistoryRecords = ref<RequestHistoryRecord[]>([])
 const historyStatusFilter = ref<RequestStatusFilter>('ALL')
@@ -1254,10 +1258,11 @@ const loadMoreHistory = async (): Promise<void> => {
 }
 
 
-const startChat = async (friend: Friend): Promise<void> => {
+const startChat = async (friend: Friend): Promise<number> => {
 	const chatId = await chatStore.getOrCreateChat(friend)
 	await chatStore.setActiveChat(chatId)
 	router.push({ name: 'chat' })
+	return chatId
 }
 
 const handleFriendDetailMessage = async (profile: FriendModel): Promise<void> => {
@@ -1271,10 +1276,51 @@ const handleFriendDetailMessage = async (profile: FriendModel): Promise<void> =>
 	await startChat(target)
 }
 
+const handleFriendDetailVoiceVideo = async (
+	profile: FriendModel,
+	callType: CallType,
+): Promise<void> => {
+	const target = friendStore.friends.find(
+		(item) => item.id === profile.id || item.uid === profile.id,
+	)
+	if (!target) {
+		message.warning('未找到该好友，无法发起通话')
+		return
+	}
+	const chatId = await startChat(target)
+	try {
+		const response = await videoCallApi.createCall({
+			calleeAccount: target.id,
+			type: callType === 'audio' ? 'AUDIO' : 'VIDEO',
+		})
+		const callId = String(
+			response.data?.data?.callId ||
+				response.data?.data?.callid ||
+				response.data?.data?.id ||
+				'',
+		).trim()
+		if (!callId) {
+			message.error('发起通话失败：缺少 callId')
+			return
+		}
+		window.api.openMockVideoCallWindow({
+			chatId,
+			chatName: target.remark?.trim() || target.name,
+			chatAvatar: target.avatar,
+			type: callType,
+			callId,
+			peerAccount: target.id,
+			role: 'caller',
+		})
+	} catch (error) {
+		console.warn('发起好友通话失败:', error)
+		message.error('发起通话失败，请稍后重试')
+	}
+}
+
 const handleFriendDetailDelete = async (profile: FriendModel): Promise<void> => {
 	try {
 		await friendStore.deleteFriend(profile.id)
-		message.success('好友已删除')
 	} catch {
 		message.error('删除失败，请稍后再试')
 	}

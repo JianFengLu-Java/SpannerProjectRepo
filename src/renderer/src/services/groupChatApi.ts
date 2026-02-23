@@ -86,6 +86,10 @@ export interface GroupMember {
 	name?: string
 	avatarUrl?: string
 	role: GroupRole
+	isVip?: boolean
+	vipActive?: boolean
+	vipLevel?: number
+	userInfo?: Record<string, unknown>
 	joinedAt?: string
 	status?: string
 	muted?: boolean
@@ -111,9 +115,17 @@ export interface GroupHistoryMessageDto {
 	groupNo: string
 	from: string
 	content: string
+	formName?: string
+	fromName?: string
+	fromRealName?: string
+	fromAvatarUrl?: string
+	fromAvatar?: string
 	quote?: {
 		messageId: string
 		from?: string
+		formName?: string
+		fromName?: string
+		fromRealName?: string
 		content?: string
 	}
 	clientMessageId?: string | number

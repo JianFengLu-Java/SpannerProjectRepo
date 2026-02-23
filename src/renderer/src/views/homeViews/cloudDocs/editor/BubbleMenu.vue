@@ -175,14 +175,19 @@ const onLinkClick = (): void => {
 	gap: 4px;
 	padding: 8px;
 	border-radius: 8px;
-	background: #ffffff;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);
+	background: var(--color-card-bg);
+	border: 1px solid color-mix(in srgb, var(--color-border-default) 86%, transparent);
+	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 
 .bubble-divider {
 	width: 1px;
 	height: 16px;
-	background: #e0e0e0;
+	background: var(--color-border-default);
 	margin: 0 4px;
+}
+
+:global(.dark) .bubble-menu-root {
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
 }
 </style>
